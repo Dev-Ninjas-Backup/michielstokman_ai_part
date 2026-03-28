@@ -11,7 +11,7 @@ from app.schemas.schema_ai import (
     ResonanceRequest,
     ResonanceResponse,
 )
-from app.utils.llm import get_story_llm
+from app.core.llm import get_story_llm
 
 # Mock in-memory database or Redis layer for tracking async job statuses
 fake_job_tracker: Dict[str, str] = {}
