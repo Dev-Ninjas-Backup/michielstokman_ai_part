@@ -1,17 +1,17 @@
-import os
 import requests
-from typing import Optional
-from dotenv import load_dotenv
 from langchain_openai import ChatOpenAI
-load_dotenv()
+from app.core.config import settings
 
 def get_story_llm(temperature: float = 0.8, model_name: str = "grok-beta"):
     """
     Returns an instance of Grok for story generation.
     ...
     """
+    if not settings.XAI_API_KEY:
+        raise ValueError("XAI_API_KEY is missing in configuration")
+
     return ChatOpenAI(
-        api_key=os.environ.get("XAI_API_KEY"),
+        api_key=settings.XAI_API_KEY,
         base_url="https://api.x.ai/v1",
         model=model_name,
         temperature=temperature
@@ -27,16 +27,15 @@ def generate_voice_elevenlabs(
     Returns the generated audio as bytes.
     Requires ELEVENLABS_API_KEY environment variable.
     """
-    api_key = os.environ.get("ELEVENLABS_API_KEY")
-    if not api_key:
-        api_key = "your-elevenlabs-api-key" # Fallback/placeholder
+    if not settings.ELEVENLABS_API_KEY:
+        raise ValueError("ELEVENLABS_API_KEY is missing in configuration")
 
     url = f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}"
     
     headers = {
         "Accept": "audio/mpeg",
         "Content-Type": "application/json",
-        "xi-api-key": api_key
+        "xi-api-key": settings.ELEVENLABS_API_KEY
     }
     
     data = {

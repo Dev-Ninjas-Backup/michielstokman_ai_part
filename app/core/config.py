@@ -1,37 +1,35 @@
 import os
+
 from dotenv import load_dotenv
-from pydantic import Field
-from pydantic_settings import BaseSettings
 
 load_dotenv()
 
-class Settings(BaseSettings):
-    # LLM Settings
-    XAI_API_KEY: str = Field(..., env="XAI_API_KEY")
-    ELEVENLABS_API_KEY: str = Field(..., env="ELEVENLABS_API_KEY")
 
-    # Vector DB Settings
-    PINECONE_API_KEY: str = Field(..., env="PINECONE_API_KEY")
-    PINECONE_ENVIRONMENT: str = Field(..., env="PINECONE_ENVIRONMENT")
+class Settings:
+    def __init__(self) -> None:
+        # LLM Settings
+        self.XAI_API_KEY: str | None = os.getenv("XAI_API_KEY")
+        self.ELEVENLABS_API_KEY: str | None = os.getenv("ELEVENLABS_API_KEY")
 
-    # Database Settings
-    DB_USER: str = Field("postgres", env="DB_USER")
-    DB_PASSWORD: str = Field("password", env="DB_PASSWORD")
-    DB_HOST: str = Field("localhost", env="DB_HOST")
-    DB_PORT: str = Field("5432", env="DB_PORT")
-    DB_NAME: str = Field("michielstokman_db", env="DB_NAME")
+        # Vector DB Settings
+        self.PINECONE_API_KEY: str | None = os.getenv("PINECONE_API_KEY")
+        self.PINECONE_ENVIRONMENT: str | None = os.getenv("PINECONE_ENVIRONMENT")
 
-    # S3 Settings
-    AWS_ACCESS_KEY_ID: str = Field(None, env="AWS_ACCESS_KEY_ID")
-    AWS_SECRET_ACCESS_KEY: str = Field(None, env="AWS_SECRET_ACCESS_KEY")
-    AWS_BUCKET_NAME: str = Field(None, env="AWS_BUCKET_NAME")
+        # Database Settings
+        self.DB_USER: str = os.getenv("DB_USER", "postgres")
+        self.DB_PASSWORD: str = os.getenv("DB_PASSWORD", "password")
+        self.DB_HOST: str = os.getenv("DB_HOST", "localhost")
+        self.DB_PORT: str = os.getenv("DB_PORT", "5432")
+        self.DB_NAME: str = os.getenv("DB_NAME", "michielstokman_db")
+
+        # S3 Settings
+        self.AWS_ACCESS_KEY_ID: str | None = os.getenv("AWS_ACCESS_KEY_ID")
+        self.AWS_SECRET_ACCESS_KEY: str | None = os.getenv("AWS_SECRET_ACCESS_KEY")
+        self.AWS_BUCKET_NAME: str | None = os.getenv("AWS_BUCKET_NAME")
 
     @property
     def DATABASE_URL(self) -> str:
-        """Constructs the async PostgreSQL connection string."""
-        return f"postgresql+asyncpg://{self.DB_USER}:{self.DB_PASSWORD}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
-
-    class Config:
-        env_file = ".env"
+        """Constructs the SQLAlchemy sync PostgreSQL connection string."""
+        return f"postgresql+psycopg2://{self.DB_USER}:{self.DB_PASSWORD}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
 
 settings = Settings()
