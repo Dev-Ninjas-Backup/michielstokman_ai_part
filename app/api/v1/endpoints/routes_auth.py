@@ -17,9 +17,10 @@ def signup(user_in: UserCreate, db: Session = Depends(get_db)):
 
 
 @router.post("/login", response_model=Token)
-def login(db: Session = Depends(get_db), form_data: OAuth2PasswordRequestForm = Depends()):
+def login(user_in: UserLogin, db: Session = Depends(get_db)):
     """
-    OAuth2 compatible token login, getting an access token for future requests.
-    Note: OAuth2Form expects the email to be passed in the 'username' field.
+    Login endpoint to get an access token for future requests.
+    Expects a standard JSON body with 'email' and 'password'.
     """
-    return authenticate_user(db, email=form_data.username, password=form_data.password)
+    return authenticate_user(db, email=user_in.email, password=user_in.password)
+
