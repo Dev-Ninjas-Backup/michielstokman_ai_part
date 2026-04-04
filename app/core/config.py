@@ -27,6 +27,11 @@ class Settings:
         self.AWS_SECRET_ACCESS_KEY: str | None = os.getenv("AWS_SECRET_ACCESS_KEY")
         self.AWS_BUCKET_NAME: str | None = os.getenv("AWS_BUCKET_NAME")
 
+        # Security / JWT
+        self.SECRET_KEY: str = os.getenv("SECRET_KEY", "dev_fallback_secret_key_change_in_prod")
+        self.ALGORITHM: str = os.getenv("ALGORITHM", "HS256")
+        self.ACCESS_TOKEN_EXPIRE_MINUTES: int = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "10080"))
+
     @property
     def DATABASE_URL(self) -> str:
         """Constructs the SQLAlchemy sync PostgreSQL connection string."""
