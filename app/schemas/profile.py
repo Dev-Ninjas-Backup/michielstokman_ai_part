@@ -1,0 +1,38 @@
+from typing import Optional
+from pydantic import BaseModel, ConfigDict
+from uuid import UUID
+
+class UserProfileBase(BaseModel):
+    # Step 1: Demographics
+    true_name: Optional[str] = None
+    age: Optional[int] = None
+    country: Optional[str] = None
+    city: Optional[str] = None
+    region: Optional[str] = None
+    education: Optional[str] = None
+    annual_income: Optional[str] = None
+    gender: Optional[str] = None
+    sexual_orientation: Optional[str] = None
+
+    # Step 2: Life Phase
+    life_phase: Optional[str] = None
+
+    # Step 3: Priorities (Slider values)
+    slider_desire_relationship: Optional[int] = None
+    slider_life_purpose: Optional[int] = None
+    slider_career_money: Optional[int] = None
+    slider_true_self: Optional[int] = None
+    slider_security_energy: Optional[int] = None
+    slider_free_freedom: Optional[int] = None
+    slider_health_body: Optional[int] = None
+    slider_enlightenment: Optional[int] = None
+    slider_social_relational: Optional[int] = None
+
+class UserProfileUpdate(UserProfileBase):
+    pass
+
+class UserProfileResponse(UserProfileBase):
+    id: UUID
+    user_id: UUID
+
+    model_config = ConfigDict(from_attributes=True)
