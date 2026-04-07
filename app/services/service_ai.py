@@ -90,9 +90,9 @@ class AIService:
         """
         try:
             # --- EXTERNAL API / LOGIC COMMENTS ---
-            # 1. Grok Story Generation Logic:
+            # 1. SuperGrok Story Generation Logic:
             #    from app.utils.llm import get_story_llm
-            #    grok_llm = get_story_llm(model_name="grok-beta")
+            #    grok_llm = get_story_llm(model_name="grok-3")  # SuperGrok
             #    script = grok_llm.invoke(f"Write a {format} about {topic}...")
             #
             # 2. ElevenLabs TTS logic:

@@ -2,10 +2,11 @@ import requests
 from langchain_openai import ChatOpenAI
 from app.core.config import settings
 
-def get_story_llm(temperature: float = 0.8, model_name: str = "grok-beta"):
+def get_story_llm(temperature: float = 0.8, model_name: str = "grok-3"):
     """
-    Returns an instance of Grok for story generation.
-    ...
+    Returns an instance of SuperGrok (grok-3) for story generation.
+    Uses the xAI API (https://api.x.ai/v1) — requires XAI_API_KEY in environment.
+    Available models: grok-3, grok-3-fast, grok-3-mini, grok-3-mini-fast
     """
     if not settings.XAI_API_KEY:
         raise ValueError("XAI_API_KEY is missing in configuration")
