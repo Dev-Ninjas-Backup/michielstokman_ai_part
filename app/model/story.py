@@ -36,7 +36,11 @@ class Story(Base):
     track_id = Column(String, nullable=True)
 
     # Snapshot of the user's profile context at generation time
+    country_city = Column(String, nullable=True)
     life_phase = Column(String, nullable=True)
+    relationship_status = Column(String, nullable=True)
+    deepest_desire_fear = Column(String, nullable=True)
+    specific_trigger = Column(String, nullable=True)
     emotional_context = Column(JSONB, nullable=True)   # slider values dict
     high_intensity = Column(Boolean, default=False, nullable=False)
 

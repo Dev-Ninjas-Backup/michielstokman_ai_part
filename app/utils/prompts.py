@@ -174,7 +174,10 @@ def build_user_context(request: StoryGenerateRequest) -> str:
     """
     age = str(request.user_age) if request.user_age else "Unknown"
     gender = request.user_gender if request.user_gender else "Not specified"
+    country_city = request.country_city if request.country_city else "Not specified"
     life_phase = request.life_phase if request.life_phase else "Not specified"
+    relationship_status = request.relationship_status if request.relationship_status else "Not specified"
+    deepest_desire_fear = request.deepest_desire_fear if request.deepest_desire_fear else "Not specified"
     
     # sliders -> core emotional state
     emotions = []
@@ -184,19 +187,25 @@ def build_user_context(request: StoryGenerateRequest) -> str:
         emotions.append("Current session state: " + ", ".join(f"{k.replace('_', ' ')}={v}" for k, v in request.session_sliders.items()))
     core_emotional_state = " | ".join(emotions) if emotions else "Seeking understanding"
 
-    track_info = f"Listened to track {request.track_id}" if request.track_id else "Not specified"
+    trigger_parts = []
+    if request.specific_trigger:
+        trigger_parts.append(request.specific_trigger)
+    if request.track_id:
+        trigger_parts.append(f"Listened to track {request.track_id}")
+    trigger_str = " | ".join(trigger_parts) if trigger_parts else "Not specified"
+
     intensity_toggle = "Activated" if getattr(request, 'high_intensity', False) else "Off"
 
     context_str = f"""
 User Profile Block (mandatory — always fill this in):
 - Age: {age}
 - Gender & Sexual orientation: {gender}
-- Country / City: Not specified
+- Country / City: {country_city}
 - Life phase: {life_phase}
-- Relationship status & main dynamic: Not specified
+- Relationship status & main dynamic: {relationship_status}
 - Core emotional state right now: {core_emotional_state}
-- Specific trigger / situation: {track_info}
-- Deepest desire or fear: Not specified
+- Specific trigger / situation: {trigger_str}
+- Deepest desire or fear: {deepest_desire_fear}
 - Desired High Intensity Toggle: {intensity_toggle}
 - Extra context: None
 """

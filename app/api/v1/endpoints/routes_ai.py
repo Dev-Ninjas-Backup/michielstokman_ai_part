@@ -85,7 +85,11 @@ async def generate_story(
             user_id=None,       # TODO: replace with current_user.id from JWT
             admin_id=None,
             track_id=request.track_id,
+            country_city=request.country_city,
             life_phase=request.life_phase,
+            relationship_status=request.relationship_status,
+            deepest_desire_fear=request.deepest_desire_fear,
+            specific_trigger=request.specific_trigger,
             emotional_context={
                 **(request.emotional_sliders or {}),
                 **(request.session_sliders or {}),

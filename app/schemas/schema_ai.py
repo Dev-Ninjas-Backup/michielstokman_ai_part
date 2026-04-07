@@ -52,7 +52,11 @@ class StoryGenerateRequest(BaseModel):
     # User profile context (snapshot at request time)
     user_age: Optional[int] = Field(None, description="User's age")
     user_gender: Optional[str] = Field(None, description="User's gender")
+    country_city: Optional[str] = Field(None, description="User's country or city")
     life_phase: Optional[str] = Field(None, description="User's current life phase, e.g. 'new mother', 'divorce'")
+    relationship_status: Optional[str] = Field(None, description="Relationship status and main dynamic")
+    deepest_desire_fear: Optional[str] = Field(None, description="User's deepest desire or fear")
+    specific_trigger: Optional[str] = Field(None, description="Specific trigger or situation prompting this story")
 
     # Priority sliders (0-10 scale) from the user profile
     emotional_sliders: Optional[Dict[str, int]] = Field(

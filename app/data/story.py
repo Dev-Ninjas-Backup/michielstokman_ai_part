@@ -17,7 +17,11 @@ def create_story(
     user_id: Optional[str] = None,
     admin_id: Optional[str] = None,
     track_id: Optional[str] = None,
+    country_city: Optional[str] = None,
     life_phase: Optional[str] = None,
+    relationship_status: Optional[str] = None,
+    deepest_desire_fear: Optional[str] = None,
+    specific_trigger: Optional[str] = None,
     emotional_context: Optional[dict] = None,
     high_intensity: bool = False,
 ) -> Story:
@@ -32,7 +36,11 @@ def create_story(
         user_id=uuid.UUID(user_id) if user_id else None,
         admin_id=uuid.UUID(admin_id) if admin_id else None,
         track_id=track_id,
+        country_city=country_city,
         life_phase=life_phase,
+        relationship_status=relationship_status,
+        deepest_desire_fear=deepest_desire_fear,
+        specific_trigger=specific_trigger,
         emotional_context=emotional_context,
         high_intensity=high_intensity,
     )
