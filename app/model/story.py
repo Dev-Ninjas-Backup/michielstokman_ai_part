@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime, timezone
-from sqlalchemy import Column, String, Text, DateTime, ForeignKey, Enum as SAEnum
+from sqlalchemy import Column, String, Text, DateTime, ForeignKey, Enum as SAEnum, Boolean
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship
 from app.core.db import Base
@@ -38,6 +38,7 @@ class Story(Base):
     # Snapshot of the user's profile context at generation time
     life_phase = Column(String, nullable=True)
     emotional_context = Column(JSONB, nullable=True)   # slider values dict
+    high_intensity = Column(Boolean, default=False, nullable=False)
 
     # Ownership:
     # - user_id is set when a USER generates their own story

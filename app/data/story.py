@@ -19,6 +19,7 @@ def create_story(
     track_id: Optional[str] = None,
     life_phase: Optional[str] = None,
     emotional_context: Optional[dict] = None,
+    high_intensity: bool = False,
 ) -> Story:
     """
     Inserts a new Story row in 'processing' state.
@@ -33,6 +34,7 @@ def create_story(
         track_id=track_id,
         life_phase=life_phase,
         emotional_context=emotional_context,
+        high_intensity=high_intensity,
     )
     db.add(story)
     db.commit()

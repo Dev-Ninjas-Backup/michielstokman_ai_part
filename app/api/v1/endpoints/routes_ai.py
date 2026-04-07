@@ -90,6 +90,7 @@ async def generate_story(
                 **(request.emotional_sliders or {}),
                 **(request.session_sliders or {}),
             } or None,
+            high_intensity=request.high_intensity,
         )
 
         # Queue the heavy generation work as a background task

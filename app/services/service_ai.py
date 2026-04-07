@@ -138,7 +138,7 @@ class AIService:
     # --- Background worker — story generation --------------------------------
 
     @staticmethod
-    async def story_generation_worker(
+    def story_generation_worker(
         job_id: str,
         request: StoryGenerateRequest,
         story_db_id: str,
@@ -209,7 +209,7 @@ class AIService:
         return job_id
 
     @staticmethod
-    async def bulk_generation_worker(job_id: str, topic: str, story_type: str, format: str):
+    def bulk_generation_worker(job_id: str, topic: str, story_type: str, format: str):
         """
         Background worker for admin bulk story generation.
 
@@ -252,7 +252,7 @@ class AIService:
         return job_id
 
     @staticmethod
-    async def submission_generation_worker(job_id: str, submission_id: str):
+    def submission_generation_worker(job_id: str, submission_id: str):
         """
         Processes a user submission: analyse responses, generate a story.
         TODO: implement full logic using app.data.story and AIService.generate_story()
