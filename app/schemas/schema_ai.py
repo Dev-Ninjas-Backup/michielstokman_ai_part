@@ -69,6 +69,12 @@ class StoryGenerateRequest(BaseModel):
     # The associated music track (optional)
     track_id: Optional[str] = Field(None, description="ID of the track the user just listened to")
 
+    # High Intensity Toggle (safety/explicitness switch)
+    high_intensity: bool = Field(
+        False, 
+        description="Toggle for high intensity/explicit content (True = Activated, False = Off)"
+    )
+
 
 class StoryGenerateResponse(BaseModel):
     story_id: str = Field(..., description="UUID of the newly created Story row")
