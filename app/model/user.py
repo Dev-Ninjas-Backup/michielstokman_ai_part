@@ -25,6 +25,8 @@ class User(Base):
 
     # Relationship to handle OAuth accounts (Option 2 approach)
     oauth_accounts = relationship("UserOAuthAccount", back_populates="user", cascade="all, delete-orphan")
+    subscriptions = relationship("UserSubscription", back_populates="user", cascade="all, delete-orphan")
+    payments = relationship("PaymentTransaction", back_populates="user", cascade="all, delete-orphan")
 
 
 class UserOAuthAccount(Base):
