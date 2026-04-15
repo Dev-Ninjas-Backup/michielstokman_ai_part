@@ -28,6 +28,10 @@ class User(Base):
     subscriptions = relationship("UserSubscription", back_populates="user", cascade="all, delete-orphan")
     payments = relationship("PaymentTransaction", back_populates="user", cascade="all, delete-orphan")
 
+    
+    # Relationship to handle UserProfile
+    profile = relationship("UserProfile", back_populates="user", uselist=False, cascade="all, delete-orphan")
+
 
 class UserOAuthAccount(Base):
     __tablename__ = "user_oauth_accounts"

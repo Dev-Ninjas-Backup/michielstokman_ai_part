@@ -1,53 +1,112 @@
+import os
+import uuid
 import requests
+from pathlib import Path
 from langchain_openai import ChatOpenAI
 from app.core.config import settings
 
-def get_story_llm(temperature: float = 0.8, model_name: str = "grok-beta"):
+
+# ---------------------------------------------------------------------------
+# LLM — SuperGrok (xAI)
+# ---------------------------------------------------------------------------
+
+def get_story_llm(
+    temperature: float | None = None,
+    model_name: str | None = None,
+):
     """
-    Returns an instance of Grok for story generation.
-    ...
+    Returns a SuperGrok LangChain-compatible LLM instance.
+    Model name and temperature are loaded from settings (config.py / .env).
+
+    Override via .env:
+        LLM_MODEL=grok-3-mini          # cheaper/faster
+        LLM_TEMPERATURE_STORY=0.9      # more creative
     """
     if not settings.XAI_API_KEY:
-        raise ValueError("XAI_API_KEY is missing in configuration")
+        raise ValueError("XAI_API_KEY is missing. Add it to your .env file.")
 
     return ChatOpenAI(
         api_key=settings.XAI_API_KEY,
         base_url="https://api.x.ai/v1",
-        model=model_name,
-        temperature=temperature
+        model=model_name or settings.LLM_MODEL,
+        temperature=temperature if temperature is not None else settings.LLM_TEMPERATURE_STORY,
     )
+
+
+# ---------------------------------------------------------------------------
+# TTS — ElevenLabs
+# ---------------------------------------------------------------------------
 
 def generate_voice_elevenlabs(
     text: str,
-    voice_id: str = "EXAVITQu4vr4xnSDxMaL",  # Default Bella voice or similar
-    model_id: str = "eleven_monolingual_v1"
+    voice_id: str | None = None,
+    model_id: str | None = None,
 ) -> bytes:
     """
     Generates audio from text using ElevenLabs API.
-    Returns the generated audio as bytes.
-    Requires ELEVENLABS_API_KEY environment variable.
+    Returns the generated audio as raw MP3 bytes.
+
+    All voice parameters are loaded from settings (config.py / .env):
+        ELEVENLABS_VOICE_ID        → which voice to use
+        ELEVENLABS_MODEL_ID        → TTS model quality
+        ELEVENLABS_STABILITY       → warmth/consistency (0.0-1.0)
+        ELEVENLABS_SIMILARITY_BOOST → expressiveness (0.0-1.0)
+        ELEVENLABS_STYLE           → stylistic variation (0.0-1.0)
+
+    Requires ELEVENLABS_API_KEY in .env.
     """
     if not settings.ELEVENLABS_API_KEY:
-        raise ValueError("ELEVENLABS_API_KEY is missing in configuration")
+        raise ValueError("ELEVENLABS_API_KEY is missing. Add it to your .env file.")
 
-    url = f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}"
-    
+    resolved_voice_id = voice_id or settings.ELEVENLABS_VOICE_ID
+    resolved_model_id = model_id or settings.ELEVENLABS_MODEL_ID
+
+    url = f"https://api.elevenlabs.io/v1/text-to-speech/{resolved_voice_id}"
+
     headers = {
         "Accept": "audio/mpeg",
         "Content-Type": "application/json",
-        "xi-api-key": settings.ELEVENLABS_API_KEY
+        "xi-api-key": settings.ELEVENLABS_API_KEY,
     }
-    
+
     data = {
         "text": text,
-        "model_id": model_id,
+        "model_id": resolved_model_id,
         "voice_settings": {
-            "stability": 0.5,
-            "similarity_boost": 0.5
-        }
+            "stability": settings.ELEVENLABS_STABILITY,
+            "similarity_boost": settings.ELEVENLABS_SIMILARITY_BOOST,
+            "style": settings.ELEVENLABS_STYLE,
+            "use_speaker_boost": True,
+        },
     }
-    
+
     response = requests.post(url, json=data, headers=headers)
     response.raise_for_status()
-    
+
     return response.content
+
+
+# ---------------------------------------------------------------------------
+# Audio Storage — Local (S3-ready placeholder)
+# ---------------------------------------------------------------------------
+
+# ⚠️  S3 MIGRATION NOTE: When S3 is ready, replace save_audio_locally() with
+#     an S3 upload call and return the S3 URL. The caller interface stays the
+#     same — only this function body needs to change.
+AUDIO_STORAGE_DIR = Path("media/audio")
+
+
+def save_audio_locally(audio_bytes: bytes, filename: str | None = None) -> str:
+    """
+    Saves raw audio bytes to the local media/audio/ directory.
+    Returns the relative path, e.g. "media/audio/abc123.mp3".
+    """
+    AUDIO_STORAGE_DIR.mkdir(parents=True, exist_ok=True)
+
+    if filename is None:
+        filename = f"{uuid.uuid4()}.mp3"
+
+    file_path = AUDIO_STORAGE_DIR / filename
+    file_path.write_bytes(audio_bytes)
+
+    return str(file_path)
