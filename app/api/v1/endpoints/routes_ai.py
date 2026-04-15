@@ -1,8 +1,11 @@
 import uuid
+from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, BackgroundTasks, Query, HTTPException, Depends
 from sqlalchemy.orm import Session
 
 from app.core.db import get_db
+from app.api.deps import get_current_admin_user
+from app.model.user import User
 import app.data.story as story_data
 from app.schemas.schema_ai import (
     SearchResult,
@@ -15,7 +18,9 @@ from app.schemas.schema_ai import (
     JobResponse,
     JobStatusResponse,
 )
+from app.schemas.schema_rag import IngestAllResponse, IngestNewRequest, IngestNewResponse
 from app.services.service_ai import AIService
+from app.services.service_rag import RAGService
 
 router = APIRouter()
 
@@ -179,4 +184,55 @@ async def admin_ai_status(job_id: str):
         audio_path=job.get("audio_path"),
         story_text=job.get("story_text"),
     )
+
+
+# ---------------------------------------------------------------------------
+# RAG Ingestion — Admin only
+# ---------------------------------------------------------------------------
+
+@router.post("/ai/rag/ingest/all", response_model=IngestAllResponse)
+async def rag_ingest_all(
+    db: Session = Depends(get_db),
+    admin: User = Depends(get_current_admin_user),
+):
+    """
+    Full re-index: embed all completed stories and upsert into Pinecone.
+    Admin-only endpoint.
+    """
+    try:
+        count = RAGService.ingest_all_stories(db)
+        return IngestAllResponse(
+            total_stories_indexed=count,
+            message=f"Full re-index completed. {count} stories indexed.",
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"RAG full ingestion failed: {str(e)}",
+        )
+
+
+@router.post("/ai/rag/ingest/new", response_model=IngestNewResponse)
+async def rag_ingest_new(
+    body: IngestNewRequest = None,
+    db: Session = Depends(get_db),
+    admin: User = Depends(get_current_admin_user),
+):
+    """
+    Incremental index: embed only stories created after the given timestamp.
+    Defaults to the last 24 hours if no `since` is provided.
+    Admin-only endpoint.
+    """
+    try:
+        since = body.since if body else None
+        count = RAGService.ingest_new_stories(db, since=since)
+        return IngestNewResponse(
+            new_stories_indexed=count,
+            message=f"Incremental index completed. {count} new stories indexed.",
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"RAG incremental ingestion failed: {str(e)}",
+        )
 
