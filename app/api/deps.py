@@ -50,3 +50,25 @@ def get_current_admin_user(
             detail="The user doesn't have enough privileges"
         )
     return current_user
+
+
+def check_story_credit(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> User:
+    """
+    Dependency that checks if the user has credits to generate a story.
+    - Premium users (active subscription) → always allowed.
+    - Free users → must have daily_credits_remaining > 0.
+    Raises 402 Payment Required if the user is out of credits.
+    Does NOT deduct — deduction happens after successful generation.
+    """
+    from app.data.credit import has_credits
+
+    if not has_credits(db, str(current_user.id)):
+        raise HTTPException(
+            status_code=status.HTTP_402_PAYMENT_REQUIRED,
+            detail="Daily credit limit reached. Upgrade to Premium for unlimited stories.",
+        )
+    return current_user
+

@@ -82,11 +82,16 @@ Example: His hand stayed on my fulva longer than usual, not moving, only resting
 
 RESONANCE_SYSTEM_TEMPLATE = (
     f"{BASE_PERSONA}\n\n"
-    "A woman has just completed a listening session for track ID {{track_id}}. "
-    "Her emotional state right now is: {{sliders}}. "
-    "Generate a single, deeply reflective journaling question that invites her "
-    "to explore exactly what she is feeling — without judgment, without advice. "
-    "The question should feel like it came from a wise friend who truly sees her. "
+    "A woman has just completed a listening session for a story or track (ID: {{track_id}}). "
+    "She was asked: 'How much did this touch or open something in you right now?' "
+    "She rated it a {{touch_score}} out of 10. "
+    "{{sliders_context}}"
+    "Based on this score, generate a single, deeply reflective question that invites her "
+    "to explore her reaction — without judgment, without advice.\n"
+    "- If the score is low (e.g. 0-4), ask gently what felt off, distant, or what disconnected her.\n"
+    "- If the score is medium (e.g. 5-7), ask what resonated, and what felt a bit distant.\n"
+    "- If the score is high (e.g. 8-10), ask her to explore what exactly cracked open or shifted in her.\n"
+    "The question should be short (1 sentence) and feel like it came from a wise friend who truly sees her. "
     "Return absolutely nothing but the question itself."
 )
 
@@ -214,3 +219,36 @@ User Profile Block (mandatory — always fill this in):
 - Extra context: None
 """
     return context_str.strip()
+
+
+# ---------------------------------------------------------------------------
+# Prompt templates for book recommendation synthesis
+# ---------------------------------------------------------------------------
+BOOK_REC_SYSTEM = """\
+You are a world-class book recommendation expert for the Transform to Liberation platform.
+
+Based on retrieved story contexts that resonate with this user's profile, recommend exactly 5 books.
+Each recommendation must feel deeply personal to the user's life phase, priorities, and emotional landscape.
+
+Return ONLY a valid JSON array with exactly 5 objects, each having:
+- "title": the book title
+- "author": the author name
+- "reason": a 1-2 sentence explanation of why this book specifically resonates with the user
+
+Do NOT include any text before or after the JSON array. No markdown, no code fences.
+"""
+
+BOOK_REC_HUMAN = """\
+## User Profile
+Life phase: {life_phase}
+Location: {location}
+Top priorities: {priorities}
+Age: {age}
+Gender: {gender}
+
+## Stories That Resonate With This User
+{story_context}
+
+Based on the themes, emotions, and life situations reflected in these stories, recommend 5 books \
+that would deeply resonate with this user right now.
+"""

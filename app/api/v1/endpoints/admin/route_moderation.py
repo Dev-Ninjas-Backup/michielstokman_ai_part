@@ -1,5 +1,4 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel, UUID4
 from sqlalchemy.orm import Session
 from typing import Optional
 
@@ -7,74 +6,18 @@ from app.api.deps import get_current_admin_user
 from app.core.db import get_db
 from app.model.user import User
 from app.data import story as story_data
+from app.schemas.schema_story import (
+    StoryDetailResponse,
+    StoryListItemResponse,
+    ModerationQueueResponse,
+    UpdateStoryRequest,
+    ApproveStoryResponse,
+    RejectStoryRequest,
+    RejectStoryResponse,
+    DeleteStoryResponse,
+)
 
 router = APIRouter()
-
-
-# ============================================================================
-# Request/Response Models
-# ============================================================================
-
-class StoryDetailResponse(BaseModel):
-    id: UUID4
-    title: str | None
-    story_type: str
-    story_text: str | None
-    audio_path: str | None
-    author: str | None
-    created_at: str
-    moderation_status: str
-    moderation_notes: str | None
-    country_city: str | None
-    life_phase: str | None
-    relationship_status: str | None
-    deepest_desire_fear: str | None
-    specific_trigger: str | None
-    emotional_context: dict | None
-
-
-class StoryListItemResponse(BaseModel):
-    id: UUID4
-    title: str | None
-    story_type: str
-    author: str | None
-    created_at: str
-    moderation_status: str
-
-
-class ModerationQueueResponse(BaseModel):
-    stories: list[StoryListItemResponse]
-    total: int
-    pending: int
-    approved: int
-    rejected: int
-
-
-class UpdateStoryRequest(BaseModel):
-    title: Optional[str] = None
-    story_type: Optional[str] = None
-    story_text: Optional[str] = None
-
-
-class ApproveStoryResponse(BaseModel):
-    message: str
-    story_id: UUID4
-    status: str
-
-
-class RejectStoryRequest(BaseModel):
-    reason: Optional[str] = None
-
-
-class RejectStoryResponse(BaseModel):
-    message: str
-    story_id: UUID4
-    status: str
-
-
-class DeleteStoryResponse(BaseModel):
-    message: str
-    story_id: UUID4
 
 
 # ============================================================================

@@ -3,7 +3,7 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from app.api.v1.endpoints import hello
 from app.api.v1.endpoints import routes_ai, routes_auth, routes_payment, routes_subscription
-from app.api.v1.endpoints import routes_user_dashboard
+from app.api.v1.endpoints import routes_user_dashboard, routes_feedback
 from app.api.v1.endpoints.admin import route_admin_dashboard, route_moderation
 
 app = FastAPI(
@@ -30,6 +30,7 @@ app.include_router(routes_subscription.router, prefix="/v1", tags=["Subscription
 
 # User dashboard routes
 app.include_router(routes_user_dashboard.router, prefix="/v1", tags=["User Dashboard"])
+app.include_router(routes_feedback.router, prefix="/v1", tags=["Feedback"])
 
 # Admin routes
 app.include_router(route_admin_dashboard.router, prefix="/v1", tags=["Admin"])

@@ -26,9 +26,10 @@ class SearchResult(BaseModel):
 # ---------------------------------------------------------------------------
 
 class ResonanceRequest(BaseModel):
-    track_id: str = Field(..., description="The ID of the track the user is associating with")
-    sliders: Dict[str, int] = Field(
-        ...,
+    track_id: str = Field(..., description="The ID of the track or story the user is associating with")
+    touch_score: float = Field(..., description="Slider value 0-10 indicating how much it touched or opened something in them")
+    sliders: Optional[Dict[str, int]] = Field(
+        None,
         description="A dictionary of emotional sliders, e.g. {'tension': 80, 'openness': 30}"
     )
 

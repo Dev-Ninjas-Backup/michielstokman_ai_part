@@ -4,9 +4,10 @@ from fastapi import APIRouter, BackgroundTasks, Query, HTTPException, Depends
 from sqlalchemy.orm import Session
 
 from app.core.db import get_db
-from app.api.deps import get_current_admin_user
+from app.api.deps import get_current_admin_user, check_story_credit
 from app.model.user import User
 import app.data.story as story_data
+import app.data.credit as credit_data
 from app.schemas.schema_ai import (
     SearchResult,
     ResonanceRequest,
@@ -66,16 +67,16 @@ async def generate_story(
     request: StoryGenerateRequest,
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
-    # TODO: extract user_id from JWT token once auth middleware is wired up
-    # current_user: User = Depends(get_current_user),
+    current_user: User = Depends(check_story_credit),
 ):
     """
     Generates a personalised Confession, Meditation, or Transformation.
 
     Flow:
-    1. Creates a Story DB row in 'processing' state and returns immediately.
-    2. SuperGrok generation + ElevenLabs TTS runs in the background.
-    3. Poll GET /v1/admin/ai/status/{job_id} to check for completion and audio_path.
+    1. Checks the user has available credits (free) or active subscription (premium).
+    2. Creates a Story DB row in 'processing' state and returns immediately.
+    3. SuperGrok generation + ElevenLabs TTS runs in the background.
+    4. Poll GET /v1/admin/ai/status/{job_id} to check for completion and audio_path.
 
     Pass user profile context (age, life_phase, sliders) for maximum personalisation.
     """
@@ -87,7 +88,7 @@ async def generate_story(
             db=db,
             story_type=request.story_type,
             job_id=job_id,
-            user_id=None,       # TODO: replace with current_user.id from JWT
+            user_id=str(current_user.id),
             admin_id=None,
             track_id=request.track_id,
             country_city=request.country_city,
@@ -101,6 +102,9 @@ async def generate_story(
             } or None,
             high_intensity=request.high_intensity,
         )
+
+        # Deduct 1 credit (no-op for premium users)
+        credit_data.deduct_credit(db, str(current_user.id))
 
         # Queue the heavy generation work as a background task
         background_tasks.add_task(

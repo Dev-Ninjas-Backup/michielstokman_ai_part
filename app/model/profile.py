@@ -16,7 +16,7 @@ class UserProfile(Base):
     age = Column(Integer, nullable=True)
     country = Column(String, nullable=True)
     city = Column(String, nullable=True)
-    region = Column(String, nullable=True)
+    height = Column(String, nullable=True)
     education = Column(String, nullable=True)
     annual_income = Column(String, nullable=True)
     gender = Column(String, nullable=True)
@@ -30,11 +30,10 @@ class UserProfile(Base):
     slider_life_purpose = Column(Integer, nullable=True)
     slider_career_money = Column(Integer, nullable=True)
     slider_true_self = Column(Integer, nullable=True)
-    slider_security_energy = Column(Integer, nullable=True)
+    slider_sexuality_life_energy = Column(Integer, nullable=True)
     slider_free_freedom = Column(Integer, nullable=True)
     slider_health_body = Column(Integer, nullable=True)
     slider_enlightenment = Column(Integer, nullable=True)
-    slider_social_relational = Column(Integer, nullable=True)
 
     # Timestamps
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)

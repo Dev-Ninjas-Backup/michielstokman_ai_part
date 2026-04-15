@@ -8,7 +8,7 @@ class UserProfileBase(BaseModel):
     age: Optional[int] = None
     country: Optional[str] = None
     city: Optional[str] = None
-    region: Optional[str] = None
+    height: Optional[str] = None
     education: Optional[str] = None
     annual_income: Optional[str] = None
     gender: Optional[str] = None
@@ -22,11 +22,10 @@ class UserProfileBase(BaseModel):
     slider_life_purpose: Optional[int] = None
     slider_career_money: Optional[int] = None
     slider_true_self: Optional[int] = None
-    slider_security_energy: Optional[int] = None
+    slider_sexuality_life_energy: Optional[int] = None
     slider_free_freedom: Optional[int] = None
     slider_health_body: Optional[int] = None
     slider_enlightenment: Optional[int] = None
-    slider_social_relational: Optional[int] = None
 
 class UserProfileUpdate(UserProfileBase):
     pass

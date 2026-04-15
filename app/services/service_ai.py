@@ -86,12 +86,16 @@ class AIService:
             HumanMessagePromptTemplate.from_template(RESONANCE_HUMAN_TEMPLATE),
         ])
 
-        sliders_str = ", ".join(
-            [f"{k.replace('_', ' ')}: {v}/10" for k, v in request.sliders.items()]
-        )
+        sliders_str = ""
+        if request.sliders:
+            sliders_str = "Her emotional state right now is: " + ", ".join(
+                [f"{k.replace('_', ' ')}: {v}/10" for k, v in request.sliders.items()]
+            ) + "\n"
+
         formatted_messages = chat_prompt.format_prompt(
             track_id=request.track_id,
-            sliders=sliders_str,
+            touch_score=request.touch_score,
+            sliders_context=sliders_str,
         ).to_messages()
 
         response = llm.invoke(formatted_messages)
