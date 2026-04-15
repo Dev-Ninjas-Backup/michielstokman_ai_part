@@ -175,6 +175,8 @@ async def admin_ai_status(job_id: str):
     return JobStatusResponse(
         job_id=job_id,
         status=job["status"],
+        title=job.get("title"),
         audio_path=job.get("audio_path"),
+        story_text=job.get("story_text"),
     )
 
