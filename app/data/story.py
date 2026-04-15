@@ -94,3 +94,106 @@ def get_stories_for_user(db: Session, user_id: str, limit: int = 20) -> list[Sto
         .limit(limit)
         .all()
     )
+
+def count_stories_today(db: Session) -> int:
+    """Get count of completed stories generated today."""
+    from datetime import datetime, timezone
+    today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+    return db.query(Story).filter(
+        Story.generation_status == GenerationStatus.completed,
+        Story.created_at >= today_start
+    ).count()
+
+def count_failed_stories_today(db: Session) -> int:
+    """Get count of failed stories today."""
+    from datetime import datetime, timezone
+    today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+    return db.query(Story).filter(
+        Story.generation_status == GenerationStatus.failed,
+        Story.created_at >= today_start
+    ).count()
+
+def get_stories_by_type_today(db: Session) -> dict:
+    """Get breakdown of completed stories by type generated today."""
+    from datetime import datetime, timezone
+    from sqlalchemy import func
+    today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+    results = db.query(
+        Story.story_type,
+        func.count(Story.id).label("count")
+    ).filter(
+        Story.generation_status == GenerationStatus.completed,
+        Story.created_at >= today_start
+    ).group_by(Story.story_type).all()
+    return {str(story_type): count for story_type, count in results}
+
+# Moderation functions
+
+def get_pending_stories(db: Session, limit: int = 20, offset: int = 0) -> list[Story]:
+    """Get all pending stories awaiting moderation."""
+    from app.model.story import ModerationStatus
+    return db.query(Story).filter(
+        Story.moderation_status == ModerationStatus.pending,
+        Story.generation_status == GenerationStatus.completed,
+    ).order_by(Story.created_at.desc()).offset(offset).limit(limit).all()
+
+def count_pending_stories(db: Session) -> int:
+    """Count stories pending moderation."""
+    from app.model.story import ModerationStatus
+    return db.query(Story).filter(
+        Story.moderation_status == ModerationStatus.pending,
+        Story.generation_status == GenerationStatus.completed,
+    ).count()
+
+def get_moderation_stats(db: Session) -> dict:
+    """Get counts of stories by moderation status."""
+    from app.model.story import ModerationStatus
+    from sqlalchemy import func
+    stats = db.query(
+        Story.moderation_status,
+        func.count(Story.id).label("count")
+    ).filter(
+        Story.generation_status == GenerationStatus.completed
+    ).group_by(Story.moderation_status).all()
+    return {str(status): count for status, count in stats}
+
+def approve_story(db: Session, story: Story, reviewed_by_id: str) -> Story:
+    """Mark story as approved."""
+    from app.model.story import ModerationStatus
+    from datetime import datetime, timezone
+    story.moderation_status = ModerationStatus.approved
+    story.moderation_reviewed_by = uuid.UUID(reviewed_by_id)
+    story.moderation_reviewed_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(story)
+    return story
+
+def reject_story(db: Session, story: Story, reviewed_by_id: str, notes: Optional[str] = None) -> Story:
+    """Mark story as rejected with optional notes."""
+    from app.model.story import ModerationStatus
+    from datetime import datetime, timezone
+    story.moderation_status = ModerationStatus.rejected
+    story.moderation_reviewed_by = uuid.UUID(reviewed_by_id)
+    story.moderation_reviewed_at = datetime.now(timezone.utc)
+    story.moderation_notes = notes
+    db.commit()
+    db.refresh(story)
+    return story
+
+def update_story_details(db: Session, story: Story, title: Optional[str] = None, story_type: Optional[str] = None, story_text: Optional[str] = None) -> Story:
+    """Update story details (title, type, content)."""
+    if title is not None:
+        story.title = title
+    if story_type is not None:
+        from app.model.story import StoryType
+        story.story_type = StoryType(story_type)
+    if story_text is not None:
+        story.story_text = story_text
+    db.commit()
+    db.refresh(story)
+    return story
+
+def delete_story(db: Session, story: Story) -> None:
+    """Permanently delete a story."""
+    db.delete(story)
+    db.commit()
