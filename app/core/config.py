@@ -33,6 +33,7 @@ class Settings:
         # Vector DB Settings
         self.PINECONE_API_KEY: str | None = os.getenv("PINECONE_API_KEY")
         self.PINECONE_ENVIRONMENT: str | None = os.getenv("PINECONE_ENVIRONMENT")
+        self.PINECONE_INDEX_NAME: str = os.getenv("PINECONE_INDEX_NAME", "stories-rag")
 
         # Database Settings
         self.DB_USER: str = os.getenv("DB_USER", "postgres")
