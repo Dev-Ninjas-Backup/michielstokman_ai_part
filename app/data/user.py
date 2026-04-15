@@ -58,6 +58,20 @@ def increment_token_version(db: Session, user: User) -> User:
     db.commit()
     db.refresh(user)
     return user
+
+def count_total_users(db: Session) -> int:
+    """Get total count of all users."""
+    return db.query(User).count()
+
+def count_active_users_30d(db: Session) -> int:
+    """Get count of users who logged in in the last 30 days."""
+    from datetime import datetime, timedelta, timezone
+    thirty_days_ago = datetime.now(timezone.utc) - timedelta(days=30)
+    return db.query(User).filter(User.last_login >= thirty_days_ago).count()
+
+def count_verified_users(db: Session) -> int:
+    """Get count of verified users."""
+    return db.query(User).filter(User.is_verified.is_(True)).count()
     db.commit()
     db.refresh(user)
     return user

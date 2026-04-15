@@ -100,6 +100,31 @@ def update_payment_status(
     db.refresh(payment)
     return payment
 
+def count_active_subscriptions(db: Session) -> int:
+    """Get count of all active subscriptions."""
+    return db.query(UserSubscription).filter(
+        UserSubscription.status == SubscriptionStatus.active
+    ).count()
+
+def get_total_revenue_today(db: Session) -> int:
+    """Get total revenue (in cents) from successful payments today."""
+    from sqlalchemy import func
+    today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+    result = db.query(func.sum(PaymentTransaction.amount_cents)).filter(
+        PaymentTransaction.status == PaymentStatus.succeeded,
+        PaymentTransaction.paid_at >= today_start
+    ).scalar()
+    return result or 0
+
+def count_failed_payments_today(db: Session) -> int:
+    """Get count of failed payments today."""
+    today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+    return db.query(PaymentTransaction).filter(
+        PaymentTransaction.status == PaymentStatus.failed,
+        PaymentTransaction.created_at >= today_start
+    ).count()
+    return payment
+
 
 def get_latest_subscription_for_user(db: Session, user_id: UUID) -> UserSubscription | None:
     return (

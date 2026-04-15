@@ -19,6 +19,12 @@ class GenerationStatus(str, enum.Enum):
     failed = "failed"
 
 
+class ModerationStatus(str, enum.Enum):
+    pending = "pending"
+    approved = "approved"
+    rejected = "rejected"
+
+
 class Story(Base):
     __tablename__ = "stories"
 
@@ -70,6 +76,22 @@ class Story(Base):
         default=GenerationStatus.processing,
     )
 
+    # Moderation tracking
+    moderation_status = Column(
+        SAEnum(ModerationStatus),
+        nullable=False,
+        default=ModerationStatus.pending,
+        index=True,
+    )
+    moderation_notes = Column(String, nullable=True)
+    moderation_reviewed_by = Column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    moderation_reviewed_at = Column(DateTime, nullable=True)
+
     # Timestamps
     created_at = Column(
         DateTime,
@@ -86,3 +108,4 @@ class Story(Base):
     # Relationships
     user = relationship("User", foreign_keys=[user_id], backref="stories_as_user")
     admin = relationship("User", foreign_keys=[admin_id], backref="stories_as_admin")
+    moderator = relationship("User", foreign_keys=[moderation_reviewed_by], backref="moderated_stories")

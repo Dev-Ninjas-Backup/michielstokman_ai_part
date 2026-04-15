@@ -4,7 +4,7 @@ from fastapi.staticfiles import StaticFiles
 from app.api.v1.endpoints import hello
 from app.api.v1.endpoints import routes_ai, routes_auth, routes_payment, routes_subscription
 from app.api.v1.endpoints import routes_user_dashboard
-from app.api.v1.endpoints.admin import route_admin_dashboard
+from app.api.v1.endpoints.admin import route_admin_dashboard, route_moderation
 
 app = FastAPI(
     title="Transform to Liberation API",
@@ -33,3 +33,6 @@ app.include_router(routes_user_dashboard.router, prefix="/v1", tags=["User Dashb
 
 # Admin routes
 app.include_router(route_admin_dashboard.router, prefix="/v1", tags=["Admin"])
+app.include_router(route_moderation.router, prefix="/v1", tags=["Admin - Moderation"])
+
+
