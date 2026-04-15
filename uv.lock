@@ -536,6 +536,7 @@ dependencies = [
     { name = "langchain" },
     { name = "langchain-openai" },
     { name = "passlib" },
+    { name = "pinecone" },
     { name = "psycopg2-binary" },
     { name = "pydantic", extra = ["email"] },
     { name = "pyjwt" },
@@ -553,6 +554,7 @@ requires-dist = [
     { name = "langchain", specifier = ">=1.2.13" },
     { name = "langchain-openai", specifier = ">=1.1.12" },
     { name = "passlib", specifier = ">=1.7.4" },
+    { name = "pinecone", specifier = ">=6.0.0" },
     { name = "psycopg2-binary", specifier = ">=2.9.11" },
     { name = "pydantic", extras = ["email"], specifier = ">=2.12.5" },
     { name = "pyjwt", specifier = ">=2.12.1" },
@@ -669,6 +671,45 @@ wheels = [
 ]
 
 [[package]]
+name = "pinecone"
+version = "8.1.2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "certifi" },
+    { name = "orjson" },
+    { name = "pinecone-plugin-assistant" },
+    { name = "pinecone-plugin-interface" },
+    { name = "python-dateutil" },
+    { name = "typing-extensions" },
+    { name = "urllib3" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/0b/09/cb00dd61e61e7a840e0ea7c3bf017335a49bed596ac3df9bf1d1237dd833/pinecone-8.1.2.tar.gz", hash = "sha256:a86d433cd2fec85b118ec19a44ee740a687c6b8172f1aecace83137f00c0741f", size = 1043253, upload-time = "2026-04-08T18:06:33.442Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/09/19/09b66463203393e9de5e84f8f581aa1e84cb1bfe664ff10ecd22cb7b923d/pinecone-8.1.2-py3-none-any.whl", hash = "sha256:9f91477e9f765c8392805d582b4fad9fe9732ce816276e10d89921e7894c6653", size = 742810, upload-time = "2026-04-08T18:06:31.261Z" },
+]
+
+[[package]]
+name = "pinecone-plugin-assistant"
+version = "3.0.3"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "requests" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/95/b5/308758742255b072e633947f9c016f5bf12aab1f592b4f81968e98fdf36d/pinecone_plugin_assistant-3.0.3.tar.gz", hash = "sha256:53f548ede60a95d79ff48d7865a3d0afd665ced9e77758272e62ba0c6c63bd26", size = 151895, upload-time = "2026-03-27T22:13:41.008Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/f6/0d/188293ade97616983cc6764d64867322dc40a4ee7009f21a1cf99f10149c/pinecone_plugin_assistant-3.0.3-py3-none-any.whl", hash = "sha256:a42cff1e0b28df40596e440527c41888881eefedb1008117819506db60273808", size = 280675, upload-time = "2026-03-27T22:13:42.292Z" },
+]
+
+[[package]]
+name = "pinecone-plugin-interface"
+version = "0.0.7"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/f4/fb/e8a4063264953ead9e2b24d9b390152c60f042c951c47f4592e9996e57ff/pinecone_plugin_interface-0.0.7.tar.gz", hash = "sha256:b8e6675e41847333aa13923cc44daa3f85676d7157324682dc1640588a982846", size = 3370, upload-time = "2024-06-05T01:57:52.093Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/3b/1d/a21fdfcd6d022cb64cef5c2a29ee6691c6c103c4566b41646b080b7536a5/pinecone_plugin_interface-0.0.7-py3-none-any.whl", hash = "sha256:875857ad9c9fc8bbc074dbe780d187a2afd21f5bfe0f3b08601924a61ef1bba8", size = 6249, upload-time = "2024-06-05T01:57:50.583Z" },
+]
+
+[[package]]
 name = "psycopg2-binary"
 version = "2.9.11"
 source = { registry = "https://pypi.org/simple" }
@@ -778,6 +819,18 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/c2/27/a3b6e5bf6ff856d2509292e95c8f57f0df7017cf5394921fc4e4ef40308a/pyjwt-2.12.1.tar.gz", hash = "sha256:c74a7a2adf861c04d002db713dd85f84beb242228e671280bf709d765b03672b", size = 102564, upload-time = "2026-03-13T19:27:37.25Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/e5/7a/8dd906bd22e79e47397a61742927f6747fe93242ef86645ee9092e610244/pyjwt-2.12.1-py3-none-any.whl", hash = "sha256:28ca37c070cad8ba8cd9790cd940535d40274d22f80ab87f3ac6a713e6e8454c", size = 29726, upload-time = "2026-03-13T19:27:35.677Z" },
+]
+
+[[package]]
+name = "python-dateutil"
+version = "2.9.0.post0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "six" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/66/c0/0c8b6ad9f17a802ee498c46e004a0eb49bc148f2fd230864601a86dcf6db/python-dateutil-2.9.0.post0.tar.gz", hash = "sha256:37dd54208da7e1cd875388217d5e00ebd4179249f90fb72437e91a35459a0ad3", size = 342432, upload-time = "2024-03-01T18:36:20.211Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/ec/57/56b9bcc3c9c6a792fcbaf139543cee77261f3651ca9da0c93f5c1221264b/python_dateutil-2.9.0.post0-py2.py3-none-any.whl", hash = "sha256:a8b2bc7bffae282281c8140a97d3aa9c14da0b136dfe83f850eea9a5f7470427", size = 229892, upload-time = "2024-03-01T18:36:18.57Z" },
 ]
 
 [[package]]
@@ -931,6 +984,15 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/f3/61/d7545dafb7ac2230c70d38d31cbfe4cc64f7144dc41f6e4e4b78ecd9f5bb/requests-toolbelt-1.0.0.tar.gz", hash = "sha256:7681a0a3d047012b5bdc0ee37d7f8f07ebe76ab08caeccfc3921ce23c88d5bc6", size = 206888, upload-time = "2023-05-01T04:11:33.229Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/3f/51/d4db610ef29373b879047326cbf6fa98b6c1969d6f6dc423279de2b1be2c/requests_toolbelt-1.0.0-py2.py3-none-any.whl", hash = "sha256:cccfdd665f0a24fcf4726e690f65639d272bb0637b9b92dfd91a5568ccf6bd06", size = 54481, upload-time = "2023-05-01T04:11:28.427Z" },
+]
+
+[[package]]
+name = "six"
+version = "1.17.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/94/e7/b2c673351809dca68a0e064b6af791aa332cf192da575fd474ed7d6f16a2/six-1.17.0.tar.gz", hash = "sha256:ff70335d468e7eb6ec65b95b99d3a2836546063f63acc5171de367e834932a81", size = 34031, upload-time = "2024-12-04T17:35:28.174Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/b7/ce/149a00dd41f10bc29e5921b496af8b574d8413afcd5e30dfa0ed46c2cc5e/six-1.17.0-py2.py3-none-any.whl", hash = "sha256:4721f391ed90541fddacab5acf947aa0d3dc7d27b2e1e8eda2be8970586c3274", size = 11050, upload-time = "2024-12-04T17:35:26.475Z" },
 ]
 
 [[package]]
