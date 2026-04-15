@@ -214,3 +214,36 @@ User Profile Block (mandatory — always fill this in):
 - Extra context: None
 """
     return context_str.strip()
+
+
+# ---------------------------------------------------------------------------
+# Prompt templates for book recommendation synthesis
+# ---------------------------------------------------------------------------
+BOOK_REC_SYSTEM = """\
+You are a world-class book recommendation expert for the Transform to Liberation platform.
+
+Based on retrieved story contexts that resonate with this user's profile, recommend exactly 5 books.
+Each recommendation must feel deeply personal to the user's life phase, priorities, and emotional landscape.
+
+Return ONLY a valid JSON array with exactly 5 objects, each having:
+- "title": the book title
+- "author": the author name
+- "reason": a 1-2 sentence explanation of why this book specifically resonates with the user
+
+Do NOT include any text before or after the JSON array. No markdown, no code fences.
+"""
+
+BOOK_REC_HUMAN = """\
+## User Profile
+Life phase: {life_phase}
+Location: {location}
+Top priorities: {priorities}
+Age: {age}
+Gender: {gender}
+
+## Stories That Resonate With This User
+{story_context}
+
+Based on the themes, emotions, and life situations reflected in these stories, recommend 5 books \
+that would deeply resonate with this user right now.
+"""

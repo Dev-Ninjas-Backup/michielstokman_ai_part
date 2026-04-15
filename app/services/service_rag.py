@@ -19,7 +19,9 @@ from langchain_core.prompts import (
     HumanMessagePromptTemplate,
 )
 from sqlalchemy.orm import Session
+from sqlalchemy.sql import func
 
+from app.utils.prompts import BOOK_REC_SYSTEM, BOOK_REC_HUMAN
 from app.core.config import settings
 from app.core.llm import get_story_llm
 from app.model.story import Story, GenerationStatus, StoryType, ModerationStatus
@@ -41,62 +43,6 @@ EMBEDDING_DIMENSION = 2048                  # xAI default embedding dimension
 PINECONE_METRIC = "cosine"
 TOP_K = 5
 
-# Fallback book pool — served when Pinecone returns no relevant results
-FALLBACK_BOOKS: List[dict] = [
-    {"title": "The Alchemist", "author": "Paulo Coelho",
-     "reason": "A timeless fable about following your personal legend and discovering your true purpose."},
-    {"title": "Man's Search for Meaning", "author": "Viktor E. Frankl",
-     "reason": "A profound exploration of finding meaning even in the most challenging circumstances."},
-    {"title": "The Power of Now", "author": "Eckhart Tolle",
-     "reason": "A guide to spiritual enlightenment and living fully in the present moment."},
-    {"title": "Atomic Habits", "author": "James Clear",
-     "reason": "Practical strategies for building good habits and breaking bad ones."},
-    {"title": "Untamed", "author": "Glennon Doyle",
-     "reason": "An inspiring memoir about trusting yourself and pursuing your own path."},
-    {"title": "Daring Greatly", "author": "Brené Brown",
-     "reason": "How the courage to be vulnerable transforms the way we live, love, and lead."},
-    {"title": "The Body Keeps the Score", "author": "Bessel van der Kolk",
-     "reason": "Groundbreaking insights into how trauma affects the body and paths to recovery."},
-    {"title": "Meditations", "author": "Marcus Aurelius",
-     "reason": "Timeless stoic philosophy for inner peace and self-mastery."},
-    {"title": "Big Magic", "author": "Elizabeth Gilbert",
-     "reason": "Embracing creativity and living a life driven by curiosity over fear."},
-    {"title": "When Things Fall Apart", "author": "Pema Chödrön",
-     "reason": "Heart advice for difficult times rooted in Buddhist compassion practices."},
-]
-
-
-# ---------------------------------------------------------------------------
-# Prompt templates for book recommendation synthesis
-# ---------------------------------------------------------------------------
-BOOK_REC_SYSTEM = """\
-You are a world-class book recommendation expert for the Transform to Liberation platform.
-
-Based on retrieved story contexts that resonate with this user's profile, recommend exactly 5 books.
-Each recommendation must feel deeply personal to the user's life phase, priorities, and emotional landscape.
-
-Return ONLY a valid JSON array with exactly 5 objects, each having:
-- "title": the book title
-- "author": the author name
-- "reason": a 1-2 sentence explanation of why this book specifically resonates with the user
-
-Do NOT include any text before or after the JSON array. No markdown, no code fences.
-"""
-
-BOOK_REC_HUMAN = """\
-## User Profile
-Life phase: {life_phase}
-Location: {location}
-Top priorities: {priorities}
-Age: {age}
-Gender: {gender}
-
-## Stories That Resonate With This User
-{story_context}
-
-Based on the themes, emotions, and life situations reflected in these stories, recommend 5 books \
-that would deeply resonate with this user right now.
-"""
 
 
 # ---------------------------------------------------------------------------
@@ -260,6 +206,38 @@ class RAGService:
     # -----------------------------------------------------------------------
 
     @staticmethod
+    def _get_fallback_recommendations(db: Session, user_id: str) -> BookRecommendationsResponse:
+        """Returns random approved stories from the database as a fallback."""
+        try:
+            fallback_stories = (
+                db.query(Story)
+                .filter(Story.generation_status == GenerationStatus.completed)
+                .filter(Story.moderation_status == ModerationStatus.approved)
+                .order_by(func.random())
+                .limit(5)
+                .all()
+            )
+            recommendations = [
+                BookRecommendation(
+                    title=story.title or "Untitled Story",
+                    author="Transform to Liberation",
+                    reason=f"A curated {story.story_type.value if story.story_type else 'story'} from our collection we think you might enjoy."
+                )
+                for story in fallback_stories
+            ]
+            logger.info(f"Served random fallback stories for user {user_id}.")
+            return BookRecommendationsResponse(
+                recommendations=recommendations,
+                source="random",
+            )
+        except Exception as e:
+            logger.error(f"Fallback query failed: {e}", exc_info=True)
+            return BookRecommendationsResponse(
+                recommendations=[],
+                source="error",
+            )
+
+    @staticmethod
     def get_book_recommendations(
         db: Session,
         user_id: str,
@@ -345,12 +323,8 @@ class RAGService:
 
         # --- Fallback: random books -------------------------------------------
         if not matches:
-            logger.info(f"No Pinecone matches for user {user_id}. Returning random books.")
-            sample = random.sample(FALLBACK_BOOKS, min(5, len(FALLBACK_BOOKS)))
-            return BookRecommendationsResponse(
-                recommendations=[BookRecommendation(**b) for b in sample],
-                source="random",
-            )
+            logger.info(f"No Pinecone matches for user {user_id}. Returning random fallback stories.")
+            return RAGService._get_fallback_recommendations(db, user_id)
 
         # --- Build story context for LLM -------------------------------------
         story_snippets = []
@@ -404,9 +378,5 @@ class RAGService:
 
         except Exception as e:
             logger.error(f"LLM synthesis failed: {e}", exc_info=True)
-            # Graceful degradation — return random books
-            sample = random.sample(FALLBACK_BOOKS, min(5, len(FALLBACK_BOOKS)))
-            return BookRecommendationsResponse(
-                recommendations=[BookRecommendation(**b) for b in sample],
-                source="random",
-            )
+            # Graceful degradation — return random stories
+            return RAGService._get_fallback_recommendations(db, user_id)
