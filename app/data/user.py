@@ -51,3 +51,13 @@ def update_last_login(db: Session, user: User) -> User:
     db.commit()
     db.refresh(user)
     return user
+
+def increment_token_version(db: Session, user: User) -> User:
+    """Increment the token_version to invalidate all existing tokens."""
+    user.token_version += 1
+    db.commit()
+    db.refresh(user)
+    return user
+    db.commit()
+    db.refresh(user)
+    return user

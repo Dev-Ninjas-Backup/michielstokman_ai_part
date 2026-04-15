@@ -1,10 +1,11 @@
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, status, Header, HTTPException
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 
 from app.core.db import get_db
+from app.core.security import verify_token
 from app.schemas.user import UserCreate, UserResponse, Token, UserLogin
-from app.services.service_auth import register_new_user, authenticate_user
+from app.services.service_auth import register_new_user, authenticate_user, signout_user
 
 router = APIRouter()
 
@@ -23,4 +24,23 @@ def login(user_in: UserLogin, db: Session = Depends(get_db)):
     Expects a standard JSON body with 'email' and 'password'.
     """
     return authenticate_user(db, email=user_in.email, password=user_in.password)
+
+
+@router.post("/signout")
+def signout(authorization: str = Header(...), db: Session = Depends(get_db)):
+    """
+    Sign out the current user by invalidating their token.
+    Pass the token in the Authorization header as: Bearer <token>
+    """
+    try:
+        # Extract token from "Bearer <token>"
+        token = authorization.split(" ")[1]
+    except IndexError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid authorization header format"
+        )
+    
+    user_id = verify_token(token, db)
+    return signout_user(db, user_id)
 
