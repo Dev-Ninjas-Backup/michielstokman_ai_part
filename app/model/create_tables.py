@@ -4,6 +4,7 @@ from app.model.billing import SubscriptionPlan, UserSubscription, PaymentTransac
 from app.model.profile import UserProfile
 from app.model.story import Story  # noqa: F401 — must be imported so SQLAlchemy registers the table
 from app.model.feedback import StoryFeedback  # noqa: F401
+from app.model.credit import UserCredit  # noqa: F401
 
 def main():
     print("Creating all tables...")

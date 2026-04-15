@@ -17,10 +17,48 @@ from app.schemas.schema_rag import (
     StoryTypeFilter,
 )
 from app.schemas.schema_story import StoryDetailUserResponse
+from app.schemas.schema_credit import CreditStatusResponse
 from app.services.service_rag import RAGService
 from app.data import story as story_data
+import app.data.credit as credit_data
 
 router = APIRouter()
+
+
+# ---------------------------------------------------------------------------
+# Credits
+# ---------------------------------------------------------------------------
+
+@router.get(
+    "/dashboard/credits",
+    response_model=CreditStatusResponse,
+)
+def get_credit_status(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Returns the user's current credit status.
+    Premium users will see is_premium=True with unlimited credits.
+    Free users will see their remaining daily credits.
+    """
+    is_premium = credit_data.is_premium_user(db, str(current_user.id))
+
+    if is_premium:
+        return CreditStatusResponse(
+            is_premium=True,
+            daily_credits_remaining=-1,
+            max_daily_credits=-1,
+            message="Premium subscriber — unlimited stories.",
+        )
+
+    credit = credit_data.get_or_create_credit(db, str(current_user.id))
+    return CreditStatusResponse(
+        is_premium=False,
+        daily_credits_remaining=credit.daily_credits_remaining,
+        max_daily_credits=credit.max_daily_credits,
+        message=f"{credit.daily_credits_remaining}/{credit.max_daily_credits} credits remaining today.",
+    )
 
 
 # ---------------------------------------------------------------------------
