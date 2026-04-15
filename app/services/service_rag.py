@@ -273,11 +273,10 @@ class RAGService:
                 "Life Purpose": profile.slider_life_purpose,
                 "Career & Money": profile.slider_career_money,
                 "True Self": profile.slider_true_self,
-                "Security & Energy": profile.slider_security_energy,
-                "Freedom": profile.slider_free_freedom,
+                "Sexuality & Life Energy": profile.slider_sexuality_life_energy,
+                "Fear & Freedom": profile.slider_free_freedom,
                 "Health & Body": profile.slider_health_body,
                 "Enlightenment": profile.slider_enlightenment,
-                "Social & Relational": profile.slider_social_relational,
             }
             ranked = sorted(
                 ((k, v) for k, v in slider_map.items() if v is not None),
