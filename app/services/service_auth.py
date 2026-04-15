@@ -5,7 +5,7 @@ from datetime import timedelta
 from app.core.config import settings
 from app.core.security import verify_password, get_password_hash, create_access_token
 from app.schemas.user import UserCreate
-from app.data.user import get_user_by_email, create_user, update_last_login
+from app.data.user import get_user_by_email, create_user, update_last_login, get_user_by_id, increment_token_version
 
 def register_new_user(db: Session, user_in: UserCreate):
     """
@@ -59,6 +59,7 @@ def authenticate_user(db: Session, email: str, password: str):
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
         data={"sub": str(user.id)},
+        user_token_version=user.token_version,
         expires_delta=access_token_expires
     )
     
@@ -66,3 +67,18 @@ def authenticate_user(db: Session, email: str, password: str):
         "access_token": access_token,
         "token_type": "bearer"
     }
+
+def signout_user(db: Session, user_id: str):
+    """
+    Invalidate all active tokens by incrementing the user's token_version.
+    The user must provide a valid token to call this.
+    """
+    user = get_user_by_id(db, user_id)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
+        )
+    
+    increment_token_version(db, user)
+    return {"message": "Successfully signed out"}
