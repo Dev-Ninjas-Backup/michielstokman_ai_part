@@ -82,11 +82,16 @@ Example: His hand stayed on my fulva longer than usual, not moving, only resting
 
 RESONANCE_SYSTEM_TEMPLATE = (
     f"{BASE_PERSONA}\n\n"
-    "A woman has just completed a listening session for track ID {{track_id}}. "
-    "Her emotional state right now is: {{sliders}}. "
-    "Generate a single, deeply reflective journaling question that invites her "
-    "to explore exactly what she is feeling — without judgment, without advice. "
-    "The question should feel like it came from a wise friend who truly sees her. "
+    "A woman has just completed a listening session for a story or track (ID: {{track_id}}). "
+    "She was asked: 'How much did this touch or open something in you right now?' "
+    "She rated it a {{touch_score}} out of 10. "
+    "{{sliders_context}}"
+    "Based on this score, generate a single, deeply reflective question that invites her "
+    "to explore her reaction — without judgment, without advice.\n"
+    "- If the score is low (e.g. 0-4), ask gently what felt off, distant, or what disconnected her.\n"
+    "- If the score is medium (e.g. 5-7), ask what resonated, and what felt a bit distant.\n"
+    "- If the score is high (e.g. 8-10), ask her to explore what exactly cracked open or shifted in her.\n"
+    "The question should be short (1 sentence) and feel like it came from a wise friend who truly sees her. "
     "Return absolutely nothing but the question itself."
 )
 
