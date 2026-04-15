@@ -26,6 +26,7 @@ class Story(Base):
 
     # Content
     story_type = Column(SAEnum(StoryType), nullable=False)
+    title = Column(String, nullable=True)
     story_text = Column(Text, nullable=True)
 
     # Audio — local path for now (e.g. "media/audio/abc123.mp3")

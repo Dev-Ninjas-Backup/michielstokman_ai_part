@@ -54,9 +54,11 @@ def complete_story(
     db: Session,
     story: Story,
     story_text: str,
+    title: Optional[str] = None,
     audio_path: Optional[str] = None,
 ) -> Story:
     """Updates a Story row with the generated text + audio and marks it completed."""
+    story.title = title
     story.story_text = story_text
     story.audio_path = audio_path
     story.generation_status = GenerationStatus.completed

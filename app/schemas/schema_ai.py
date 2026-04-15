@@ -83,6 +83,7 @@ class StoryGenerateRequest(BaseModel):
 class StoryGenerateResponse(BaseModel):
     story_id: str = Field(..., description="UUID of the newly created Story row")
     job_id: str = Field(..., description="Async job ID — poll /admin/ai/status/{job_id} for audio_path")
+    title: Optional[str] = Field(None, description="The title of the generated story")
     story_text: str = Field(..., description="The fully generated story text")
     audio_path: Optional[str] = Field(
         None,
@@ -116,5 +117,7 @@ class JobResponse(BaseModel):
 class JobStatusResponse(BaseModel):
     job_id: str
     status: str = Field(..., description="Current status: 'processing', 'completed', 'failed'")
+    title: Optional[str] = Field(None, description="The title of the generated story")
     audio_path: Optional[str] = Field(None, description="Set once audio generation is complete")
+    story_text: Optional[str] = Field(None, description="The text of the generated story")
 

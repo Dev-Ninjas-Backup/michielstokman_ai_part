@@ -115,7 +115,7 @@ STORY_TYPE_INSTRUCTIONS: dict[StoryType, str] = {
         "It should guide her from her current emotional state toward a place of stillness and self-compassion. "
         "Use sensory language: breath, warmth, light, weight. Never preachy. End with an invitation, not a command. "
         "Note: As a meditation, adapt the base rules (like 1st person 'I') to 2nd person ('you') where appropriate, "
-        "but keep the raw, sensory, and emotionally honest tone. No title. No headers. Pure flowing prose."
+        "but keep the raw, sensory, and emotionally honest tone. No headers. Pure flowing prose."
     ),
     StoryType.transformation: (
         "Write a TRANSFORMATION story.\n"
@@ -124,7 +124,7 @@ STORY_TYPE_INSTRUCTIONS: dict[StoryType, str] = {
         "Note: As a transformation story, adapt the base 1st person rule to 3rd person ('she'), "
         "honouring the hardship she has been through, revealing the quiet power that was always there waiting. "
         "Never toxic positivity. End with a single powerful, true sentence she will remember. "
-        "No title. No headers. Pure flowing prose."
+        "No headers. Pure flowing prose."
     ),
 }
 
@@ -145,7 +145,11 @@ Use this profile to make the story feel unmistakably personal. Do not mention th
 
 STORY_HUMAN_TEMPLATE = (
     "Write the {story_type} now using all the rules above.\n"
-    "Make it so personal, raw and true that the reader thinks: “This could have been written by me.”"
+    "Make it so personal, raw and true that the reader thinks: “This could have been written by me.”\n\n"
+    "IMPORTANT: You MUST format your response exactly like this:\n"
+    "TITLE: [Your beautiful title here]\n"
+    "STORY:\n"
+    "[The full text of the story here]"
 )
 
 

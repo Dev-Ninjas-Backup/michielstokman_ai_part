@@ -100,7 +100,7 @@ class AIService:
     # --- Story Generation ---------------------------------------------------
 
     @staticmethod
-    def generate_story(request: StoryGenerateRequest) -> str:
+    def generate_story(request: StoryGenerateRequest) -> Tuple[Optional[str], str]:
         """
         Generates a personalised Confession, Meditation, or Transformation
         using SuperGrok. Prompt templates live in app/utils/prompts.py.
@@ -122,18 +122,29 @@ class AIService:
         ).to_messages()
 
         response = llm.invoke(formatted_messages)
-        return response.content.strip()
+        content = response.content.strip()
+        
+        title = None
+        story_text = content
+        if "TITLE:" in content and "STORY:" in content:
+            parts = content.split("STORY:", 1)
+            title_part = parts[0].replace("TITLE:", "").strip()
+            if title_part:
+                title = title_part
+            story_text = parts[1].strip()
+            
+        return title, story_text
 
     @staticmethod
-    def generate_and_voice_story(request: StoryGenerateRequest) -> Tuple[str, str]:
+    def generate_and_voice_story(request: StoryGenerateRequest) -> Tuple[Optional[str], str, str]:
         """
         Generates a story with SuperGrok, then converts it to audio via
-        ElevenLabs and saves it locally. Returns (story_text, audio_path).
+        ElevenLabs and saves it locally. Returns (title, story_text, audio_path).
         """
-        story_text = AIService.generate_story(request)
+        title, story_text = AIService.generate_story(request)
         audio_bytes = generate_voice_elevenlabs(text=story_text)
         audio_path = save_audio_locally(audio_bytes)
-        return story_text, audio_path
+        return title, story_text, audio_path
 
     # --- Background worker — story generation --------------------------------
 
@@ -161,12 +172,13 @@ class AIService:
                 StoryModel.id == story_db_id
             ).first()
 
-            story_text, audio_path = AIService.generate_and_voice_story(request)
+            title, story_text, audio_path = AIService.generate_and_voice_story(request)
 
             story_data.complete_story(
                 db=db,
                 story=story_row,
                 story_text=story_text,
+                title=title,
                 audio_path=audio_path,
             )
             logger.info(f"[Job {job_id}] Completed. Audio saved: {audio_path}")
@@ -276,6 +288,7 @@ class AIService:
                 return None
             return {
                 "status": story.generation_status.value,
+                "title": story.title,
                 "audio_path": story.audio_path,
                 "story_text": story.story_text,
             }
