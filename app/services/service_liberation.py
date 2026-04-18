@@ -1,0 +1,362 @@
+"""
+app/services/service_liberation.py
+
+Business logic for the 7-Day Liberation Journey (premium flow).
+Handles subscription gating, day generation via SuperGrok, and progression.
+"""
+import logging
+from datetime import datetime, timedelta, timezone
+from typing import Optional
+from uuid import UUID
+
+from fastapi import HTTPException, status
+from sqlalchemy.orm import Session
+
+from app.data import liberation as lib_data
+from app.data.billing import get_latest_subscription_for_user
+from app.model.billing import SubscriptionStatus
+from app.model.liberation import (
+    JourneyStatus,
+    StepStatus,
+    JOURNEY_DAY_THEMES,
+)
+from app.utils.prompts import (
+    LIBERATION_EXERCISE_SYSTEM,
+    LIBERATION_EXERCISE_HUMAN,
+)
+
+logger = logging.getLogger(__name__)
+
+
+class LiberationService:
+
+    # ── Subscription Gate ───────────────────────────────────────────────────
+
+    @staticmethod
+    def _verify_premium(db: Session, user_id: UUID) -> None:
+        """Raises 403 if user does not have an active subscription."""
+        sub = get_latest_subscription_for_user(db, user_id)
+        if not sub or sub.status != SubscriptionStatus.active:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Premium subscription required. Purchase the Liberation Journey to continue.",
+            )
+
+    # ── Enroll ──────────────────────────────────────────────────────────────
+
+    @staticmethod
+    def enroll(db: Session, user_id: UUID) -> dict:
+        """
+        Create a new journey for the user after payment verification.
+        If they already have an active journey, return it instead.
+        """
+        LiberationService._verify_premium(db, user_id)
+
+        existing = lib_data.get_active_journey(db, user_id)
+        if existing:
+            return LiberationService._build_status_dict(existing)
+
+        journey = lib_data.create_journey(db, user_id)
+        logger.info(f"[Liberation] User {user_id} enrolled in journey {journey.id}")
+        return LiberationService._build_status_dict(journey)
+
+    # ── Journey Status ──────────────────────────────────────────────────────
+
+    @staticmethod
+    def get_status(db: Session, user_id: UUID) -> dict:
+        """Return the full journey status with all 7 day summaries."""
+        LiberationService._verify_premium(db, user_id)
+
+        journey = lib_data.get_active_journey(db, user_id)
+        if not journey:
+            # Check for completed journeys
+            journey = lib_data.get_any_journey_for_user(db, user_id)
+        if not journey:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="No liberation journey found. Please enroll first.",
+            )
+
+        return LiberationService._build_status_dict(journey)
+
+    # ── Generate Daily Exercise (Screen 4 → 5) ─────────────────────────────
+
+    @staticmethod
+    def generate_day(db: Session, user_id: UUID, day: int, morning_feeling: str) -> dict:
+        """
+        1. Verify subscription.
+        2. Verify the day is 'available'.
+        3. Save the morning feeling.
+        4. Call SuperGrok with the Liberation prompt.
+        5. Generate audio greeting via ElevenLabs.
+        6. Save AI content to the step row.
+        """
+        LiberationService._verify_premium(db, user_id)
+
+        journey = lib_data.get_active_journey(db, user_id)
+        if not journey:
+            raise HTTPException(status_code=404, detail="No active journey found.")
+
+        step = lib_data.get_step(db, journey.id, day)
+        if not step:
+            raise HTTPException(status_code=404, detail=f"Day {day} does not exist.")
+
+        if step.status == StepStatus.locked:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Day {day} is still locked. Complete the previous day first.",
+            )
+
+        if step.status == StepStatus.completed:
+            # Already generated — return cached content
+            return {
+                "day_number": step.day_number,
+                "day_theme": step.day_theme,
+                "ai_greeting": step.ai_greeting,
+                "ai_exercise_text": step.ai_exercise_text,
+                "ai_why_text": step.ai_why_text,
+                "audio_url": step.audio_url,
+            }
+
+        # Save morning feeling
+        lib_data.save_morning_feeling(db, step, morning_feeling)
+
+        # Generate AI content
+        greeting, exercise_text, why_text = LiberationService._generate_exercise_content(
+            day_number=day,
+            day_theme=step.day_theme or JOURNEY_DAY_THEMES.get(day, ""),
+            morning_feeling=morning_feeling,
+        )
+
+        # Generate audio for the greeting
+        audio_url = LiberationService._generate_greeting_audio(greeting)
+
+        # Save everything to the step
+        lib_data.save_ai_content(db, step, greeting, exercise_text, why_text, audio_url)
+
+        logger.info(f"[Liberation] User {user_id} generated Day {day} exercise.")
+
+        return {
+            "day_number": step.day_number,
+            "day_theme": step.day_theme,
+            "ai_greeting": greeting,
+            "ai_exercise_text": exercise_text,
+            "ai_why_text": why_text,
+            "audio_url": audio_url,
+        }
+
+    # ── Complete Day (Screen 7 → 8) ─────────────────────────────────────────
+
+    @staticmethod
+    def complete_day(db: Session, user_id: UUID, day: int, energy_level: int, what_opened: str, key_takeaway: str) -> dict:
+        """
+        Save the user's post-exercise reflection, mark the day completed,
+        and unlock the next day.
+        """
+        LiberationService._verify_premium(db, user_id)
+
+        journey = lib_data.get_active_journey(db, user_id)
+        if not journey:
+            raise HTTPException(status_code=404, detail="No active journey found.")
+
+        step = lib_data.get_step(db, journey.id, day)
+        if not step:
+            raise HTTPException(status_code=404, detail=f"Day {day} does not exist.")
+
+        if step.status == StepStatus.completed:
+            return {
+                "day_number": day,
+                "status": "completed",
+                "message": f"Day {day} was already completed.",
+                "next_day_available": day < journey.total_days,
+            }
+
+        if step.status == StepStatus.locked:
+            raise HTTPException(status_code=403, detail=f"Day {day} is locked.")
+
+        # Save reflection and mark completed
+        lib_data.complete_step(db, step, energy_level, what_opened, key_takeaway)
+
+        # Unlock the next day
+        next_day_available = False
+        if day < journey.total_days:
+            lib_data.unlock_next_step(db, journey.id, day)
+            next_day_available = True
+        else:
+            # Final day — mark the entire journey as completed
+            lib_data.mark_journey_completed(db, journey)
+            logger.info(f"[Liberation] User {user_id} completed the full journey!")
+
+        return {
+            "day_number": day,
+            "status": "completed",
+            "message": f"Day {day} complete — beautiful!" if day < journey.total_days else "Your Liberation is Complete 🌸",
+            "next_day_available": next_day_available,
+        }
+
+    # ── Get Step Detail (for revisiting a completed day) ────────────────────
+
+    @staticmethod
+    def get_day_detail(db: Session, user_id: UUID, day: int) -> dict:
+        """Return the full detail of a specific day (for playback or review)."""
+        LiberationService._verify_premium(db, user_id)
+
+        journey = lib_data.get_active_journey(db, user_id)
+        if not journey:
+            journey = lib_data.get_any_journey_for_user(db, user_id)
+        if not journey:
+            raise HTTPException(status_code=404, detail="No journey found.")
+
+        step = lib_data.get_step(db, journey.id, day)
+        if not step:
+            raise HTTPException(status_code=404, detail=f"Day {day} does not exist.")
+
+        return {
+            "day_number": step.day_number,
+            "day_theme": step.day_theme,
+            "status": step.status.value,
+            "morning_feeling": step.morning_feeling,
+            "ai_greeting": step.ai_greeting,
+            "ai_exercise_text": step.ai_exercise_text,
+            "ai_why_text": step.ai_why_text,
+            "audio_url": step.audio_url,
+            "energy_level_after": step.energy_level_after,
+            "reflection_opened": step.reflection_opened,
+            "reflection_takeaway": step.reflection_takeaway,
+            "completed_at": step.completed_at.isoformat() if step.completed_at else None,
+        }
+
+    # ── Discovery feed helper ───────────────────────────────────────────────
+
+    @staticmethod
+    def get_feed_card(db: Session, user_id: UUID) -> dict:
+        """
+        Build the premium journey card for the discovery grid.
+        - Not enrolled → teaser with price
+        - Enrolled → progress card with current day
+        """
+        journey = lib_data.get_any_journey_for_user(db, user_id)
+
+        if not journey:
+            return {
+                "card_type": "liberation_journey",
+                "journey_code": "vitality_7_days",
+                "title": "Feel More Vital – 7 Days to More Life Energy",
+                "description": "7 gentle daily practices to release tension, boost vitality, and feel genuinely alive again.",
+                "price_display": "€47",
+                "price_cents": 4700,
+                "total_days": 7,
+                "is_enrolled": False,
+                "current_day": None,
+                "journey_status": None,
+                "journey_id": None,
+            }
+
+        # Calculate current day (highest available or completed)
+        current_day = 1
+        for step in journey.steps:
+            if step.status in (StepStatus.available, StepStatus.completed):
+                current_day = step.day_number
+
+        return {
+            "card_type": "liberation_journey",
+            "journey_code": journey.journey_code,
+            "title": "Feel More Vital – 7 Days to More Life Energy",
+            "description": "7 gentle daily practices to release tension, boost vitality, and feel genuinely alive again.",
+            "price_display": "€47",
+            "price_cents": 4700,
+            "total_days": journey.total_days,
+            "is_enrolled": True,
+            "current_day": current_day,
+            "journey_status": journey.status.value,
+            "journey_id": journey.id,
+        }
+
+    # ── Private helpers ─────────────────────────────────────────────────────
+
+    @staticmethod
+    def _build_status_dict(journey) -> dict:
+        """Convert a journey ORM object into the status response dict."""
+        current_day = 1
+        steps = []
+        for step in journey.steps:
+            if step.status in (StepStatus.available, StepStatus.completed):
+                current_day = step.day_number
+            steps.append({
+                "day_number": step.day_number,
+                "day_theme": step.day_theme,
+                "status": step.status.value,
+                "completed_at": step.completed_at,
+            })
+
+        return {
+            "journey_id": journey.id,
+            "journey_code": journey.journey_code,
+            "status": journey.status.value,
+            "total_days": journey.total_days,
+            "current_day": current_day,
+            "steps": steps,
+        }
+
+    @staticmethod
+    def _generate_exercise_content(day_number: int, day_theme: str, morning_feeling: str) -> tuple[str, str, str]:
+        """
+        Call SuperGrok to generate the daily liberation exercise.
+        Returns (greeting, exercise_text, why_text).
+        """
+        from app.core.llm import get_story_llm
+        from langchain_core.prompts import (
+            ChatPromptTemplate,
+            SystemMessagePromptTemplate,
+            HumanMessagePromptTemplate,
+        )
+
+        llm = get_story_llm(temperature=0.7)
+
+        system_prompt = LIBERATION_EXERCISE_SYSTEM.format(
+            day_number=day_number,
+            day_theme=day_theme,
+            morning_feeling=morning_feeling,
+        )
+
+        chat_prompt = ChatPromptTemplate.from_messages([
+            SystemMessagePromptTemplate.from_template(system_prompt),
+            HumanMessagePromptTemplate.from_template(LIBERATION_EXERCISE_HUMAN),
+        ])
+
+        formatted = chat_prompt.format_prompt().to_messages()
+        response = llm.invoke(formatted)
+        content = response.content.strip()
+
+        # Parse the three sections
+        greeting = ""
+        exercise_text = ""
+        why_text = ""
+
+        if "GREETING:" in content and "EXERCISE:" in content and "WHY:" in content:
+            parts = content.split("EXERCISE:")
+            greeting = parts[0].replace("GREETING:", "").strip()
+            rest = parts[1]
+            parts2 = rest.split("WHY:")
+            exercise_text = parts2[0].strip()
+            why_text = parts2[1].strip()
+        else:
+            # Fallback: treat everything as the exercise text
+            logger.warning(f"[Liberation] AI response did not follow expected format for Day {day_number}")
+            greeting = f"Hey friend, thank you for showing up today. Day {day_number} is about {day_theme}."
+            exercise_text = content
+            why_text = f"This exercise connects you to the theme of {day_theme} — tuning into your body's natural wisdom."
+
+        return greeting, exercise_text, why_text
+
+    @staticmethod
+    def _generate_greeting_audio(greeting_text: str) -> Optional[str]:
+        """Generate TTS audio for the greeting and upload to S3."""
+        try:
+            from app.core.llm import generate_voice_elevenlabs, save_audio
+            audio_bytes = generate_voice_elevenlabs(text=greeting_text)
+            audio_url = save_audio(audio_bytes)
+            return audio_url
+        except Exception as e:
+            logger.warning(f"[Liberation] Audio generation failed: {e}")
+            return None
