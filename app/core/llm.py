@@ -87,20 +87,25 @@ def generate_voice_elevenlabs(
 
 
 # ---------------------------------------------------------------------------
-# Audio Storage — Local (S3-ready placeholder)
+# Audio Storage — S3 / Local Fallback
 # ---------------------------------------------------------------------------
 
-# ⚠️  S3 MIGRATION NOTE: When S3 is ready, replace save_audio_locally() with
-#     an S3 upload call and return the S3 URL. The caller interface stays the
-#     same — only this function body needs to change.
 AUDIO_STORAGE_DIR = Path("media/audio")
 
 
-def save_audio_locally(audio_bytes: bytes, filename: str | None = None) -> str:
+def save_audio(audio_bytes: bytes, filename: str | None = None) -> str:
     """
-    Saves raw audio bytes to the local media/audio/ directory.
-    Returns the relative path, e.g. "media/audio/abc123.mp3".
+    Attempts to save raw audio bytes to AWS S3. 
+    If S3 is not configured or fails, it falls back to local media/audio/ directory.
+    Returns the URL or relative path, e.g. "https://mybucket.s3..." or "media/audio/abc123.mp3".
     """
+    from app.utils.s3 import upload_audio_bytes_to_s3
+    
+    s3_url = upload_audio_bytes_to_s3(audio_bytes)
+    if s3_url:
+        return s3_url
+
+    # Fallback to local storage
     AUDIO_STORAGE_DIR.mkdir(parents=True, exist_ok=True)
 
     if filename is None:

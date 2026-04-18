@@ -27,7 +27,7 @@ from app.schemas.schema_ai import (
 from app.core.llm import (
     get_story_llm,
     generate_voice_elevenlabs,
-    save_audio_locally,
+    save_audio,
 )
 import app.data.story as story_data
 from app.utils.prompts import (
@@ -147,7 +147,7 @@ class AIService:
         """
         title, story_text = AIService.generate_story(request)
         audio_bytes = generate_voice_elevenlabs(text=story_text)
-        audio_path = save_audio_locally(audio_bytes)
+        audio_path = save_audio(audio_bytes)
         return title, story_text, audio_path
 
     # --- Background worker — story generation --------------------------------

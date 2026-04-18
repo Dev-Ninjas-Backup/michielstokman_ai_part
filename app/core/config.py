@@ -45,6 +45,7 @@ class Settings:
         # S3 Settings
         self.AWS_ACCESS_KEY_ID: str | None = os.getenv("AWS_ACCESS_KEY_ID")
         self.AWS_SECRET_ACCESS_KEY: str | None = os.getenv("AWS_SECRET_ACCESS_KEY")
+        self.AWS_REGION_NAME: str = os.getenv("AWS_REGION_NAME", "us-east-1")
         self.AWS_BUCKET_NAME: str | None = os.getenv("AWS_BUCKET_NAME")
 
         # Security / JWT
