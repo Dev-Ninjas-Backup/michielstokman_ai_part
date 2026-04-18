@@ -48,6 +48,10 @@ class Settings:
         self.AWS_REGION_NAME: str = os.getenv("AWS_REGION_NAME", "us-east-1")
         self.AWS_BUCKET_NAME: str | None = os.getenv("AWS_BUCKET_NAME")
 
+        # Stripe Settings
+        self.STRIPE_API_KEY: str | None = os.getenv("STRIPE_API_KEY")
+        self.STRIPE_WEBHOOK_SECRET: str | None = os.getenv("STRIPE_WEBHOOK_SECRET")
+
         # Security / JWT
         self.SECRET_KEY: str = os.getenv("SECRET_KEY", "dev_fallback_secret_key_change_in_prod")
         self.ALGORITHM: str = os.getenv("ALGORITHM", "HS256")
