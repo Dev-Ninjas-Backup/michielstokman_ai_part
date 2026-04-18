@@ -22,7 +22,65 @@ from app.services.service_rag import RAGService
 from app.data import story as story_data
 import app.data.credit as credit_data
 
+from app.schemas.schema_user_dashboard import DiscoveryFeedResponse, StoryFeedItem
+from app.services.service_liberation import LiberationService
+from app.model.story import GenerationStatus
+
 router = APIRouter()
+
+
+# ---------------------------------------------------------------------------
+# Discovery Feed
+# ---------------------------------------------------------------------------
+
+@router.get(
+    "/dashboard/feed",
+    response_model=DiscoveryFeedResponse,
+)
+def get_discovery_feed(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Returns the main story grid for the discovery page.
+    Injects the Premium Liberation Journey card along with standard stories.
+    """
+    # 1. Fetch some approved stories for the grid
+    stories = (
+        db.query(story_data.Story)
+        .filter(story_data.Story.generation_status == GenerationStatus.completed)
+        .filter(story_data.Story.moderation_status == ModerationStatus.approved)
+        .order_by(story_data.Story.created_at.desc())
+        .limit(12)
+        .all()
+    )
+
+    items = []
+    
+    # 2. Add some regular stories
+    for s in stories[:5]:
+        items.append(StoryFeedItem(
+            id=str(s.id),
+            title=s.title or "Untitled",
+            story_type=s.story_type.value if s.story_type else "confession",
+            audio_path=s.audio_path,
+        ))
+
+    # 3. Inject the Liberation Journey card
+    lib_card = LiberationService.get_feed_card(db, current_user.id)
+    items.append(lib_card)
+
+    # 4. Add the rest of the stories
+    for s in stories[5:]:
+        items.append(StoryFeedItem(
+            id=str(s.id),
+            title=s.title or "Untitled",
+            story_type=s.story_type.value if s.story_type else "confession",
+            audio_path=s.audio_path,
+        ))
+
+    return DiscoveryFeedResponse(items=items)
+
 
 
 # ---------------------------------------------------------------------------

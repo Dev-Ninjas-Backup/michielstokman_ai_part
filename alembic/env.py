@@ -30,6 +30,7 @@ from app.model.profile import UserProfile
 from app.model.story import Story
 from app.model.feedback import StoryFeedback
 from app.model.credit import UserCredit
+from app.model.liberation import UserJourney, UserJourneyStep
 
 # add your model's MetaData object here
 # for 'autogenerate' support

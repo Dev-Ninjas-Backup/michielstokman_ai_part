@@ -1,0 +1,12 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: softvence/michielstokman-api:latest
+    container_name: michielstokman-api-prod
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    restart: always

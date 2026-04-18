@@ -62,7 +62,42 @@ class BillingService:
         if not plan:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Plan not found")
 
-        provider_payment_id = f"pay_{uuid.uuid4().hex[:24]}"
+        import stripe
+        from app.core.config import settings
+        
+        if provider.lower() == "stripe":
+            if not settings.STRIPE_API_KEY:
+                raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Stripe API key not configured.")
+            
+            stripe.api_key = settings.STRIPE_API_KEY
+            mode = "subscription" if plan.interval_unit.value in ["month", "year"] else "payment"
+            
+            session = stripe.checkout.Session.create(
+                payment_method_types=['card'],
+                line_items=[{
+                    'price_data': {
+                        'currency': plan.currency,
+                        'product_data': {
+                            'name': plan.name,
+                            'description': plan.description,
+                        },
+                        'unit_amount': plan.price_cents,
+                        **({'recurring': {'interval': plan.interval_unit.value}} if mode == "subscription" else {})
+                    },
+                    'quantity': 1,
+                }],
+                mode=mode,
+                success_url="https://yourwebsite.com/dashboard?payment=success",
+                cancel_url="https://yourwebsite.com/dashboard?payment=cancelled",
+                client_reference_id=str(user_id),
+                metadata={"plan_id": str(plan.id)}
+            )
+            provider_payment_id = session.id
+            checkout_url = session.url
+        else:
+            provider_payment_id = f"pay_{uuid.uuid4().hex[:24]}"
+            checkout_url = f"https://mockpay.local/checkout/{provider_payment_id}"
+
         payment = create_payment(
             db=db,
             user_id=user_id,
@@ -76,7 +111,7 @@ class BillingService:
         return {
             "payment_id": payment.id,
             "provider_payment_id": payment.provider_payment_id,
-            "checkout_url": f"https://mockpay.local/checkout/{payment.provider_payment_id}",
+            "checkout_url": checkout_url,
             "checkout_status": payment.checkout_status,
         }
 
