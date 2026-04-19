@@ -72,9 +72,8 @@ class BillingService:
             stripe.api_key = settings.STRIPE_API_KEY
             mode = "subscription" if plan.interval_unit.value in ["month", "year"] else "payment"
             
-            # Using FRONTEND_URL from environment or fallback to localhost
-            import os
-            frontend_url = os.getenv("FRONTEND_URL", "http://localhost:3000").rstrip("/")
+            # Using FRONTEND_URL from environment settings
+            frontend_url = settings.FRONTEND_URL
             
             session = stripe.checkout.Session.create(
                 payment_method_types=['card'],

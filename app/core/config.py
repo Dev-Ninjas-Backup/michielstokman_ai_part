@@ -57,6 +57,9 @@ class Settings:
         self.ALGORITHM: str = os.getenv("ALGORITHM", "HS256")
         self.ACCESS_TOKEN_EXPIRE_MINUTES: int = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "10080"))
 
+        # App Frontend / External
+        self.FRONTEND_URL: str = os.getenv("FRONTEND_URL", "http://localhost:3000").rstrip("/")
+
     @property
     def DATABASE_URL(self) -> str:
         """Constructs the SQLAlchemy sync PostgreSQL connection string."""
