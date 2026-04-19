@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request, Header
 from sqlalchemy.orm import Session
 
 from app.core.db import get_db
@@ -26,13 +26,17 @@ def start_checkout(payload: StartCheckoutRequest, db: Session = Depends(get_db))
     )
 
 
-@router.post("/payment/webhook", response_model=PaymentWebhookResponse)
-def payment_webhook(payload: PaymentWebhookRequest, db: Session = Depends(get_db)):
+@router.post("/payment/webhook") # Note: no response_model set because it returns varying dicts now
+async def payment_webhook(
+    request: Request,
+    stripe_signature: str | None = Header(None, alias="Stripe-Signature"),
+    db: Session = Depends(get_db)
+):
+    payload = await request.body()
     return BillingService.process_webhook(
         db=db,
-        provider_payment_id=payload.provider_payment_id,
-        event=payload.event,
-        failure_reason=payload.failure_reason,
+        payload=payload,
+        sig_header=stripe_signature,
     )
 
 
