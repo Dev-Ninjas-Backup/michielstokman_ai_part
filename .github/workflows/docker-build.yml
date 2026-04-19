@@ -41,7 +41,16 @@ jobs:
           username: ${{ secrets.EC2_USERNAME }}
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
+            set -e
             cd /home/ubuntu/michielstokman-backend
-            docker-compose pull
-            docker-compose up -d
+            if command -v docker-compose > /dev/null 2>&1; then
+              docker-compose pull
+              docker-compose up -d
+            elif docker compose version > /dev/null 2>&1; then
+              docker compose pull
+              docker compose up -d
+            else
+              echo "Docker Compose is not installed on EC2. Install docker-compose or Docker Compose plugin."
+              exit 1
+            fi
 
