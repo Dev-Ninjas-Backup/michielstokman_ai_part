@@ -13,7 +13,7 @@ from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.data import liberation as lib_data
-from app.data.billing import get_latest_subscription_for_user
+from app.data.billing import check_user_has_plan_code
 from app.model.billing import SubscriptionStatus
 from app.model.liberation import (
     JourneyStatus,
@@ -33,13 +33,13 @@ class LiberationService:
     # ── Subscription Gate ───────────────────────────────────────────────────
 
     @staticmethod
-    def _verify_premium(db: Session, user_id: UUID) -> None:
-        """Raises 403 if user does not have an active subscription."""
-        sub = get_latest_subscription_for_user(db, user_id)
-        if not sub or sub.status != SubscriptionStatus.active:
+    def _verify_purchase(db: Session, user_id: UUID, journey_code: str) -> None:
+        """Raises 403 if user does not own the specific journey code."""
+        has_access = check_user_has_plan_code(db, user_id, plan_code=journey_code)
+        if not has_access:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Premium subscription required. Purchase the Liberation Journey to continue.",
+                detail=f"You must purchase the '{journey_code}' journey to access it.",
             )
 
     # ── Enroll ──────────────────────────────────────────────────────────────
@@ -50,7 +50,7 @@ class LiberationService:
         Create a new journey for the user after payment verification.
         If they already have an active journey, return it instead.
         """
-        LiberationService._verify_premium(db, user_id)
+        LiberationService._verify_purchase(db, user_id, journey_code)
 
         existing = lib_data.get_active_journey(db, user_id, journey_code)
         if existing:
@@ -64,9 +64,7 @@ class LiberationService:
 
     @staticmethod
     def get_status(db: Session, user_id: UUID) -> dict:
-        """Return the full journey status with all 7 day summaries."""
-        LiberationService._verify_premium(db, user_id)
-
+        """Return the full journey status with all summaries for the most recent journey."""
         journey = lib_data.get_active_journey(db, user_id)
         if not journey:
             # Check for completed journeys
@@ -76,6 +74,8 @@ class LiberationService:
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="No liberation journey found. Please enroll first.",
             )
+            
+        LiberationService._verify_purchase(db, user_id, journey.journey_code)
 
         return LiberationService._build_status_dict(journey)
 
@@ -84,18 +84,17 @@ class LiberationService:
     @staticmethod
     def generate_day(db: Session, user_id: UUID, day: int, morning_feeling: str) -> dict:
         """
-        1. Verify subscription.
-        2. Verify the day is 'available'.
+        1. Verify the day is 'available'.
+        2. Verify purchase based on active journey.
         3. Save the morning feeling.
         4. Call SuperGrok with the Liberation prompt.
-        5. Generate audio greeting via ElevenLabs.
-        6. Save AI content to the step row.
+        5. Save AI content to the step row.
         """
-        LiberationService._verify_premium(db, user_id)
-
         journey = lib_data.get_active_journey(db, user_id)
         if not journey:
             raise HTTPException(status_code=404, detail="No active journey found.")
+            
+        LiberationService._verify_purchase(db, user_id, journey.journey_code)
 
         step = lib_data.get_step(db, journey.id, day)
         if not step:
@@ -148,11 +147,11 @@ class LiberationService:
         Save the user's post-exercise reflection, mark the day completed,
         and unlock the next day.
         """
-        LiberationService._verify_premium(db, user_id)
-
         journey = lib_data.get_active_journey(db, user_id)
         if not journey:
             raise HTTPException(status_code=404, detail="No active journey found.")
+            
+        LiberationService._verify_purchase(db, user_id, journey.journey_code)
 
         step = lib_data.get_step(db, journey.id, day)
         if not step:
@@ -194,13 +193,13 @@ class LiberationService:
     @staticmethod
     def get_day_detail(db: Session, user_id: UUID, day: int) -> dict:
         """Return the full detail of a specific day (for playback or review)."""
-        LiberationService._verify_premium(db, user_id)
-
         journey = lib_data.get_active_journey(db, user_id)
         if not journey:
             journey = lib_data.get_any_journey_for_user(db, user_id)
         if not journey:
             raise HTTPException(status_code=404, detail="No journey found.")
+            
+        LiberationService._verify_purchase(db, user_id, journey.journey_code)
 
         step = lib_data.get_step(db, journey.id, day)
         if not step:

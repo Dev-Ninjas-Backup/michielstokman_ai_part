@@ -12,6 +12,7 @@ from app.core.db import Base
 class SubscriptionInterval(str, enum.Enum):
     month = "month"
     year = "year"
+    lifetime = "lifetime"
 
 
 class SubscriptionStatus(str, enum.Enum):

@@ -135,6 +135,21 @@ def get_latest_subscription_for_user(db: Session, user_id: UUID) -> UserSubscrip
     )
 
 
+def check_user_has_plan_code(db: Session, user_id: UUID, plan_code: str) -> bool:
+    """Check if the user has an active pseudo-subscription / purchase for a specific plan code."""
+    res = (
+        db.query(UserSubscription)
+        .join(SubscriptionPlan, UserSubscription.plan_id == SubscriptionPlan.id)
+        .filter(
+            UserSubscription.user_id == user_id,
+            SubscriptionPlan.code == plan_code,
+            UserSubscription.status == SubscriptionStatus.active,
+        )
+        .first()
+    )
+    return res is not None
+
+
 def upsert_active_subscription(
     db: Session,
     user_id: UUID,
@@ -148,6 +163,8 @@ def upsert_active_subscription(
     interval_count = int(getattr(plan, "interval_count"))
     if interval_unit == SubscriptionInterval.year:
         period_end = now + timedelta(days=365 * interval_count)
+    elif interval_unit == SubscriptionInterval.lifetime:
+        period_end = now + timedelta(days=365 * 100)  # Lifetime = +100 years
     else:
         period_end = now + timedelta(days=30 * interval_count)
 
