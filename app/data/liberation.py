@@ -44,23 +44,33 @@ def get_any_journey_for_user(db: Session, user_id: UUID, journey_code: Optional[
     return query.order_by(UserJourney.created_at.desc()).first()
 
 
-def create_journey(db: Session, user_id: UUID, journey_code: str, total_days: int, reminder_preference: Optional[str] = None) -> UserJourney:
+def create_journey(
+    db: Session,
+    user_id: UUID,
+    journey_code: str,
+    total_days: int,
+    reminder_preference: Optional[str] = None,
+    definition_id: Optional[UUID] = None,
+    day_themes: Optional[dict[int, str]] = None,
+) -> UserJourney:
     """Create a new journey and pre-populate all step rows (Day 1 = available, rest = locked)."""
     journey = UserJourney(
         user_id=user_id,
         journey_code=journey_code,
         total_days=total_days,
         reminder_preference=reminder_preference,
+        definition_id=definition_id,
         status=JourneyStatus.active,
     )
     db.add(journey)
     db.flush()  # get journey.id before creating steps
 
+    themes = day_themes or JOURNEY_DAY_THEMES
     for day in range(1, total_days + 1):
         step = UserJourneyStep(
             journey_id=journey.id,
             day_number=day,
-            day_theme=JOURNEY_DAY_THEMES.get(day, f"Day {day}"),
+            day_theme=themes.get(day, f"Day {day}"),
             status=StepStatus.available if day == 1 else StepStatus.locked,
         )
         db.add(step)

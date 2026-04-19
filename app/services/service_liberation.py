@@ -1,8 +1,8 @@
 """
 app/services/service_liberation.py
 
-Business logic for the 7-Day Liberation Journey (premium flow).
-Handles subscription gating, day generation via SuperGrok, and progression.
+Business logic for the Liberation Journey (premium flow).
+Handles purchase gating, day generation via SuperGrok, and progression.
 """
 import logging
 from datetime import datetime, timedelta, timezone
@@ -13,15 +13,15 @@ from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.data import liberation as lib_data
+from app.data import liberation_catalog as catalog_data
 from app.data.billing import check_user_has_plan_code
-from app.model.billing import SubscriptionStatus
 from app.model.liberation import (
     JourneyStatus,
     StepStatus,
     JOURNEY_DAY_THEMES,
 )
 from app.utils.prompts import (
-    LIBERATION_EXERCISE_SYSTEM,
+    build_liberation_exercise_system,
     LIBERATION_EXERCISE_HUMAN,
 )
 
@@ -30,7 +30,7 @@ logger = logging.getLogger(__name__)
 
 class LiberationService:
 
-    # ── Subscription Gate ───────────────────────────────────────────────────
+    # ── Purchase Gate ───────────────────────────────────────────────────────
 
     @staticmethod
     def _verify_purchase(db: Session, user_id: UUID, journey_code: str) -> None:
@@ -48,7 +48,8 @@ class LiberationService:
     def enroll(db: Session, user_id: UUID, journey_code: str, total_days: int, reminder_preference: Optional[str] = None) -> dict:
         """
         Create a new journey for the user after payment verification.
-        If they already have an active journey, return it instead.
+        Pulls day themes from the catalog definition when available.
+        If they already have an active journey for that code, returns its current status.
         """
         LiberationService._verify_purchase(db, user_id, journey_code)
 
@@ -56,7 +57,23 @@ class LiberationService:
         if existing:
             return LiberationService._build_status_dict(existing)
 
-        journey = lib_data.create_journey(db, user_id, journey_code, total_days, reminder_preference)
+        # Look up the catalog definition for day themes
+        definition = catalog_data.get_definition_by_code(db, journey_code)
+        definition_id = definition.id if definition else None
+
+        # Build day themes from catalog or fallback to legacy dict
+        day_themes = {}
+        if definition and definition.day_definitions:
+            for dd in definition.day_definitions:
+                day_themes[dd.day_number] = dd.day_theme
+        else:
+            day_themes = JOURNEY_DAY_THEMES
+
+        journey = lib_data.create_journey(
+            db, user_id, journey_code, total_days, reminder_preference,
+            definition_id=definition_id,
+            day_themes=day_themes,
+        )
         logger.info(f"[Liberation] User {user_id} enrolled in journey {journey.id}")
         return LiberationService._build_status_dict(journey)
 
@@ -67,19 +84,18 @@ class LiberationService:
         """Return the full journey status with all summaries for the most recent journey."""
         journey = lib_data.get_active_journey(db, user_id)
         if not journey:
-            # Check for completed journeys
             journey = lib_data.get_any_journey_for_user(db, user_id)
         if not journey:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="No liberation journey found. Please enroll first.",
             )
-            
+
         LiberationService._verify_purchase(db, user_id, journey.journey_code)
 
         return LiberationService._build_status_dict(journey)
 
-    # ── Generate Daily Exercise (Screen 4 → 5) ─────────────────────────────
+    # ── Generate Daily Exercise ─────────────────────────────────────────────
 
     @staticmethod
     def generate_day(db: Session, user_id: UUID, day: int, morning_feeling: str) -> dict:
@@ -93,7 +109,7 @@ class LiberationService:
         journey = lib_data.get_active_journey(db, user_id)
         if not journey:
             raise HTTPException(status_code=404, detail="No active journey found.")
-            
+
         LiberationService._verify_purchase(db, user_id, journey.journey_code)
 
         step = lib_data.get_step(db, journey.id, day)
@@ -107,7 +123,6 @@ class LiberationService:
             )
 
         if step.status == StepStatus.completed:
-            # Already generated — return cached content
             return {
                 "day_number": step.day_number,
                 "day_theme": step.day_theme,
@@ -119,8 +134,15 @@ class LiberationService:
         # Save morning feeling
         lib_data.save_morning_feeling(db, step, morning_feeling)
 
+        # Resolve journey title from catalog or fallback
+        journey_title = journey.journey_code.replace("_", " ").title()
+        if journey.definition:
+            journey_title = journey.definition.title
+
         # Generate AI content
         greeting, exercise_text, why_text = LiberationService._generate_exercise_content(
+            journey_title=journey_title,
+            total_days=journey.total_days,
             day_number=day,
             day_theme=step.day_theme or JOURNEY_DAY_THEMES.get(day, f"Day {day}"),
             morning_feeling=morning_feeling,
@@ -139,7 +161,7 @@ class LiberationService:
             "ai_why_text": why_text,
         }
 
-    # ── Complete Day (Screen 7 → 8) ─────────────────────────────────────────
+    # ── Complete Day ────────────────────────────────────────────────────────
 
     @staticmethod
     def complete_day(db: Session, user_id: UUID, day: int, energy_level: int, what_opened: str, key_takeaway: str) -> dict:
@@ -150,7 +172,7 @@ class LiberationService:
         journey = lib_data.get_active_journey(db, user_id)
         if not journey:
             raise HTTPException(status_code=404, detail="No active journey found.")
-            
+
         LiberationService._verify_purchase(db, user_id, journey.journey_code)
 
         step = lib_data.get_step(db, journey.id, day)
@@ -198,7 +220,7 @@ class LiberationService:
             journey = lib_data.get_any_journey_for_user(db, user_id)
         if not journey:
             raise HTTPException(status_code=404, detail="No journey found.")
-            
+
         LiberationService._verify_purchase(db, user_id, journey.journey_code)
 
         step = lib_data.get_step(db, journey.id, day)
@@ -231,7 +253,6 @@ class LiberationService:
         journey = lib_data.get_any_journey_for_user(db, user_id)
 
         if not journey:
-            # Provide a generic fallback card, though typically the frontend requests a specific one.
             return {
                 "card_type": "liberation_journey",
                 "journey_code": "unknown",
@@ -246,6 +267,13 @@ class LiberationService:
                 "journey_id": None,
             }
 
+        # Resolve title from catalog
+        title = journey.journey_code.replace("_", " ").title()
+        description = f"Continue your {journey.total_days}-day path to greater awareness and energy."
+        if journey.definition:
+            title = journey.definition.title
+            description = journey.definition.description or description
+
         # Calculate current day (highest available or completed)
         current_day = 1
         for step in journey.steps:
@@ -255,8 +283,8 @@ class LiberationService:
         return {
             "card_type": "liberation_journey",
             "journey_code": journey.journey_code,
-            "title": f"Journey: {journey.journey_code.replace('_', ' ').title()}",
-            "description": f"Continue your {journey.total_days}-day path to greater awareness and energy.",
+            "title": title,
+            "description": description,
             "price_display": "€47",
             "price_cents": 4700,
             "total_days": journey.total_days,
@@ -293,7 +321,13 @@ class LiberationService:
         }
 
     @staticmethod
-    def _generate_exercise_content(day_number: int, day_theme: str, morning_feeling: str) -> tuple[str, str, str]:
+    def _generate_exercise_content(
+        journey_title: str,
+        total_days: int,
+        day_number: int,
+        day_theme: str,
+        morning_feeling: str,
+    ) -> tuple[str, str, str]:
         """
         Call SuperGrok to generate the daily liberation exercise.
         Returns (greeting, exercise_text, why_text).
@@ -307,7 +341,9 @@ class LiberationService:
 
         llm = get_story_llm(temperature=0.7)
 
-        system_prompt = LIBERATION_EXERCISE_SYSTEM.format(
+        system_prompt = build_liberation_exercise_system(
+            journey_title=journey_title,
+            total_days=total_days,
             day_number=day_number,
             day_theme=day_theme,
             morning_feeling=morning_feeling,
@@ -342,5 +378,3 @@ class LiberationService:
             why_text = f"This exercise connects you to the theme of {day_theme} — tuning into your body's natural wisdom."
 
         return greeting, exercise_text, why_text
-
-

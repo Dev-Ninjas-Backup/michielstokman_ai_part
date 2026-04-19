@@ -4,8 +4,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from app.api.v1.endpoints import hello
 from app.api.v1.endpoints import routes_ai, routes_auth, routes_payment, routes_subscription, routes_profile
-from app.api.v1.endpoints import routes_user_dashboard, routes_feedback, routes_liberation
-from app.api.v1.endpoints.admin import route_admin_dashboard, route_moderation
+from app.api.v1.endpoints import routes_user_dashboard, routes_feedback, routes_liberation, routes_liberation_catalog
+from app.api.v1.endpoints.admin import route_admin_dashboard, route_moderation, route_liberation_admin
 
 app = FastAPI(
     title="Transform to Liberation API",
@@ -42,10 +42,12 @@ app.include_router(routes_profile.router, prefix="/v1", tags=["Profile"])
 app.include_router(routes_user_dashboard.router, prefix="/v1", tags=["User Dashboard"])
 app.include_router(routes_feedback.router, prefix="/v1", tags=["Feedback"])
 app.include_router(routes_liberation.router, prefix="/v1", tags=["Liberation Journey"])
+app.include_router(routes_liberation_catalog.router, prefix="/v1", tags=["Liberation Catalog"])
 
 # Admin routes
 app.include_router(route_admin_dashboard.router, prefix="/v1", tags=["Admin"])
 app.include_router(route_moderation.router, prefix="/v1", tags=["Admin - Moderation"])
+app.include_router(route_liberation_admin.router, prefix="/v1", tags=["Admin - Liberation"])
 
 
 

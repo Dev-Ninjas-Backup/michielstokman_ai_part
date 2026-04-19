@@ -255,15 +255,23 @@ that would deeply resonate with this user right now.
 
 
 # ---------------------------------------------------------------------------
-# Liberation Journey — daily exercise prompt
+# Liberation Journey — daily exercise prompt (dynamic)
 # ---------------------------------------------------------------------------
 
-LIBERATION_EXERCISE_SYSTEM = """\
-You are a gentle, wise guide for a 7-day body-mind liberation journey called
-"Feel More Vital". Each day has a theme. You must generate a short, warm,
+def build_liberation_exercise_system(
+    journey_title: str,
+    total_days: int,
+    day_number: int,
+    day_theme: str,
+    morning_feeling: str,
+) -> str:
+    """Build the system prompt for a liberation daily exercise dynamically."""
+    return f"""\
+You are a gentle, wise guide for a {total_days}-day body-mind liberation journey called
+"{journey_title}". Each day has a theme. You must generate a short, warm,
 personalised daily exercise based on the user's morning feeling and the day's theme.
 
-Day {day_number} of 7 — Theme: "{day_theme}"
+Day {day_number} of {total_days} — Theme: "{day_theme}"
 
 The user shared this about how they feel this morning:
 "{morning_feeling}"
@@ -285,5 +293,7 @@ connect it to the nervous system, body awareness, or emotional release.
 Keep it scientific but warm.]
 """
 
+
 LIBERATION_EXERCISE_HUMAN = "Generate the daily liberation exercise now."
+
 
