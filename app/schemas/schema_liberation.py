@@ -30,7 +30,6 @@ class StepDetail(BaseModel):
     ai_greeting: Optional[str] = None
     ai_exercise_text: Optional[str] = None
     ai_why_text: Optional[str] = None
-    audio_url: Optional[str] = None
     energy_level_after: Optional[int] = None
     reflection_opened: Optional[str] = None
     reflection_takeaway: Optional[str] = None
@@ -56,6 +55,13 @@ class JourneyStatusResponse(BaseModel):
 
 # ── Requests ────────────────────────────────────────────────────────────────
 
+class EnrollJourneyRequest(BaseModel):
+    """Payload to enroll in a journey with customizable day counts and reminder time."""
+    journey_code: str = Field(..., example="vitality")
+    total_days: int = Field(default=7, ge=1, le=100)
+    reminder_preference: Optional[str] = Field(None, example="7:30")
+
+
 class DayCheckinRequest(BaseModel):
     """Payload for the pre-exercise screen: 'How are you feeling this morning?'"""
     morning_feeling: str = Field(..., min_length=1, max_length=2000)
@@ -76,7 +82,6 @@ class DayGenerateResponse(BaseModel):
     ai_greeting: str
     ai_exercise_text: str
     ai_why_text: str
-    audio_url: Optional[str] = None
 
 
 class DayCompleteResponse(BaseModel):
@@ -100,12 +105,12 @@ class LiberationFeedCard(BaseModel):
     If is_enrolled=True  → shows progress + "Continue" CTA.
     """
     card_type: str = "liberation_journey"
-    journey_code: str = "vitality_7_days"
-    title: str = "Feel More Vital – 7 Days to More Life Energy"
-    description: str = "7 gentle daily practices to release tension, boost vitality, and feel genuinely alive again."
+    journey_code: str
+    title: str
+    description: str
     price_display: str = "€47"
     price_cents: int = 4700
-    total_days: int = 7
+    total_days: int
     is_enrolled: bool = False
     current_day: Optional[int] = None
     journey_status: Optional[str] = None  # "active" | "completed" | None

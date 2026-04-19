@@ -19,6 +19,7 @@ from app.schemas.schema_liberation import (
     JourneyStatusResponse,
     StepDetail,
     LiberationFeedCard,
+    EnrollJourneyRequest,
 )
 from app.services.service_liberation import LiberationService
 
@@ -33,15 +34,22 @@ router = APIRouter()
     summary="Start a new Liberation Journey after payment",
 )
 def enroll_journey(
+    payload: EnrollJourneyRequest,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """
-    Creates a new 7-day journey for the authenticated user.
+    Creates a new N-day journey for the authenticated user.
     Requires an active premium subscription (verified inside the service).
-    If the user already has an active journey, returns its current status.
+    If the user already has an active journey for that code, returns its current status.
     """
-    return LiberationService.enroll(db, current_user.id)
+    return LiberationService.enroll(
+        db=db,
+        user_id=current_user.id,
+        journey_code=payload.journey_code,
+        total_days=payload.total_days,
+        reminder_preference=payload.reminder_preference,
+    )
 
 
 # ── Journey status dashboard (Screen 9: the 7-day progress list) ───────────
@@ -79,8 +87,7 @@ def generate_day(
     1. Saves the user's morning feeling for the specified day.
     2. Calls SuperGrok with the 'Transformation' persona to generate
        a personalised greeting, exercise steps, and explanation.
-    3. Generates TTS audio for the greeting via ElevenLabs.
-    4. Returns the full exercise content.
+    3. Returns the full exercise content.
 
     If the day was already generated, returns the cached version.
     """
@@ -134,7 +141,7 @@ def get_day_detail(
 ):
     """
     Returns the complete data for a specific day — morning feeling,
-    AI content, audio URL, and post-exercise reflections.
+    AI content, and post-exercise reflections.
     Useful for revisiting completed days.
     """
     return LiberationService.get_day_detail(db, current_user.id, day)

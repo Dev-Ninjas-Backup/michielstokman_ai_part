@@ -61,6 +61,9 @@ class UserJourney(Base):
         nullable=False,
     )
 
+    # User's chosen daily reminder time (e.g. "7:30", "9:30")
+    reminder_preference = Column(String, nullable=True)
+
     # Relationships
     steps = relationship("UserJourneyStep", back_populates="journey", cascade="all, delete-orphan", order_by="UserJourneyStep.day_number")
 
@@ -86,7 +89,6 @@ class UserJourneyStep(Base):
     ai_greeting = Column(Text, nullable=True)        # "Hey friend, let's do something simple..."
     ai_exercise_text = Column(Text, nullable=True)    # The "What to do" block
     ai_why_text = Column(Text, nullable=True)         # The "Why this exercise" explanation
-    audio_url = Column(String, nullable=True)          # S3 URL for the AI greeting audio
 
     # ── Post-exercise reflection (Screen 7: "How did today land?") ──
     energy_level_after = Column(Integer, nullable=True)     # Slider 0-10

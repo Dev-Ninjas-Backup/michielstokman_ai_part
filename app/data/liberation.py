@@ -21,42 +21,36 @@ from app.model.liberation import (
 
 # ── Journey CRUD ────────────────────────────────────────────────────────────
 
-def get_active_journey(db: Session, user_id: UUID, journey_code: str = "vitality_7_days") -> Optional[UserJourney]:
-    """Return the user's active journey (if any) for the given code."""
-    return (
-        db.query(UserJourney)
-        .filter(
-            UserJourney.user_id == user_id,
-            UserJourney.journey_code == journey_code,
-            UserJourney.status == JourneyStatus.active,
-        )
-        .first()
+def get_active_journey(db: Session, user_id: UUID, journey_code: Optional[str] = None) -> Optional[UserJourney]:
+    """Return the user's active journey. If journey_code is provided, filters by it."""
+    query = db.query(UserJourney).filter(
+        UserJourney.user_id == user_id,
+        UserJourney.status == JourneyStatus.active,
     )
+    if journey_code:
+        query = query.filter(UserJourney.journey_code == journey_code)
+    return query.first()
 
 
 def get_journey_by_id(db: Session, journey_id: UUID) -> Optional[UserJourney]:
     return db.query(UserJourney).filter(UserJourney.id == journey_id).first()
 
 
-def get_any_journey_for_user(db: Session, user_id: UUID, journey_code: str = "vitality_7_days") -> Optional[UserJourney]:
-    """Return the user's most recent journey for the given code (any status)."""
-    return (
-        db.query(UserJourney)
-        .filter(
-            UserJourney.user_id == user_id,
-            UserJourney.journey_code == journey_code,
-        )
-        .order_by(UserJourney.created_at.desc())
-        .first()
-    )
+def get_any_journey_for_user(db: Session, user_id: UUID, journey_code: Optional[str] = None) -> Optional[UserJourney]:
+    """Return the user's most recent journey. If journey_code is provided, filters by it."""
+    query = db.query(UserJourney).filter(UserJourney.user_id == user_id)
+    if journey_code:
+        query = query.filter(UserJourney.journey_code == journey_code)
+    return query.order_by(UserJourney.created_at.desc()).first()
 
 
-def create_journey(db: Session, user_id: UUID, journey_code: str = "vitality_7_days", total_days: int = 7) -> UserJourney:
-    """Create a new journey and pre-populate all 7 step rows (Day 1 = available, rest = locked)."""
+def create_journey(db: Session, user_id: UUID, journey_code: str, total_days: int, reminder_preference: Optional[str] = None) -> UserJourney:
+    """Create a new journey and pre-populate all step rows (Day 1 = available, rest = locked)."""
     journey = UserJourney(
         user_id=user_id,
         journey_code=journey_code,
         total_days=total_days,
+        reminder_preference=reminder_preference,
         status=JourneyStatus.active,
     )
     db.add(journey)
@@ -109,12 +103,10 @@ def save_ai_content(
     greeting: str,
     exercise_text: str,
     why_text: str,
-    audio_url: Optional[str] = None,
 ) -> UserJourneyStep:
     step.ai_greeting = greeting
     step.ai_exercise_text = exercise_text
     step.ai_why_text = why_text
-    step.audio_url = audio_url
     db.commit()
     db.refresh(step)
     return step

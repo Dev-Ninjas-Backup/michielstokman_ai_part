@@ -45,18 +45,18 @@ class LiberationService:
     # ── Enroll ──────────────────────────────────────────────────────────────
 
     @staticmethod
-    def enroll(db: Session, user_id: UUID) -> dict:
+    def enroll(db: Session, user_id: UUID, journey_code: str, total_days: int, reminder_preference: Optional[str] = None) -> dict:
         """
         Create a new journey for the user after payment verification.
         If they already have an active journey, return it instead.
         """
         LiberationService._verify_premium(db, user_id)
 
-        existing = lib_data.get_active_journey(db, user_id)
+        existing = lib_data.get_active_journey(db, user_id, journey_code)
         if existing:
             return LiberationService._build_status_dict(existing)
 
-        journey = lib_data.create_journey(db, user_id)
+        journey = lib_data.create_journey(db, user_id, journey_code, total_days, reminder_preference)
         logger.info(f"[Liberation] User {user_id} enrolled in journey {journey.id}")
         return LiberationService._build_status_dict(journey)
 
@@ -115,7 +115,6 @@ class LiberationService:
                 "ai_greeting": step.ai_greeting,
                 "ai_exercise_text": step.ai_exercise_text,
                 "ai_why_text": step.ai_why_text,
-                "audio_url": step.audio_url,
             }
 
         # Save morning feeling
@@ -124,15 +123,12 @@ class LiberationService:
         # Generate AI content
         greeting, exercise_text, why_text = LiberationService._generate_exercise_content(
             day_number=day,
-            day_theme=step.day_theme or JOURNEY_DAY_THEMES.get(day, ""),
+            day_theme=step.day_theme or JOURNEY_DAY_THEMES.get(day, f"Day {day}"),
             morning_feeling=morning_feeling,
         )
 
-        # Generate audio for the greeting
-        audio_url = LiberationService._generate_greeting_audio(greeting)
-
         # Save everything to the step
-        lib_data.save_ai_content(db, step, greeting, exercise_text, why_text, audio_url)
+        lib_data.save_ai_content(db, step, greeting, exercise_text, why_text)
 
         logger.info(f"[Liberation] User {user_id} generated Day {day} exercise.")
 
@@ -142,7 +138,6 @@ class LiberationService:
             "ai_greeting": greeting,
             "ai_exercise_text": exercise_text,
             "ai_why_text": why_text,
-            "audio_url": audio_url,
         }
 
     # ── Complete Day (Screen 7 → 8) ─────────────────────────────────────────
@@ -219,7 +214,6 @@ class LiberationService:
             "ai_greeting": step.ai_greeting,
             "ai_exercise_text": step.ai_exercise_text,
             "ai_why_text": step.ai_why_text,
-            "audio_url": step.audio_url,
             "energy_level_after": step.energy_level_after,
             "reflection_opened": step.reflection_opened,
             "reflection_takeaway": step.reflection_takeaway,
@@ -238,14 +232,15 @@ class LiberationService:
         journey = lib_data.get_any_journey_for_user(db, user_id)
 
         if not journey:
+            # Provide a generic fallback card, though typically the frontend requests a specific one.
             return {
                 "card_type": "liberation_journey",
-                "journey_code": "vitality_7_days",
-                "title": "Feel More Vital – 7 Days to More Life Energy",
-                "description": "7 gentle daily practices to release tension, boost vitality, and feel genuinely alive again.",
+                "journey_code": "unknown",
+                "title": "A Life Journey",
+                "description": "Unlock a new journey to deeper vitality and presence.",
                 "price_display": "€47",
                 "price_cents": 4700,
-                "total_days": 7,
+                "total_days": 1,
                 "is_enrolled": False,
                 "current_day": None,
                 "journey_status": None,
@@ -261,8 +256,8 @@ class LiberationService:
         return {
             "card_type": "liberation_journey",
             "journey_code": journey.journey_code,
-            "title": "Feel More Vital – 7 Days to More Life Energy",
-            "description": "7 gentle daily practices to release tension, boost vitality, and feel genuinely alive again.",
+            "title": f"Journey: {journey.journey_code.replace('_', ' ').title()}",
+            "description": f"Continue your {journey.total_days}-day path to greater awareness and energy.",
             "price_display": "€47",
             "price_cents": 4700,
             "total_days": journey.total_days,
@@ -349,14 +344,4 @@ class LiberationService:
 
         return greeting, exercise_text, why_text
 
-    @staticmethod
-    def _generate_greeting_audio(greeting_text: str) -> Optional[str]:
-        """Generate TTS audio for the greeting and upload to S3."""
-        try:
-            from app.core.llm import generate_voice_elevenlabs, save_audio
-            audio_bytes = generate_voice_elevenlabs(text=greeting_text)
-            audio_url = save_audio(audio_bytes)
-            return audio_url
-        except Exception as e:
-            logger.warning(f"[Liberation] Audio generation failed: {e}")
-            return None
+
