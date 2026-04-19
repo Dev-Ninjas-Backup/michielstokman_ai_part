@@ -65,7 +65,8 @@ def authenticate_user(db: Session, email: str, password: str):
     
     return {
         "access_token": access_token,
-        "token_type": "bearer"
+        "token_type": "bearer",
+        "user": user
     }
 
 def signout_user(db: Session, user_id: str):
