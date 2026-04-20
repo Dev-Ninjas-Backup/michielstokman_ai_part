@@ -14,6 +14,11 @@ class UserCreate(UserBase):
 class UserLogin(UserBase):
     password: str
 
+# Properties to receive via API for social login (Google/Apple)
+class SocialLoginRequest(BaseModel):
+    provider: str  # "google" or "apple"
+    token: str     # The id_token or JWT from the provider
+
 # Properties to return via API (Response)
 class UserResponse(UserBase):
     id: UUID4

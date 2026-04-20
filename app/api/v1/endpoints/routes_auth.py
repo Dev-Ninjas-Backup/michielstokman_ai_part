@@ -4,8 +4,8 @@ from sqlalchemy.orm import Session
 
 from app.core.db import get_db
 from app.core.security import verify_token
-from app.schemas.user import UserCreate, UserResponse, Token, UserLogin
-from app.services.service_auth import register_new_user, authenticate_user, signout_user
+from app.schemas.user import UserCreate, UserResponse, Token, UserLogin, SocialLoginRequest
+from app.services.service_auth import register_new_user, authenticate_user, signout_user, authenticate_social_user
 
 router = APIRouter()
 
@@ -24,6 +24,15 @@ def login(user_in: UserLogin, db: Session = Depends(get_db)):
     Expects a standard JSON body with 'email' and 'password'.
     """
     return authenticate_user(db, email=user_in.email, password=user_in.password)
+
+
+@router.post("/social-login", response_model=Token)
+def social_login(payload: SocialLoginRequest, db: Session = Depends(get_db)):
+    """
+    Login endpoint to securely authenticate Google/Apple users.
+    Pass 'provider' ("google" or "apple") and their 'token'.
+    """
+    return authenticate_social_user(db, provider=payload.provider, token=payload.token)
 
 
 @router.post("/signout")
