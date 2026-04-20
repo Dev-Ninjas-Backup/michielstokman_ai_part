@@ -14,6 +14,12 @@ def register_new_user(db: Session, user_in: UserCreate):
     """
     Business logic to validate, register, and auto-login a new standard user.
     """
+    if not user_in.password or len(user_in.password.strip()) < 6:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Password must be at least 6 characters long."
+        )
+
     user = get_user_by_email(db, email=user_in.email)
     if user:
         raise HTTPException(
