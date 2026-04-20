@@ -3,6 +3,7 @@ import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from app.core.responses import register_exception_handlers
 from app.api.v1.endpoints import hello
 from app.api.v1.endpoints import routes_ai, routes_auth, routes_payment, routes_subscription, routes_profile
 from app.api.v1.endpoints import routes_user_dashboard, routes_feedback, routes_liberation, routes_liberation_catalog
@@ -22,6 +23,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+register_exception_handlers(app)
 
 # ---------------------------------------------------------------------------
 # Static files — Audio storage

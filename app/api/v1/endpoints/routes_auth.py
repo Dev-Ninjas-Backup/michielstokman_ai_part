@@ -3,39 +3,43 @@ from sqlalchemy.orm import Session
 
 from app.core.db import get_db
 from app.core.security import verify_token
-from app.schemas.user import UserCreate, Token, UserLogin, SocialLoginRequest
-from app.schemas.schema_system import MessageResponse
+from app.core.responses import ApiResponse, success_response
+from app.schemas.user import UserCreate, UserLogin, SocialLoginRequest, Token
 from app.services.service_auth import register_new_user, authenticate_user, signout_user, authenticate_social_user
 
 router = APIRouter()
 
-@router.post("/signup", response_model=Token, status_code=status.HTTP_201_CREATED)
+
+@router.post("/signup", response_model=ApiResponse[Token], status_code=status.HTTP_201_CREATED)
 def signup(user_in: UserCreate, db: Session = Depends(get_db)):
     """
     Register a new user with email and password and return a JWT token.
     """
-    return register_new_user(db, user_in)
+    token_payload = register_new_user(db, user_in)
+    return success_response("Signup successful", status.HTTP_201_CREATED, token_payload)
 
 
-@router.post("/login", response_model=Token)
+@router.post("/login", response_model=ApiResponse[Token])
 def login(user_in: UserLogin, db: Session = Depends(get_db)):
     """
     Login endpoint to get an access token for future requests.
     Expects a standard JSON body with 'email' and 'password'.
     """
-    return authenticate_user(db, email=user_in.email, password=user_in.password)
+    token_payload = authenticate_user(db, email=user_in.email, password=user_in.password)
+    return success_response("Login successful", status.HTTP_200_OK, token_payload)
 
 
-@router.post("/social-login", response_model=Token)
+@router.post("/social-login", response_model=ApiResponse[Token])
 def social_login(payload: SocialLoginRequest, db: Session = Depends(get_db)):
     """
     Login endpoint to securely authenticate Google/Apple users.
     Pass 'provider' ("google" or "apple") and their 'token'.
     """
-    return authenticate_social_user(db, provider=payload.provider, token=payload.token)
+    token_payload = authenticate_social_user(db, provider=payload.provider, token=payload.token)
+    return success_response("Login successful", status.HTTP_200_OK, token_payload)
 
 
-@router.post("/signout", response_model=MessageResponse)
+@router.post("/signout", response_model=ApiResponse[None])
 def signout(authorization: str = Header(...), db: Session = Depends(get_db)):
     """
     Sign out the current user by invalidating their token.
@@ -47,9 +51,10 @@ def signout(authorization: str = Header(...), db: Session = Depends(get_db)):
     except IndexError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid authorization header format"
+            detail="Invalid authorization header format",
+            headers={"WWW-Authenticate": "Bearer"},
         )
-    
-    user_id = verify_token(token, db)
-    return signout_user(db, user_id)
 
+    user_id = verify_token(token, db)
+    result = signout_user(db, user_id)
+    return success_response(result.get("message", "Successfully signed out"), status.HTTP_200_OK)

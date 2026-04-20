@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_admin_user
 from app.core.db import get_db
+from app.core.responses import ApiResponse, success_response
 from app.model.user import User
 from app.data import liberation_catalog as catalog_data
 from app.schemas.schema_liberation_catalog import (
@@ -52,7 +53,7 @@ def _definition_to_response(d) -> LiberationDefinitionResponse:
 
 @router.post(
     "/admin/liberation/create",
-    response_model=LiberationDefinitionResponse,
+    response_model=ApiResponse[LiberationDefinitionResponse],
     status_code=status.HTTP_201_CREATED,
     summary="Admin: create a single liberation (auto-approved)",
 )
@@ -86,14 +87,15 @@ def admin_create_liberation(
         is_admin_created=True,
         day_themes=payload.day_themes,
     )
-    return _definition_to_response(definition)
+    result = _definition_to_response(definition)
+    return success_response("Liberation created successfully", status.HTTP_201_CREATED, result)
 
 
 # ── Admin: bulk creation (auto-approved) ────────────────────────────────────
 
 @router.post(
     "/admin/liberation/bulk-create",
-    response_model=list[LiberationDefinitionResponse],
+    response_model=ApiResponse[list[LiberationDefinitionResponse]],
     status_code=status.HTTP_201_CREATED,
     summary="Admin: create multiple liberations at once",
 )
@@ -130,14 +132,18 @@ def admin_bulk_create_liberations(
         )
         results.append(_definition_to_response(definition))
 
-    return results
+    return success_response(
+        f"{len(results)} liberation(s) created successfully",
+        status.HTTP_201_CREATED,
+        results,
+    )
 
 
 # ── Admin: review queue ─────────────────────────────────────────────────────
 
 @router.get(
     "/admin/liberation/pending",
-    response_model=LiberationCatalogListResponse,
+    response_model=ApiResponse[LiberationCatalogListResponse],
     summary="Admin: list pending liberation submissions",
 )
 def admin_list_pending(
@@ -149,14 +155,15 @@ def admin_list_pending(
     definitions = catalog_data.list_pending_definitions(db, limit=limit, offset=offset)
     total = catalog_data.count_pending_definitions(db)
     items = [_definition_to_response(d) for d in definitions]
-    return LiberationCatalogListResponse(definitions=items, total=total)
+    result = LiberationCatalogListResponse(definitions=items, total=total)
+    return success_response("Pending liberations fetched", status.HTTP_200_OK, result)
 
 
 # ── Admin: approve or reject ────────────────────────────────────────────────
 
 @router.post(
     "/admin/liberation/{definition_id}/review",
-    response_model=LiberationReviewResponse,
+    response_model=ApiResponse[LiberationReviewResponse],
     summary="Admin: approve or reject a liberation submission",
 )
 def admin_review_liberation(
@@ -171,25 +178,27 @@ def admin_review_liberation(
 
     if payload.action == "approve":
         catalog_data.approve_definition(db, definition, reviewer_id=current_user.id)
-        return LiberationReviewResponse(
+        result = LiberationReviewResponse(
             message="Liberation approved and is now live.",
             definition_id=definition.id,
             status="approved",
         )
+        return success_response("Liberation approved", status.HTTP_200_OK, result)
     else:
         catalog_data.reject_definition(db, definition, reviewer_id=current_user.id, notes=payload.notes)
-        return LiberationReviewResponse(
+        result = LiberationReviewResponse(
             message="Liberation rejected.",
             definition_id=definition.id,
             status="rejected",
         )
+        return success_response("Liberation rejected", status.HTTP_200_OK, result)
 
 
 # ── Admin: deactivate ──────────────────────────────────────────────────────
 
 @router.post(
     "/admin/liberation/{definition_id}/deactivate",
-    response_model=LiberationReviewResponse,
+    response_model=ApiResponse[LiberationReviewResponse],
     summary="Admin: deactivate a liberation (remove from storefront)",
 )
 def admin_deactivate_liberation(
@@ -202,8 +211,9 @@ def admin_deactivate_liberation(
         raise HTTPException(status_code=404, detail="Liberation definition not found.")
 
     catalog_data.deactivate_definition(db, definition)
-    return LiberationReviewResponse(
+    result = LiberationReviewResponse(
         message="Liberation deactivated.",
         definition_id=definition.id,
         status="deactivated",
     )
+    return success_response("Liberation deactivated", status.HTTP_200_OK, result)

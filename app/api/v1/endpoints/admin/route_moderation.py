@@ -4,6 +4,7 @@ from typing import Optional
 
 from app.api.deps import get_current_admin_user
 from app.core.db import get_db
+from app.core.responses import ApiResponse, success_response
 from app.model.user import User
 from app.data import story as story_data
 from app.schemas.schema_story import (
@@ -24,7 +25,7 @@ router = APIRouter()
 # Endpoints
 # ============================================================================
 
-@router.get("/admin/moderation/queue", response_model=ModerationQueueResponse)
+@router.get("/admin/moderation/queue", response_model=ApiResponse[ModerationQueueResponse])
 def get_moderation_queue(
     current_user: User = Depends(get_current_admin_user),
     db: Session = Depends(get_db),
@@ -56,16 +57,17 @@ def get_moderation_queue(
     stats = story_data.get_moderation_stats(db)
     total = story_data.count_pending_stories(db)
     
-    return ModerationQueueResponse(
+    result = ModerationQueueResponse(
         stories=story_items,
         total=total,
         pending=stats.get("pending", 0),
         approved=stats.get("approved", 0),
         rejected=stats.get("rejected", 0),
     )
+    return success_response("Moderation queue fetched", status.HTTP_200_OK, result)
 
 
-@router.get("/admin/moderation/story/{story_id}", response_model=StoryDetailResponse)
+@router.get("/admin/moderation/story/{story_id}", response_model=ApiResponse[StoryDetailResponse])
 def get_story_details(
     story_id: str,
     current_user: User = Depends(get_current_admin_user),
@@ -85,7 +87,7 @@ def get_story_details(
     
     author_name = story.user.email if story.user else "Admin"
     
-    return StoryDetailResponse(
+    result = StoryDetailResponse(
         id=story.id,
         title=story.title or "Untitled",
         story_type=str(story.story_type).replace("StoryType.", "").capitalize(),
@@ -102,9 +104,10 @@ def get_story_details(
         specific_trigger=story.specific_trigger,
         emotional_context=story.emotional_context,
     )
+    return success_response("Story details fetched", status.HTTP_200_OK, result)
 
 
-@router.put("/admin/moderation/story/{story_id}", response_model=StoryDetailResponse)
+@router.put("/admin/moderation/story/{story_id}", response_model=ApiResponse[StoryDetailResponse])
 def update_story_details(
     story_id: str,
     update_data: UpdateStoryRequest,
@@ -134,7 +137,7 @@ def update_story_details(
     
     author_name = story.user.email if story.user else "Admin"
     
-    return StoryDetailResponse(
+    result = StoryDetailResponse(
         id=story.id,
         title=story.title or "Untitled",
         story_type=str(story.story_type).replace("StoryType.", "").capitalize(),
@@ -151,9 +154,10 @@ def update_story_details(
         specific_trigger=story.specific_trigger,
         emotional_context=story.emotional_context,
     )
+    return success_response("Story updated successfully", status.HTTP_200_OK, result)
 
 
-@router.post("/admin/moderation/story/{story_id}/approve", response_model=ApproveStoryResponse)
+@router.post("/admin/moderation/story/{story_id}/approve", response_model=ApiResponse[ApproveStoryResponse])
 def approve_story(
     story_id: str,
     current_user: User = Depends(get_current_admin_user),
@@ -174,14 +178,15 @@ def approve_story(
     # Approve the story
     story = story_data.approve_story(db, story, str(current_user.id))
     
-    return ApproveStoryResponse(
+    result = ApproveStoryResponse(
         message="Story approved successfully",
         story_id=story.id,
         status=str(story.moderation_status).replace("ModerationStatus.", ""),
     )
+    return success_response("Story approved successfully", status.HTTP_200_OK, result)
 
 
-@router.post("/admin/moderation/story/{story_id}/reject", response_model=RejectStoryResponse)
+@router.post("/admin/moderation/story/{story_id}/reject", response_model=ApiResponse[RejectStoryResponse])
 def reject_story(
     story_id: str,
     payload: RejectStoryRequest,
@@ -208,14 +213,15 @@ def reject_story(
         notes=payload.reason,
     )
     
-    return RejectStoryResponse(
+    result = RejectStoryResponse(
         message="Story rejected",
         story_id=story.id,
         status=str(story.moderation_status).replace("ModerationStatus.", ""),
     )
+    return success_response("Story rejected", status.HTTP_200_OK, result)
 
 
-@router.delete("/admin/moderation/story/{story_id}", response_model=DeleteStoryResponse)
+@router.delete("/admin/moderation/story/{story_id}", response_model=ApiResponse[DeleteStoryResponse])
 def delete_story(
     story_id: str,
     current_user: User = Depends(get_current_admin_user),
@@ -238,7 +244,8 @@ def delete_story(
     # Delete the story
     story_data.delete_story(db, story)
     
-    return DeleteStoryResponse(
+    result = DeleteStoryResponse(
         message="Story deleted successfully",
         story_id=story_id_to_return,
     )
+    return success_response("Story deleted successfully", status.HTTP_200_OK, result)

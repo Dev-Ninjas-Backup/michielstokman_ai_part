@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy.sql import func
 
 from app.core.db import get_db
+from app.core.responses import ApiResponse, success_response
 from app.api.deps import get_current_user
 from app.model.user import User
 from app.model.story import ModerationStatus
@@ -35,7 +36,7 @@ router = APIRouter()
 
 @router.get(
     "/dashboard/feed",
-    response_model=DiscoveryFeedResponse,
+    response_model=ApiResponse[DiscoveryFeedResponse],
 )
 def get_discovery_feed(
     db: Session = Depends(get_db),
@@ -79,7 +80,8 @@ def get_discovery_feed(
             audio_path=s.audio_path,
         ))
 
-    return DiscoveryFeedResponse(items=items)
+    result = DiscoveryFeedResponse(items=items)
+    return success_response("Discovery feed loaded", status.HTTP_200_OK, result)
 
 
 
@@ -89,7 +91,7 @@ def get_discovery_feed(
 
 @router.get(
     "/dashboard/credits",
-    response_model=CreditStatusResponse,
+    response_model=ApiResponse[CreditStatusResponse],
 )
 def get_credit_status(
     db: Session = Depends(get_db),
@@ -103,20 +105,22 @@ def get_credit_status(
     is_premium = credit_data.is_premium_user(db, str(current_user.id))
 
     if is_premium:
-        return CreditStatusResponse(
+        result = CreditStatusResponse(
             is_premium=True,
             daily_credits_remaining=-1,
             max_daily_credits=-1,
             message="Premium subscriber — unlimited stories.",
         )
+    else:
+        credit = credit_data.get_or_create_credit(db, str(current_user.id))
+        result = CreditStatusResponse(
+            is_premium=False,
+            daily_credits_remaining=credit.daily_credits_remaining,
+            max_daily_credits=credit.max_daily_credits,
+            message=f"{credit.daily_credits_remaining}/{credit.max_daily_credits} credits remaining today.",
+        )
 
-    credit = credit_data.get_or_create_credit(db, str(current_user.id))
-    return CreditStatusResponse(
-        is_premium=False,
-        daily_credits_remaining=credit.daily_credits_remaining,
-        max_daily_credits=credit.max_daily_credits,
-        message=f"{credit.daily_credits_remaining}/{credit.max_daily_credits} credits remaining today.",
-    )
+    return success_response("Credit status fetched", status.HTTP_200_OK, result)
 
 
 # ---------------------------------------------------------------------------
@@ -125,7 +129,7 @@ def get_credit_status(
 
 @router.get(
     "/dashboard/recommendations",
-    response_model=BookRecommendationsResponse,
+    response_model=ApiResponse[BookRecommendationsResponse],
 )
 async def get_book_recommendations(
     story_type: StoryTypeFilter = Query(
@@ -149,11 +153,12 @@ async def get_book_recommendations(
     Optional `story_type` query param filters by confession / meditation / transformation.
     """
     try:
-        return RAGService.get_book_recommendations(
+        result = RAGService.get_book_recommendations(
             db=db,
             user_id=str(current_user.id),
             story_type=story_type,
         )
+        return success_response("Book recommendations generated", status.HTTP_200_OK, result)
     except Exception as e:
         raise HTTPException(
             status_code=500,
@@ -167,7 +172,7 @@ async def get_book_recommendations(
 
 @router.get(
     "/stories/{story_id}",
-    response_model=StoryDetailUserResponse,
+    response_model=ApiResponse[StoryDetailUserResponse],
 )
 def get_story_detail(
     story_id: str,
@@ -226,7 +231,7 @@ def get_story_detail(
 
     top_tags = sorted(tag_counts, key=tag_counts.get, reverse=True)[:5]
 
-    return StoryDetailUserResponse(
+    result = StoryDetailUserResponse(
         id=str(story.id),
         title=story.title or "Untitled",
         story_type=story.story_type.value if story.story_type else "story",
@@ -240,4 +245,4 @@ def get_story_detail(
         total_reflections=total_reflections,
         top_tags=top_tags,
     )
-
+    return success_response("Story details fetched", status.HTTP_200_OK, result)

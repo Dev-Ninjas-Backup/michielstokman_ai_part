@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.core.db import get_db
+from app.core.responses import ApiResponse, success_response
 from app.api.deps import get_current_user
 from app.model.user import User
 from app.model.story import Story
@@ -17,7 +18,7 @@ router = APIRouter()
 
 @router.post(
     "/stories/{story_id}/feedback",
-    response_model=StoryFeedbackResponse,
+    response_model=ApiResponse[StoryFeedbackResponse],
     status_code=status.HTTP_201_CREATED,
 )
 def submit_story_feedback(
@@ -71,7 +72,7 @@ def submit_story_feedback(
         )
         message = "Feedback submitted successfully."
 
-    return StoryFeedbackResponse(
+    result = StoryFeedbackResponse(
         id=str(feedback.id),
         story_id=str(feedback.story_id),
         user_id=str(feedback.user_id),
@@ -82,3 +83,4 @@ def submit_story_feedback(
         feedback_text=feedback.feedback_text,
         message=message,
     )
+    return success_response(message, status.HTTP_201_CREATED, result)

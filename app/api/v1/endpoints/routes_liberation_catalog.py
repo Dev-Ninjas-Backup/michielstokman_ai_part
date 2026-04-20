@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
 from app.core.db import get_db
+from app.core.responses import ApiResponse, success_response
 from app.model.user import User
 from app.data import liberation_catalog as catalog_data
 from app.schemas.schema_liberation_catalog import (
@@ -24,7 +25,7 @@ router = APIRouter()
 
 @router.get(
     "/liberation/catalog",
-    response_model=LiberationCatalogListResponse,
+    response_model=ApiResponse[LiberationCatalogListResponse],
     summary="List all approved liberation journeys",
 )
 def list_catalog(
@@ -59,14 +60,15 @@ def list_catalog(
         )
         for d in definitions
     ]
-    return LiberationCatalogListResponse(definitions=items, total=len(items))
+    result = LiberationCatalogListResponse(definitions=items, total=len(items))
+    return success_response("Liberation catalog fetched", status.HTTP_200_OK, result)
 
 
 # ── Get single definition detail ────────────────────────────────────────────
 
 @router.get(
     "/liberation/catalog/{journey_code}",
-    response_model=LiberationDefinitionResponse,
+    response_model=ApiResponse[LiberationDefinitionResponse],
     summary="Get a single liberation definition by code",
 )
 def get_catalog_item(
@@ -77,7 +79,7 @@ def get_catalog_item(
     definition = catalog_data.get_definition_by_code(db, journey_code)
     if not definition:
         raise HTTPException(status_code=404, detail="Liberation journey not found.")
-    return LiberationDefinitionResponse(
+    result = LiberationDefinitionResponse(
         id=definition.id,
         journey_code=definition.journey_code,
         title=definition.title,
@@ -95,13 +97,14 @@ def get_catalog_item(
             for dd in definition.day_definitions
         ],
     )
+    return success_response("Liberation definition fetched", status.HTTP_200_OK, result)
 
 
 # ── Premium user: submit a new liberation (single creation, pending review) ─
 
 @router.post(
     "/liberation/catalog/submit",
-    response_model=LiberationDefinitionResponse,
+    response_model=ApiResponse[LiberationDefinitionResponse],
     status_code=status.HTTP_201_CREATED,
     summary="Submit a new liberation journey for review",
 )
@@ -143,7 +146,7 @@ def submit_liberation(
         day_themes=payload.day_themes,
     )
 
-    return LiberationDefinitionResponse(
+    result = LiberationDefinitionResponse(
         id=definition.id,
         journey_code=definition.journey_code,
         title=definition.title,
@@ -161,3 +164,4 @@ def submit_liberation(
             for dd in definition.day_definitions
         ],
     )
+    return success_response("Liberation journey submitted for review", status.HTTP_201_CREATED, result)
