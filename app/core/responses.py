@@ -92,7 +92,7 @@ def register_exception_handlers(app: FastAPI) -> None:
             content={
                 "status": 422,
                 "success": False,
-                "message": "Validation error",
+                "message": _extract_message(exc.errors(), fallback="Validation error"),
                 "data": exc.errors(),
             },
         )
