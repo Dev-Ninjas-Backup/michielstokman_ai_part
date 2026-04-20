@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from app.core.db import get_db
 from app.core.security import verify_token
 from app.schemas.user import UserCreate, Token, UserLogin, SocialLoginRequest
+from app.schemas.schema_system import MessageResponse
 from app.services.service_auth import register_new_user, authenticate_user, signout_user, authenticate_social_user
 
 router = APIRouter()
@@ -34,7 +35,7 @@ def social_login(payload: SocialLoginRequest, db: Session = Depends(get_db)):
     return authenticate_social_user(db, provider=payload.provider, token=payload.token)
 
 
-@router.post("/signout")
+@router.post("/signout", response_model=MessageResponse)
 def signout(authorization: str = Header(...), db: Session = Depends(get_db)):
     """
     Sign out the current user by invalidating their token.

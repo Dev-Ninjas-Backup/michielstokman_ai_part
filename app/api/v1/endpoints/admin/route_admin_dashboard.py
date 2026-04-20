@@ -15,11 +15,12 @@ from app.data.story import (
     count_failed_stories_today,
     get_stories_by_type_today,
 )
+from app.schemas.schema_system import AdminDashboardStatsResponse, AdminDashboardDemoResponse
 
 router = APIRouter()
 
 
-@router.get("/admin/dashboard/stats")
+@router.get("/admin/dashboard/stats", response_model=AdminDashboardStatsResponse)
 def admin_dashboard_stats(
     current_user: User = Depends(get_current_admin_user),
     db: Session = Depends(get_db),
@@ -47,7 +48,7 @@ def admin_dashboard_stats(
     }
 
 
-@router.get("/admin/dashboard/demo")
+@router.get("/admin/dashboard/demo", response_model=AdminDashboardDemoResponse)
 def admin_dashboard_demo(current_user: User = Depends(get_current_admin_user)):
     """Legacy demo route (kept for backward compatibility)."""
     return {

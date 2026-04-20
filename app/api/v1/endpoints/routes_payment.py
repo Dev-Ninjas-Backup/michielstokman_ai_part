@@ -6,7 +6,6 @@ from sqlalchemy.orm import Session
 from app.core.db import get_db
 from app.schemas.schema_billing import (
     PaymentHistoryItem,
-    PaymentWebhookRequest,
     PaymentWebhookResponse,
     StartCheckoutRequest,
     StartCheckoutResponse,
@@ -26,7 +25,7 @@ def start_checkout(payload: StartCheckoutRequest, db: Session = Depends(get_db))
     )
 
 
-@router.post("/payment/webhook") # Note: no response_model set because it returns varying dicts now
+@router.post("/payment/webhook", response_model=PaymentWebhookResponse)
 async def payment_webhook(
     request: Request,
     stripe_signature: str | None = Header(None, alias="Stripe-Signature"),

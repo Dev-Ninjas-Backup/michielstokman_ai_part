@@ -1,4 +1,5 @@
 import os
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -6,6 +7,7 @@ from app.api.v1.endpoints import hello
 from app.api.v1.endpoints import routes_ai, routes_auth, routes_payment, routes_subscription, routes_profile
 from app.api.v1.endpoints import routes_user_dashboard, routes_feedback, routes_liberation, routes_liberation_catalog
 from app.api.v1.endpoints.admin import route_admin_dashboard, route_moderation, route_liberation_admin
+from app.schemas.schema_system import HealthResponse
 
 app = FastAPI(
     title="Transform to Liberation API",
@@ -49,13 +51,11 @@ app.include_router(route_admin_dashboard.router, prefix="/v1", tags=["Admin"])
 app.include_router(route_moderation.router, prefix="/v1", tags=["Admin - Moderation"])
 app.include_router(route_liberation_admin.router, prefix="/v1", tags=["Admin - Liberation"])
 
-
-
 # ---------------------------------------------------------------------------
 # System / Infrastructure Routes
 # ---------------------------------------------------------------------------
 
-@app.get("/health", tags=["System"])
+@app.get("/health", response_model=HealthResponse, tags=["System"])
 def health_check():
     """
     Verifies that the API is alive. Used by AWS Load Balancers or Uptime monitors.
