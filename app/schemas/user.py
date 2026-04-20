@@ -34,3 +34,4 @@ class Token(BaseModel):
     access_token: str
     token_type: str
     user: UserResponse
+    is_new_user: bool = False

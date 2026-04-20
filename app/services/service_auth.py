@@ -12,7 +12,7 @@ from app.data.user import (
 
 def register_new_user(db: Session, user_in: UserCreate):
     """
-    Business logic to validate and register a new standard user.
+    Business logic to validate, register, and auto-login a new standard user.
     """
     user = get_user_by_email(db, email=user_in.email)
     if user:
@@ -24,8 +24,24 @@ def register_new_user(db: Session, user_in: UserCreate):
     # Securely hash the plain text password before storing it
     hashed_password = get_password_hash(user_in.password)
     new_user = create_user(db, email=user_in.email, password_hash=hashed_password)
-    
-    return new_user
+
+    # Mirror login/social-login behavior so frontend can immediately call
+    # protected profile endpoints after signup.
+    update_last_login(db, new_user)
+
+    access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = create_access_token(
+        data={"sub": str(new_user.id)},
+        user_token_version=new_user.token_version,
+        expires_delta=access_token_expires,
+    )
+
+    return {
+        "access_token": access_token,
+        "token_type": "bearer",
+        "user": new_user,
+        "is_new_user": True,
+    }
 
 
 def authenticate_user(db: Session, email: str, password: str):
@@ -69,7 +85,8 @@ def authenticate_user(db: Session, email: str, password: str):
     return {
         "access_token": access_token,
         "token_type": "bearer",
-        "user": user
+        "user": user,
+        "is_new_user": False,
     }
 
 def signout_user(db: Session, user_id: str):
@@ -157,6 +174,7 @@ def authenticate_social_user(db: Session, provider: str, token: str):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Could not extract necessary user info from token")
 
     # Find the user by their OAuth account
+    is_new_user = False
     user = get_user_by_oauth(db, provider.lower(), provider_account_id)
     
     if not user:
@@ -166,6 +184,7 @@ def authenticate_social_user(db: Session, provider: str, token: str):
             # Make a completely new account (no password)
             user = create_user(db, email=email, password_hash=None)
             user.is_verified = True # Social accounts are considered verified
+            is_new_user = True
             
         # Link this new oauth provider to the user's account
         link_oauth_account(db, str(user.id), provider.lower(), provider_account_id)
@@ -185,5 +204,6 @@ def authenticate_social_user(db: Session, provider: str, token: str):
     return {
         "access_token": access_token,
         "token_type": "bearer",
-        "user": user
+        "user": user,
+        "is_new_user": is_new_user,
     }

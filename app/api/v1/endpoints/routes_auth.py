@@ -1,18 +1,17 @@
 from fastapi import APIRouter, Depends, status, Header, HTTPException
-from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 
 from app.core.db import get_db
 from app.core.security import verify_token
-from app.schemas.user import UserCreate, UserResponse, Token, UserLogin, SocialLoginRequest
+from app.schemas.user import UserCreate, Token, UserLogin, SocialLoginRequest
 from app.services.service_auth import register_new_user, authenticate_user, signout_user, authenticate_social_user
 
 router = APIRouter()
 
-@router.post("/signup", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/signup", response_model=Token, status_code=status.HTTP_201_CREATED)
 def signup(user_in: UserCreate, db: Session = Depends(get_db)):
     """
-    Register a new user with email and password.
+    Register a new user with email and password and return a JWT token.
     """
     return register_new_user(db, user_in)
 
