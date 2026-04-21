@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime, timezone
-from sqlalchemy import Column, String, Integer, DateTime, ForeignKey
+from sqlalchemy import Column, String, Integer, Float, DateTime, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from app.core.db import Base
@@ -26,14 +26,14 @@ class UserProfile(Base):
     life_phase = Column(String, nullable=True)
 
     # Step 3: Priorities (Slider values, e.g., 0-5 or 0-10)
-    slider_desire_relationship = Column(Integer, nullable=True)
-    slider_life_purpose = Column(Integer, nullable=True)
-    slider_career_money = Column(Integer, nullable=True)
-    slider_true_self = Column(Integer, nullable=True)
-    slider_sexuality_life_energy = Column(Integer, nullable=True)
-    slider_free_freedom = Column(Integer, nullable=True)
-    slider_health_body = Column(Integer, nullable=True)
-    slider_enlightenment = Column(Integer, nullable=True)
+    slider_desire_relationship = Column(Float, nullable=True)
+    slider_life_purpose = Column(Float, nullable=True)
+    slider_career_money = Column(Float, nullable=True)
+    slider_true_self = Column(Float, nullable=True)
+    slider_sexuality_life_energy = Column(Float, nullable=True)
+    slider_free_freedom = Column(Float, nullable=True)
+    slider_health_body = Column(Float, nullable=True)
+    slider_enlightenment = Column(Float, nullable=True)
 
     # Timestamps
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)

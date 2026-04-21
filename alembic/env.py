@@ -31,6 +31,7 @@ from app.model.story import Story
 from app.model.feedback import StoryFeedback
 from app.model.credit import UserCredit
 from app.model.liberation import UserJourney, UserJourneyStep
+from app.model.cover_image import CoverImage
 
 # add your model's MetaData object here
 # for 'autogenerate' support
