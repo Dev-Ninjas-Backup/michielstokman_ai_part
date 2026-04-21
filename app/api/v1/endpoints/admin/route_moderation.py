@@ -27,16 +27,24 @@ router = APIRouter()
 
 @router.get("/admin/moderation/queue", response_model=ApiResponse[ModerationQueueResponse])
 def get_moderation_queue(
+    status: Optional[str] = None,
+    search: Optional[str] = None,
     current_user: User = Depends(get_current_admin_user),
     db: Session = Depends(get_db),
     limit: int = 20,
     offset: int = 0,
 ):
     """
-    Fetch list of pending stories awaiting moderation.
+    Fetch list of stories for moderation queue, with optional status filter and search.
     Only accessible to admin users.
     """
-    stories = story_data.get_pending_stories(db, limit=limit, offset=offset)
+    stories = story_data.get_moderation_stories(
+        db, 
+        limit=limit, 
+        offset=offset, 
+        status_filter=status, 
+        search=search
+    )
     
     story_items = []
     for story in stories:
@@ -55,7 +63,9 @@ def get_moderation_queue(
     
     # Get stats
     stats = story_data.get_moderation_stats(db)
-    total = story_data.count_pending_stories(db)
+    
+    # Get total matching the current filter + search combination for pagination
+    total = story_data.count_moderation_stories(db, status_filter=status, search=search)
     
     result = ModerationQueueResponse(
         stories=story_items,

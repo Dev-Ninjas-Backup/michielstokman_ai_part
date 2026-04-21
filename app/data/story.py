@@ -129,21 +129,44 @@ def get_stories_by_type_today(db: Session) -> dict:
 
 # Moderation functions
 
-def get_pending_stories(db: Session, limit: int = 20, offset: int = 0) -> list[Story]:
-    """Get all pending stories awaiting moderation."""
+def get_moderation_stories(db: Session, limit: int = 20, offset: int = 0, status_filter: Optional[str] = None, search: Optional[str] = None) -> list[Story]:
+    """Get all stories for moderation, optionally filtered by status and search."""
     from app.model.story import ModerationStatus
-    return db.query(Story).filter(
-        Story.moderation_status == ModerationStatus.pending,
-        Story.generation_status == GenerationStatus.completed,
-    ).order_by(Story.created_at.desc()).offset(offset).limit(limit).all()
+    from app.model.user import User
+    
+    query = db.query(Story).filter(Story.generation_status == GenerationStatus.completed)
+    
+    if status_filter and status_filter.lower() != 'all':
+        query = query.filter(Story.moderation_status == ModerationStatus(status_filter.lower()))
+        
+    if search:
+        search_term = f"%{search}%"
+        query = query.outerjoin(User, Story.user_id == User.id).filter(
+            (Story.title.ilike(search_term)) | 
+            (User.email.ilike(search_term))
+        )
+        
+    return query.order_by(Story.created_at.desc()).offset(offset).limit(limit).all()
 
-def count_pending_stories(db: Session) -> int:
-    """Count stories pending moderation."""
+
+def count_moderation_stories(db: Session, status_filter: Optional[str] = None, search: Optional[str] = None) -> int:
+    """Count stories for moderation, optionally filtered by status and search."""
     from app.model.story import ModerationStatus
-    return db.query(Story).filter(
-        Story.moderation_status == ModerationStatus.pending,
-        Story.generation_status == GenerationStatus.completed,
-    ).count()
+    from app.model.user import User
+    
+    query = db.query(Story).filter(Story.generation_status == GenerationStatus.completed)
+    
+    if status_filter and status_filter.lower() != 'all':
+        query = query.filter(Story.moderation_status == ModerationStatus(status_filter.lower()))
+        
+    if search:
+        search_term = f"%{search}%"
+        query = query.outerjoin(User, Story.user_id == User.id).filter(
+            (Story.title.ilike(search_term)) | 
+            (User.email.ilike(search_term))
+        )
+        
+    return query.count()
 
 def get_moderation_stats(db: Session) -> dict:
     """Get counts of stories by moderation status."""
