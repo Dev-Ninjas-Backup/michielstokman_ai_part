@@ -35,9 +35,12 @@ class Story(Base):
     title = Column(String, nullable=True)
     story_text = Column(Text, nullable=True)
 
-    # Audio — local path for now (e.g. "media/audio/abc123.mp3")
-    # When S3 is ready, replace with the full S3 URL — no schema migration needed.
+    # Audio — S3 URL (falls back to local path e.g. "media/audio/abc123.mp3" if S3 not configured)
     audio_path = Column(String, nullable=True)
+
+    # Cover image — full S3 URL assigned by admin via Photo Management
+    # e.g. "https://bucket.s3.region.amazonaws.com/images/abc123.jpg"
+    cover_image_url = Column(String, nullable=True)
 
     # Associated track from the music library
     track_id = Column(String, nullable=True)
