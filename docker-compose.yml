@@ -14,7 +14,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    image: softvence/michielstokman-api:latest
+    image: tashinmahmud/michielstokman-api:latest
     container_name: michielstokman-api-prod
     ports:
       - "8000:8000"
