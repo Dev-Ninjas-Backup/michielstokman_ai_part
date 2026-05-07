@@ -15,7 +15,7 @@ from app.schemas.schema_system import HealthResponse
 app = FastAPI(
     title="Transform to Liberation API",
     description="SuperGrok-powered personalised story generation with ElevenLabs TTS.",
-    version="1.0.0",
+    version="1.0.1",
 )
 
 app.add_middleware(
