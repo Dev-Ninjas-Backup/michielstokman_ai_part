@@ -72,6 +72,3 @@ def count_active_users_30d(db: Session) -> int:
 def count_verified_users(db: Session) -> int:
     """Get count of verified users."""
     return db.query(User).filter(User.is_verified.is_(True)).count()
-    db.commit()
-    db.refresh(user)
-    return user

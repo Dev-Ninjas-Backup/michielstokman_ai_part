@@ -123,7 +123,6 @@ def count_failed_payments_today(db: Session) -> int:
         PaymentTransaction.status == PaymentStatus.failed,
         PaymentTransaction.created_at >= today_start
     ).count()
-    return payment
 
 
 def get_latest_subscription_for_user(db: Session, user_id: UUID) -> UserSubscription | None:

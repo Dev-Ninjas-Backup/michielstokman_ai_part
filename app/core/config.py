@@ -60,6 +60,9 @@ class Settings:
         # App Frontend / External
         self.FRONTEND_URL: str = os.getenv("FRONTEND_URL", "http://localhost:3000").rstrip("/")
         
+        # Security: Allowed CORS origins (comma-separated string in .env)
+        self.ALLOWED_ORIGINS: list[str] = os.getenv("ALLOWED_ORIGINS", "*").split(",")
+        
         # Social Auth
         self.GOOGLE_CLIENT_ID: str | None = os.getenv("GOOGLE_CLIENT_ID")
         self.APPLE_CLIENT_ID: str | None = os.getenv("APPLE_CLIENT_ID")
