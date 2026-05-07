@@ -43,6 +43,7 @@ jobs:
           script: |
             set -e
             cd ~/michielstokman_ai_part
+            git pull origin main
             docker compose pull
             docker compose up -d --force-recreate
 
