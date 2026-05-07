@@ -44,5 +44,5 @@ jobs:
             set -e
             cd ~/michielstokman_ai_part
             docker compose pull
-            docker compose up -d
+            docker compose up -d --force-recreate
 
