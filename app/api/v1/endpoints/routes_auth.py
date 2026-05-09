@@ -31,33 +31,42 @@ def signup(user_in: UserCreate, db: Session = Depends(get_db)):
     }
 
 
-@router.post("/login")
-async def login(
-    request: Request,
-    user_in: UserLogin = Body(None),  # This makes the JSON fields appear in Swagger
-    db: Session = Depends(get_db)
-):
+@router.post(
+    "/login",
+    openapi_extra={
+        "requestBody": {
+            "content": {
+                "application/json": {
+                    "schema": {
+                        "type": "object",
+                        "properties": {
+                            "email": {"type": "string", "example": "user@example.com"},
+                            "password": {"type": "string", "example": "Password123!"}
+                        },
+                        "required": ["email", "password"]
+                    }
+                }
+            },
+            "required": True
+        }
+    }
+)
+async def login(request: Request, db: Session = Depends(get_db)):
     """
-    Login endpoint that supports both JSON and Form Data (Swagger UI).
-    Returns a hybrid response for both Frontend and Swagger compatibility.
+    Login with email and password. Returns a JWT access token.
+    Use this token in the Authorization header as: **Bearer {token}**
     """
     email = None
     password = None
 
-    # Try to parse as JSON first
+    content_type = request.headers.get("content-type", "")
     try:
-        if request.headers.get("content-type") == "application/json":
-            # Use the Pydantic model if it's JSON
-            if user_in:
-                email = user_in.email
-                password = user_in.password
-            else:
-                # Fallback to manual parse if Body is empty but header is JSON
-                body = await request.json()
-                email = body.get("email")
-                password = body.get("password")
+        if "application/json" in content_type:
+            body = await request.json()
+            email = body.get("email")
+            password = body.get("password")
         else:
-            # Fallback to Form Data (Swagger Authorize sends this)
+            # Form Data (Swagger Authorize button sends username/password)
             form = await request.form()
             email = form.get("username") or form.get("email")
             password = form.get("password")
@@ -71,7 +80,7 @@ async def login(
         )
 
     token_payload = authenticate_user(db, email=email, password=password)
-    
+
     return {
         "status": status.HTTP_200_OK,
         "success": True,
