@@ -26,7 +26,7 @@ def signup(user_in: UserCreate, db: Session = Depends(get_db)):
         "success": True,
         "message": "Signup successful",
         "data": token_payload,
-        "access_token": token_payload.access_token,
+        "access_token": token_payload.get("access_token"),
         "token_type": "bearer"
     }
 
@@ -67,7 +67,7 @@ async def login(request: Request, db: Session = Depends(get_db)):
         "success": True,
         "message": "Login successful",
         "data": token_payload,
-        "access_token": token_payload.access_token,
+        "access_token": token_payload.get("access_token"),
         "token_type": "bearer"
     }
 
