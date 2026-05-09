@@ -1,4 +1,6 @@
-from fastapi import APIRouter, Depends, status, Header, HTTPException
+from typing import Optional
+from fastapi import APIRouter, Depends, status, Header, HTTPException, Body
+from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 
 from app.core.db import get_db
@@ -24,12 +26,20 @@ def signup(user_in: UserCreate, db: Session = Depends(get_db)):
 
 
 @router.post("/login", response_model=ApiResponse[Token])
-def login(user_in: UserLogin, db: Session = Depends(get_db)):
+def login(
+    user_in: Optional[UserLogin] = Body(None),
+    form_data: OAuth2PasswordRequestForm = Depends(),
+    db: Session = Depends(get_db)
+):
     """
     Login endpoint to get an access token for future requests.
-    Expects a standard JSON body with 'email' and 'password'.
+    Supports both standard JSON body and OAuth2 Form Data (Swagger Authorize).
     """
-    token_payload = authenticate_user(db, email=user_in.email, password=user_in.password)
+    # Use JSON if provided, otherwise fallback to form data (username is email)
+    email = user_in.email if user_in else form_data.username
+    password = user_in.password if user_in else form_data.password
+
+    token_payload = authenticate_user(db, email=email, password=password)
     return success_response("Login successful", status.HTTP_200_OK, token_payload)
 
 
