@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, status, Header, HTTPException, Body, Request
+from datetime import timedelta
 from sqlalchemy.orm import Session
 
 from app.core.db import get_db
@@ -134,16 +135,27 @@ def get_auth_profile(
     return success_response("Profile fetched successfully", status.HTTP_200_OK, profile)
 
 
-@router.post("/auth/refresh", response_model=ApiResponse[Token])
+@router.post("/auth/refresh")
 def refresh_token(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """
-    Placeholder for token refresh logic. For now, just returns a new token for the same user.
+    Returns a fresh JWT access token for the currently authenticated user.
     """
-    # In a real app, this would verify a refresh token and issue a new access token.
-    # For now, we mock it to prevent frontend errors.
-    from app.services.service_auth import create_user_token
-    token_payload = create_user_token(current_user)
-    return success_response("Token refreshed successfully", status.HTTP_200_OK, token_payload)
+    from app.core.config import settings
+    from app.core.security import create_access_token
+    access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = create_access_token(
+        data={"sub": str(current_user.id)},
+        user_token_version=current_user.token_version,
+        expires_delta=access_token_expires,
+    )
+    return {
+        "status": status.HTTP_200_OK,
+        "success": True,
+        "message": "Token refreshed successfully",
+        "data": {"access_token": access_token, "token_type": "bearer"},
+        "access_token": access_token,
+        "token_type": "bearer"
+    }
 
 
 @router.post("/auth/forgot-password")

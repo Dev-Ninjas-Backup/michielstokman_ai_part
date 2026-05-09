@@ -7,7 +7,7 @@ Accepts a natural-language query from the admin, fetches a real-time
 metrics snapshot from the database, and returns an LLM-generated answer.
 Only accessible to admin users.
 """
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_admin_user
@@ -38,12 +38,21 @@ def admin_metrics_chat(
 
     The LLM is grounded with a real-time data snapshot — it never invents numbers.
     """
-    answer, metrics_snapshot = AdminChatService.answer(query=payload.query, db=db)
-    return success_response(
-        "Metrics chat response generated",
-        status.HTTP_200_OK,
-        {
-            "answer": answer,
-            "metrics_snapshot": metrics_snapshot,
-        },
-    )
+    try:
+        answer, metrics_snapshot = AdminChatService.answer(query=payload.query, db=db)
+        return success_response(
+            "Metrics chat response generated",
+            status.HTTP_200_OK,
+            {
+                "answer": answer,
+                "metrics_snapshot": metrics_snapshot,
+            },
+        )
+    except Exception as e:
+        err = str(e)
+        if "API key" in err or "Incorrect API" in err or "api_key" in err:
+            raise HTTPException(
+                status_code=503,
+                detail="Admin chat AI service unavailable — API key not configured on server."
+            )
+        raise HTTPException(status_code=500, detail=f"Admin chat failed: {err[:200]}")
