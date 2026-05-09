@@ -27,7 +27,7 @@ router = APIRouter()
 
 @router.get("/admin/moderation/queue", response_model=ApiResponse[ModerationQueueResponse])
 def get_moderation_queue(
-    status: Optional[str] = None,
+    moderation_status: Optional[str] = None,
     search: Optional[str] = None,
     current_user: User = Depends(get_current_admin_user),
     db: Session = Depends(get_db),
@@ -42,7 +42,7 @@ def get_moderation_queue(
         db, 
         limit=limit, 
         offset=offset, 
-        status_filter=status, 
+        status_filter=moderation_status, 
         search=search
     )
     
@@ -65,7 +65,7 @@ def get_moderation_queue(
     stats = story_data.get_moderation_stats(db)
     
     # Get total matching the current filter + search combination for pagination
-    total = story_data.count_moderation_stories(db, status_filter=status, search=search)
+    total = story_data.count_moderation_stories(db, status_filter=moderation_status, search=search)
     
     result = ModerationQueueResponse(
         stories=story_items,
