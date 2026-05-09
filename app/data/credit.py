@@ -43,9 +43,20 @@ def get_or_create_credit(db: Session, user_id: str) -> UserCredit:
 
     # Auto-reset if last reset was before today's midnight
     midnight = _today_midnight_utc()
-    if credit.last_reset_at < midnight:
+    
+    # Ensure both are either naive or aware for comparison
+    last_reset = credit.last_reset_at
+    if last_reset.tzinfo is None and midnight.tzinfo is not None:
+        midnight = midnight.replace(tzinfo=None)
+    elif last_reset.tzinfo is not None and midnight.tzinfo is None:
+        last_reset = last_reset.replace(tzinfo=None)
+
+    if last_reset < midnight:
         credit.daily_credits_remaining = credit.max_daily_credits
         credit.last_reset_at = datetime.now(timezone.utc)
+        if credit.last_reset_at.tzinfo is not None and last_reset.tzinfo is None:
+            # If DB expects naive, store naive
+            credit.last_reset_at = credit.last_reset_at.replace(tzinfo=None)
         db.commit()
         db.refresh(credit)
 
