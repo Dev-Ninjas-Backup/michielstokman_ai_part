@@ -1,6 +1,4 @@
-from typing import Optional
-from fastapi import APIRouter, Depends, status, Header, HTTPException, Body
-from fastapi.security import OAuth2PasswordRequestForm
+from fastapi import APIRouter, Depends, status, Header, HTTPException, Body, Request
 from sqlalchemy.orm import Session
 
 from app.core.db import get_db
@@ -16,31 +14,62 @@ from app.schemas.profile import UserProfileResponse
 router = APIRouter()
 
 
-@router.post("/signup", response_model=ApiResponse[Token], status_code=status.HTTP_201_CREATED)
+@router.post("/signup", status_code=status.HTTP_201_CREATED)
 def signup(user_in: UserCreate, db: Session = Depends(get_db)):
     """
-    Register a new user with email and password and return a JWT token.
+    Register a new user and return a JWT token.
+    Compatible with Swagger Authorize.
     """
     token_payload = register_new_user(db, user_in)
-    return success_response("Signup successful", status.HTTP_201_CREATED, token_payload)
+    return {
+        "status": status.HTTP_201_CREATED,
+        "success": True,
+        "message": "Signup successful",
+        "data": token_payload,
+        "access_token": token_payload.access_token,
+        "token_type": "bearer"
+    }
 
 
-@router.post("/login", response_model=ApiResponse[Token])
-def login(
-    user_in: Optional[UserLogin] = Body(None),
-    form_data: OAuth2PasswordRequestForm = Depends(),
-    db: Session = Depends(get_db)
-):
+@router.post("/login")
+async def login(request: Request, db: Session = Depends(get_db)):
     """
-    Login endpoint to get an access token for future requests.
-    Supports both standard JSON body and OAuth2 Form Data (Swagger Authorize).
+    Login endpoint that supports both JSON and Form Data (Swagger UI).
+    Returns a hybrid response for both Frontend and Swagger compatibility.
     """
-    # Use JSON if provided, otherwise fallback to form data (username is email)
-    email = user_in.email if user_in else form_data.username
-    password = user_in.password if user_in else form_data.password
+    email = None
+    password = None
+
+    # Try to parse as JSON first
+    try:
+        if request.headers.get("content-type") == "application/json":
+            body = await request.json()
+            email = body.get("email")
+            password = body.get("password")
+        else:
+            # Fallback to Form Data (Swagger Authorize sends this)
+            form = await request.form()
+            email = form.get("username") or form.get("email")
+            password = form.get("password")
+    except Exception:
+        pass
+
+    if not email or not password:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Missing email or password"
+        )
 
     token_payload = authenticate_user(db, email=email, password=password)
-    return success_response("Login successful", status.HTTP_200_OK, token_payload)
+    
+    return {
+        "status": status.HTTP_200_OK,
+        "success": True,
+        "message": "Login successful",
+        "data": token_payload,
+        "access_token": token_payload.access_token,
+        "token_type": "bearer"
+    }
 
 
 @router.post("/social-login", response_model=ApiResponse[Token])
