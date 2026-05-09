@@ -32,7 +32,11 @@ def signup(user_in: UserCreate, db: Session = Depends(get_db)):
 
 
 @router.post("/login")
-async def login(request: Request, db: Session = Depends(get_db)):
+async def login(
+    request: Request,
+    user_in: UserLogin = Body(None),  # This makes the JSON fields appear in Swagger
+    db: Session = Depends(get_db)
+):
     """
     Login endpoint that supports both JSON and Form Data (Swagger UI).
     Returns a hybrid response for both Frontend and Swagger compatibility.
@@ -43,9 +47,15 @@ async def login(request: Request, db: Session = Depends(get_db)):
     # Try to parse as JSON first
     try:
         if request.headers.get("content-type") == "application/json":
-            body = await request.json()
-            email = body.get("email")
-            password = body.get("password")
+            # Use the Pydantic model if it's JSON
+            if user_in:
+                email = user_in.email
+                password = user_in.password
+            else:
+                # Fallback to manual parse if Body is empty but header is JSON
+                body = await request.json()
+                email = body.get("email")
+                password = body.get("password")
         else:
             # Fallback to Form Data (Swagger Authorize sends this)
             form = await request.form()
