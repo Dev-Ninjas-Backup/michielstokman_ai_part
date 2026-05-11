@@ -5,52 +5,73 @@ from datetime import datetime, timedelta, timezone
 from app.model.story import Story
 from app.model.liberation import UserJourney, JourneyStatus
 
+def calculate_delta(current: float, previous: float, is_absolute_diff: bool = False) -> dict:
+    if is_absolute_diff:
+        change = current - previous
+    else:
+        if previous == 0:
+            change = 100.0 if current > 0 else 0.0
+        else:
+            change = ((current - previous) / previous) * 100.0
+
+    trend = "up" if change > 0 else "down" if change < 0 else "neutral"
+    sign = "+" if change > 0 else ""
+    pct_str = f"{sign}{change:.1f}%" if abs(change) < 10 and not change.is_integer() else f"{sign}{int(change)}%"
+    
+    if is_absolute_diff:
+        pct_str = f"{sign}{change:.1f}" if not change.is_integer() else f"{sign}{int(change)}"
+        
+    return {"percentage": pct_str, "trend": trend}
+
 def get_figma_dashboard_stats(db: Session):
     now = datetime.now(timezone.utc)
+    seven_days_ago = now - timedelta(days=7)
+    fourteen_days_ago = now - timedelta(days=14)
     
-    # --- Top Stats ---
-    # Total Views
+    # --- Top Stats Overall ---
     total_views = db.query(func.sum(Story.views_count)).scalar() or 0
-    
-    # Avg Resonance (Pulse Score)
-    # We only average stories that have a pulse score > 0 to get a meaningful number
     avg_pulse = db.query(func.avg(Story.pulse_score)).filter(Story.pulse_score > 0).scalar() or 0.0
+    total_shares = db.query(func.sum(Story.shares_count)).scalar() or 0
     
-    # Completion Rate (from UserJourneys)
     total_journeys = db.query(UserJourney).count()
     completed_journeys = db.query(UserJourney).filter(UserJourney.status == JourneyStatus.completed).count()
     completion_rate = (completed_journeys / total_journeys * 100) if total_journeys > 0 else 0.0
-    
-    # Share Clicks
-    total_shares = db.query(func.sum(Story.shares_count)).scalar() or 0
-    
-    # Mock deltas/percentages for the Figma UI (in a real app, these would compare to previous time periods)
-    # Since we don't track historical daily aggregates, we will mock the percentages to match UI closely
+
+    # --- Current Week vs Previous Week for Deltas ---
+    def get_period_stats(start, end):
+        views = db.query(func.sum(Story.views_count)).filter(Story.created_at >= start, Story.created_at < end).scalar() or 0
+        shares = db.query(func.sum(Story.shares_count)).filter(Story.created_at >= start, Story.created_at < end).scalar() or 0
+        pulse = db.query(func.avg(Story.pulse_score)).filter(Story.created_at >= start, Story.created_at < end, Story.pulse_score > 0).scalar() or 0.0
+        
+        t_journeys = db.query(UserJourney).filter(UserJourney.created_at >= start, UserJourney.created_at < end).count()
+        c_journeys = db.query(UserJourney).filter(UserJourney.created_at >= start, UserJourney.created_at < end, UserJourney.status == JourneyStatus.completed).count()
+        c_rate = (c_journeys / t_journeys * 100) if t_journeys > 0 else 0.0
+        
+        return views, shares, pulse, c_rate
+
+    cw_views, cw_shares, cw_pulse, cw_comp = get_period_stats(seven_days_ago, now)
+    pw_views, pw_shares, pw_pulse, pw_comp = get_period_stats(fourteen_days_ago, seven_days_ago)
+
     top_stats = {
         "total_views": {
             "value": f"{int(total_views):,}",
-            "percentage": "+12%",
-            "trend": "up"
+            **calculate_delta(cw_views, pw_views)
         },
         "avg_resonance": {
             "value": f"{avg_pulse:.1f}",
-            "percentage": "+0.3",
-            "trend": "up"
+            **calculate_delta(cw_pulse, pw_pulse, is_absolute_diff=True)
         },
         "completion_rate": {
             "value": f"{int(completion_rate)}%",
-            "percentage": "+4%",
-            "trend": "up"
+            **calculate_delta(cw_comp, pw_comp, is_absolute_diff=True)
         },
         "share_clicks": {
             "value": f"{int(total_shares):,}",
-            "percentage": "+18%",
-            "trend": "up"
+            **calculate_delta(cw_shares, pw_shares)
         }
     }
     
     # --- Weekly Trends ---
-    # We'll calculate the actual stats for the last 4 weeks based on created_at
     weekly_trends = []
     labels = ["This Week", "Last Week", "2 Weeks Ago", "3 Weeks Ago"]
     
