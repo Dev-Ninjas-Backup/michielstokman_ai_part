@@ -38,6 +38,8 @@ class Story(Base):
 
     # Audio — S3 URL (falls back to local path e.g. "media/audio/abc123.mp3" if S3 not configured)
     audio_path = Column(String, nullable=True)
+    voice_name = Column(String, nullable=True)
+    audio_duration_seconds = Column(Integer, nullable=True)
 
     # Cover image — full S3 URL assigned by admin via Photo Management
     # e.g. "https://bucket.s3.region.amazonaws.com/images/abc123.jpg"

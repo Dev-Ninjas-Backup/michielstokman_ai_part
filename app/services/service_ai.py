@@ -203,6 +203,14 @@ class AIService:
                 title=title,
                 audio_path=audio_path,
             )
+            
+            # Simple duration estimation (150 wpm) and default voice lookup
+            from app.core.config import settings
+            story_row.voice_name = settings.ELEVENLABS_VOICE_ID or "Aria (Warm)"
+            word_count = len(story_text.split()) if story_text else 0
+            story_row.audio_duration_seconds = int((word_count / 150) * 60)
+            db.commit()
+            
             logger.info(f"[Job {job_id}] Completed. Audio saved: {audio_path}")
 
         except Exception as e:
