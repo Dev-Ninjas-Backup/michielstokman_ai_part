@@ -35,12 +35,14 @@ class StoryListItemResponse(BaseModel):
     author: str | None
     created_at: str
     moderation_status: str
+    cover_image_url: str | None
 
 
 class ModerationQueueResponse(BaseModel):
     stories: list[StoryListItemResponse]
-    total: int
+    all: int
     pending: int
+    flagged: int
     approved: int
     rejected: int
 

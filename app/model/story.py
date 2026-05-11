@@ -23,6 +23,7 @@ class ModerationStatus(str, enum.Enum):
     pending = "pending"
     approved = "approved"
     rejected = "rejected"
+    flagged = "flagged"
 
 
 class Story(Base):

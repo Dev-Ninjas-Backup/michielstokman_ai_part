@@ -58,21 +58,25 @@ def get_moderation_queue(
                 author=author_name,
                 created_at=story.created_at.isoformat(),
                 moderation_status=str(story.moderation_status).replace("ModerationStatus.", ""),
+                cover_image_url=story.cover_image_url,
             )
         )
     
-    # Get stats
-    stats = story_data.get_moderation_stats(db)
+    # Clean stats keys (e.g. from 'ModerationStatus.pending' to 'pending')
+    clean_stats = {str(k).replace("ModerationStatus.", ""): v for k, v in stats.items()}
     
     # Get total matching the current filter + search combination for pagination
-    total = story_data.count_moderation_stories(db, status_filter=moderation_status, search=search)
+    # total_pages/total_items logic can be kept in some other field if needed, but Figma 
+    # needs an "all" count which is the sum of all statuses.
+    all_count = sum(clean_stats.values())
     
     result = ModerationQueueResponse(
         stories=story_items,
-        total=total,
-        pending=stats.get("pending", 0),
-        approved=stats.get("approved", 0),
-        rejected=stats.get("rejected", 0),
+        all=all_count,
+        pending=clean_stats.get("pending", 0),
+        flagged=clean_stats.get("flagged", 0),
+        approved=clean_stats.get("approved", 0),
+        rejected=clean_stats.get("rejected", 0),
     )
     return success_response("Moderation queue fetched", status.HTTP_200_OK, result)
 
