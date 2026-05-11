@@ -9,7 +9,8 @@ class Settings:
         self.XAI_API_KEY: str | None = os.getenv("XAI_API_KEY")
         self.ELEVENLABS_API_KEY: str | None = os.getenv("ELEVENLABS_API_KEY")
 
-        # --- SuperGrok (xAI) LLM settings ---
+        # --- SuperGrok (xAI) or Alternative LLM settings ---
+        self.LLM_BASE_URL: str = os.getenv("LLM_BASE_URL", "https://api.x.ai/v1")
         # Model name — swap to grok-3-mini for faster/cheaper calls
         self.LLM_MODEL: str = os.getenv("LLM_MODEL", "grok-3")
         # Temperature for story generation (higher = more creative)
