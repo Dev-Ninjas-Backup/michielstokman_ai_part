@@ -28,66 +28,56 @@ def get_figma_dashboard_stats(db: Session):
     seven_days_ago = now - timedelta(days=7)
     fourteen_days_ago = now - timedelta(days=14)
     
-    # --- Top Stats Overall ---
-    total_views = db.query(func.sum(Story.views_count)).scalar() or 0
-    avg_pulse = db.query(func.avg(Story.pulse_score)).filter(Story.pulse_score > 0).scalar() or 0.0
-    total_shares = db.query(func.sum(Story.shares_count)).scalar() or 0
+    # --- Top Stats (Figma Row: All, Confessions, Meditations, Journey) ---
+    from app.model.story import StoryType, GenerationStatus
     
-    total_journeys = db.query(UserJourney).count()
-    completed_journeys = db.query(UserJourney).filter(UserJourney.status == JourneyStatus.completed).count()
-    completion_rate = (completed_journeys / total_journeys * 100) if total_journeys > 0 else 0.0
+    def get_counts(start=None, end=None):
+        base = db.query(Story).filter(Story.generation_status == GenerationStatus.completed)
+        if start:
+            base = base.filter(Story.created_at >= start)
+        if end:
+            base = base.filter(Story.created_at < end)
+            
+        total = base.count()
+        confessions = base.filter(Story.story_type == StoryType.confession).count()
+        meditations = base.filter(Story.story_type == StoryType.meditation).count()
+        journey = base.filter(Story.story_type == StoryType.transformation).count()
+        return total, confessions, meditations, journey
 
-    # --- Current Week vs Previous Week for Deltas ---
-    def get_period_stats(start, end):
-        views = db.query(func.sum(Story.views_count)).filter(Story.created_at >= start, Story.created_at < end).scalar() or 0
-        shares = db.query(func.sum(Story.shares_count)).filter(Story.created_at >= start, Story.created_at < end).scalar() or 0
-        pulse = db.query(func.avg(Story.pulse_score)).filter(Story.created_at >= start, Story.created_at < end, Story.pulse_score > 0).scalar() or 0.0
-        
-        t_journeys = db.query(UserJourney).filter(UserJourney.created_at >= start, UserJourney.created_at < end).count()
-        c_journeys = db.query(UserJourney).filter(UserJourney.created_at >= start, UserJourney.created_at < end, UserJourney.status == JourneyStatus.completed).count()
-        c_rate = (c_journeys / t_journeys * 100) if t_journeys > 0 else 0.0
-        
-        return views, shares, pulse, c_rate
-
-    cw_views, cw_shares, cw_pulse, cw_comp = get_period_stats(seven_days_ago, now)
-    pw_views, pw_shares, pw_pulse, pw_comp = get_period_stats(fourteen_days_ago, seven_days_ago)
+    overall_all, overall_conf, overall_med, overall_jour = get_counts()
+    cw_all, cw_conf, cw_med, cw_jour = get_counts(seven_days_ago, now)
+    pw_all, pw_conf, pw_med, pw_jour = get_counts(fourteen_days_ago, seven_days_ago)
 
     top_stats = {
-        "total_views": {
-            "value": f"{int(total_views):,}",
-            **calculate_delta(cw_views, pw_views)
+        "all": {
+            "value": f"{overall_all:,}",
+            **calculate_delta(cw_all, pw_all)
         },
-        "avg_resonance": {
-            "value": f"{avg_pulse:.1f}",
-            **calculate_delta(cw_pulse, pw_pulse, is_absolute_diff=True)
+        "confessions": {
+            "value": f"{overall_conf:,}",
+            **calculate_delta(cw_conf, pw_conf)
         },
-        "completion_rate": {
-            "value": f"{int(completion_rate)}%",
-            **calculate_delta(cw_comp, pw_comp, is_absolute_diff=True)
+        "meditations": {
+            "value": f"{overall_med:,}",
+            **calculate_delta(cw_med, pw_med)
         },
-        "share_clicks": {
-            "value": f"{int(total_shares):,}",
-            **calculate_delta(cw_shares, pw_shares)
+        "journey": {
+            "value": f"{overall_jour:,}",
+            **calculate_delta(cw_jour, pw_jour)
         }
     }
     
-    # --- Weekly Trends ---
+    # --- Weekly Trends (Keep views/pulse/shares for the chart) ---
     weekly_trends = []
     labels = ["This Week", "Last Week", "2 Weeks Ago", "3 Weeks Ago"]
-    
     for i in range(4):
         start_date = now - timedelta(days=(i+1)*7)
         end_date = now - timedelta(days=i*7)
-        
         week_stats = db.query(
             func.sum(Story.views_count).label("views"),
             func.avg(Story.pulse_score).label("pulse"),
             func.sum(Story.shares_count).label("shares")
-        ).filter(
-            Story.created_at >= start_date,
-            Story.created_at < end_date
-        ).first()
-        
+        ).filter(Story.created_at >= start_date, Story.created_at < end_date).first()
         weekly_trends.append({
             "label": labels[i],
             "views": int(week_stats.views or 0),
@@ -96,15 +86,10 @@ def get_figma_dashboard_stats(db: Session):
         })
     
     # --- Top Resonance Content ---
-    # Top 5 stories by pulse score this month
-    start_of_month = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-    
     top_content_query = db.query(Story).filter(
-        Story.created_at >= start_of_month,
+        Story.pulse_score.isnot(None),
         Story.title.isnot(None)
-    ).order_by(
-        desc(Story.pulse_score)
-    ).limit(5).all()
+    ).order_by(desc(Story.pulse_score)).limit(5).all()
     
     top_resonance_content = []
     for story in top_content_query:
@@ -112,11 +97,23 @@ def get_figma_dashboard_stats(db: Session):
             "id": str(story.id),
             "title": story.title or "Untitled",
             "pulse": float(story.pulse_score),
-            "reflections": int(story.reflections_count)
+            "reflections": int(getattr(story, 'reflections_count', 0))
         })
         
+    # --- Latest Activity ---
+    from app.model.user import User
+    latest_stories = db.query(Story).join(User, Story.user_id == User.id).order_by(desc(Story.created_at)).limit(5).all()
+    latest_activity = []
+    for s in latest_stories:
+        latest_activity.append({
+            "user_email": s.user.email if s.user else "Anonymous",
+            "action": f"generated a {str(s.story_type).replace('StoryType.', '')}",
+            "time_ago": "Recently" # Frontend usually calculates this from ISO date
+        })
+
     return {
         "top_stats": top_stats,
         "weekly_trends": weekly_trends,
-        "top_resonance_content": top_resonance_content
+        "top_resonance_content": top_resonance_content,
+        "latest_activity": latest_activity
     }

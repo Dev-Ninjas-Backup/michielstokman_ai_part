@@ -51,10 +51,10 @@ class StatDelta(BaseModel):
 
 
 class TopStats(BaseModel):
-    total_views: StatDelta
-    avg_resonance: StatDelta
-    completion_rate: StatDelta
-    share_clicks: StatDelta
+    all: StatDelta
+    confessions: StatDelta
+    meditations: StatDelta
+    journey: StatDelta
 
 
 class WeeklyTrend(BaseModel):
@@ -71,7 +71,14 @@ class TopResonanceContent(BaseModel):
     reflections: int
 
 
+class LatestActivity(BaseModel):
+    user_email: str
+    action: str
+    time_ago: str
+
+
 class AdminFigmaDashboardResponse(BaseModel):
     top_stats: TopStats
     weekly_trends: list[WeeklyTrend]
     top_resonance_content: list[TopResonanceContent]
+    latest_activity: list[LatestActivity]

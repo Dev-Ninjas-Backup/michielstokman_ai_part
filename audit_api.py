@@ -163,6 +163,11 @@ else:
 
 test("POST", "/v1/admin/chat", headers=h, json_body={"query": "How many users signed up this week?"})
 
+# ── Admin Dashboard ───────────────────────────────────────────────────────────
+print("\n[ADMIN DASHBOARD]")
+test("GET", "/v1/admin/dashboard/figma-stats", headers=h)
+test("GET", "/v1/admin/dashboard/stats", headers=h)
+
 # ── Admin Voice Review ────────────────────────────────────────────────────────
 print("\n[ADMIN VOICE REVIEW]")
 vr_res = test("GET", "/v1/admin/voice-review", headers=h)

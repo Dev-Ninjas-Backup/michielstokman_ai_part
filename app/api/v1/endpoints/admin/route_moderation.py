@@ -46,51 +46,61 @@ def get_moderation_queue(
         search=search
     )
     
-    story_items = []
-    for story in stories:
-        # Map story_type to Figma display names
-        display_type = str(story.story_type).replace("StoryType.", "").capitalize()
-        if display_type == "Confession":
-            display_type = "Confessions"
-        elif display_type == "Meditation":
-            display_type = "Meditations"
-        elif display_type == "Transformation":
-            display_type = "Journey"
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    try:
+        story_items = []
+        for story in stories:
+            # Map story_type to Figma display names
+            display_type = str(story.story_type).replace("StoryType.", "").capitalize()
+            if display_type == "Confession":
+                display_type = "Confessions"
+            elif display_type == "Meditation":
+                display_type = "Meditations"
+            elif display_type == "Transformation":
+                display_type = "Journey"
 
-        # Get author name from user relationship
-        author_name = story.user.email if story.user else "Admin"
-        story_items.append(
-            StoryListItemResponse(
-                id=story.id,
-                title=story.title or "Untitled",
-                story_type=display_type,
-                author=author_name,
-                created_at=story.created_at.strftime("%d %b %y"),  # format to "12 Jan 26"
-                moderation_status=str(story.moderation_status).replace("ModerationStatus.", "").capitalize(),
-                cover_image_url=story.cover_image_url,
+            # Get author name safely
+            author_name = "Admin"
+            if story.user:
+                author_name = story.user.email
+            elif story.admin:
+                author_name = story.admin.email
+
+            story_items.append(
+                StoryListItemResponse(
+                    id=story.id,
+                    title=story.title or "Untitled",
+                    story_type=display_type,
+                    author=author_name,
+                    created_at=story.created_at.strftime("%d %b %y"),
+                    moderation_status=str(story.moderation_status).replace("ModerationStatus.", "").capitalize(),
+                    cover_image_url=story.cover_image_url,
+                )
             )
+        
+        # Get stats for the tab counts
+        stats = story_data.get_moderation_stats(db)
+        
+        # Clean stats keys (e.g. from 'ModerationStatus.pending' to 'pending')
+        clean_stats = {str(k).replace("ModerationStatus.", ""): v for k, v in stats.items()}
+        
+        # Get total matching the current filter + search combination for pagination
+        all_count = sum(clean_stats.values())
+        
+        result = ModerationQueueResponse(
+            stories=story_items,
+            all=all_count,
+            pending=clean_stats.get("pending", 0),
+            flagged=clean_stats.get("flagged", 0),
+            approved=clean_stats.get("approved", 0),
+            rejected=clean_stats.get("rejected", 0),
         )
-    
-    # Get stats for the tab counts
-    stats = story_data.get_moderation_stats(db)
-    
-    # Clean stats keys (e.g. from 'ModerationStatus.pending' to 'pending')
-    clean_stats = {str(k).replace("ModerationStatus.", ""): v for k, v in stats.items()}
-    
-    # Get total matching the current filter + search combination for pagination
-    # total_pages/total_items logic can be kept in some other field if needed, but Figma 
-    # needs an "all" count which is the sum of all statuses.
-    all_count = sum(clean_stats.values())
-    
-    result = ModerationQueueResponse(
-        stories=story_items,
-        all=all_count,
-        pending=clean_stats.get("pending", 0),
-        flagged=clean_stats.get("flagged", 0),
-        approved=clean_stats.get("approved", 0),
-        rejected=clean_stats.get("rejected", 0),
-    )
-    return success_response("Moderation queue fetched", status.HTTP_200_OK, result)
+        return success_response("Moderation queue fetched", status.HTTP_200_OK, result)
+    except Exception as e:
+        logger.error(f"Moderation queue error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Moderation queue error: {str(e)}")
 
 
 @router.get("/admin/moderation/story/{story_id}", response_model=ApiResponse[StoryDetailResponse])
