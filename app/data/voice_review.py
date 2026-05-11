@@ -26,10 +26,22 @@ def get_voice_review_stories(
 
     if search:
         search_term = f"%{search}%"
+        
+        # If searching for "Story", also search for "confession"
+        # If searching for "Meditations", also search for "meditation"
+        extra_filters = []
+        if "story" in search.lower():
+            extra_filters.append(Story.story_type == "confession")
+        if "meditation" in search.lower():
+            extra_filters.append(Story.story_type == "meditation")
+        if "journey" in search.lower():
+            extra_filters.append(Story.story_type == "transformation")
+
         query = query.filter(
             or_(
                 Story.title.ilike(search_term),
-                Story.story_type.cast(String).ilike(search_term)
+                Story.story_type.cast(String).ilike(search_term),
+                *extra_filters
             )
         )
 

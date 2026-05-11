@@ -45,11 +45,20 @@ def get_voice_review_list(
             m, s = divmod(story.audio_duration_seconds, 60)
             duration_str = f"{m}:{s:02d}"
 
+        # Map story_type to Figma display names
+        display_type = str(story.story_type).replace("StoryType.", "").capitalize()
+        if display_type == "Confession":
+            display_type = "Story"
+        elif display_type == "Meditation":
+            display_type = "Meditations"
+        elif display_type == "Transformation":
+            display_type = "Journey"
+
         items.append(
             VoiceReviewItem(
                 id=story.id,
                 title=story.title or "Untitled",
-                story_type=str(story.story_type).replace("StoryType.", "").capitalize(),
+                story_type=display_type,
                 voice_name=story.voice_name or "Aria (Warm)",
                 audio_duration=duration_str,
                 created_at=story.created_at.strftime("%d %b %y"),  # format to "12 Jan 26"

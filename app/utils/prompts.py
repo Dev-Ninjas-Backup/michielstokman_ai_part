@@ -311,8 +311,10 @@ provided in that snapshot — never invent, estimate, or hallucinate figures.
 
 Guidelines:
 - Respond in clear, friendly prose. Use short bullet lists where it improves readability.
+- Formatting for Top Resonance Content:
+  If the admin asks about top performing or top resonance content, format each item exactly like this:
+  "[Number]. "[Title]" — [Pulse Score] pulse ([Number] reflections)"
 - Keep answers under 150 words unless the question genuinely requires more detail.
-- If the snapshot contains no data relevant to the question, say so honestly.
 - Never expose raw UUIDs, internal field names, or JSON keys in your response.
 - Use plain language: "pulse score" instead of "avg_pulse", "reflections" instead of "reflection_count".
 """

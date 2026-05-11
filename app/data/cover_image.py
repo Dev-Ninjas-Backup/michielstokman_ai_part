@@ -39,17 +39,40 @@ def get_cover_image_by_id(db: Session, cover_id: str) -> Optional[CoverImage]:
 def list_cover_images(
     db: Session,
     story_type: Optional[CoverImageType] = None,
+    search: Optional[str] = None,
     active_only: bool = False,
     limit: int = 20,
     offset: int = 0,
 ) -> tuple[list[CoverImage], int]:
     """
     Returns a paginated list of cover images and the total count.
-    Optionally filtered by story_type and/or is_active.
+    Optionally filtered by story_type, search text, and/or is_active.
     """
+    from sqlalchemy import or_, String
     query = db.query(CoverImage)
+    
     if story_type:
         query = query.filter(CoverImage.story_type == story_type)
+    
+    if search:
+        # Search in the casted Enum string
+        search_term = f"%{search}%"
+        extra_filters = []
+        s_low = search.lower()
+        if "confession" in s_low:
+            extra_filters.append(CoverImage.story_type == "confession")
+        if "meditation" in s_low:
+            extra_filters.append(CoverImage.story_type == "meditation")
+        if "journey" in s_low:
+            extra_filters.append(CoverImage.story_type == "transformation")
+            
+        query = query.filter(
+            or_(
+                CoverImage.story_type.cast(String).ilike(search_term),
+                *extra_filters
+            )
+        )
+
     if active_only:
         query = query.filter(CoverImage.is_active.is_(True))
 

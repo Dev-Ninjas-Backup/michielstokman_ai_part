@@ -40,9 +40,18 @@ MAX_IMAGE_SIZE_BYTES = 10 * 1024 * 1024  # 10 MB
 
 def _serialize(cover) -> dict:
     """Convert a CoverImage ORM row to a dict for the response."""
+    # Map story_type to Figma display names
+    display_type = str(cover.story_type).replace("CoverImageType.", "").capitalize()
+    if display_type == "Confession":
+        display_type = "Confessions"
+    elif display_type == "Meditation":
+        display_type = "Meditation"  # stays Meditation
+    elif display_type == "Transformation":
+        display_type = "Journey"
+
     return {
         "id": str(cover.id),
-        "story_type": cover.story_type,
+        "story_type": display_type,
         "image_url": cover.image_url,
         "is_active": cover.is_active,
         "uploaded_by": str(cover.uploaded_by) if cover.uploaded_by else None,
@@ -109,6 +118,7 @@ async def upload_cover_image(
 @router.get("/admin/photos", response_model=ApiResponse[CoverImageListResponse])
 def list_cover_images(
     story_type: CoverImageType | None = Query(None, description="Filter by story type"),
+    search: str | None = Query(None, description="Search by type"),
     active_only: bool = Query(False, description="Return only active images"),
     limit: int = Query(20, ge=1, le=100),
     offset: int = Query(0, ge=0),
@@ -119,6 +129,7 @@ def list_cover_images(
     items, total = cover_image_data.list_cover_images(
         db=db,
         story_type=story_type,
+        search=search,
         active_only=active_only,
         limit=limit,
         offset=offset,

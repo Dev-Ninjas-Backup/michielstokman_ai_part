@@ -48,19 +48,31 @@ def get_moderation_queue(
     
     story_items = []
     for story in stories:
+        # Map story_type to Figma display names
+        display_type = str(story.story_type).replace("StoryType.", "").capitalize()
+        if display_type == "Confession":
+            display_type = "Confessions"
+        elif display_type == "Meditation":
+            display_type = "Meditations"
+        elif display_type == "Transformation":
+            display_type = "Journey"
+
         # Get author name from user relationship
         author_name = story.user.email if story.user else "Admin"
         story_items.append(
             StoryListItemResponse(
                 id=story.id,
                 title=story.title or "Untitled",
-                story_type=str(story.story_type).replace("StoryType.", "").capitalize(),
+                story_type=display_type,
                 author=author_name,
-                created_at=story.created_at.isoformat(),
-                moderation_status=str(story.moderation_status).replace("ModerationStatus.", ""),
+                created_at=story.created_at.strftime("%d %b %y"),  # format to "12 Jan 26"
+                moderation_status=str(story.moderation_status).replace("ModerationStatus.", "").capitalize(),
                 cover_image_url=story.cover_image_url,
             )
         )
+    
+    # Get stats for the tab counts
+    stats = story_data.get_moderation_stats(db)
     
     # Clean stats keys (e.g. from 'ModerationStatus.pending' to 'pending')
     clean_stats = {str(k).replace("ModerationStatus.", ""): v for k, v in stats.items()}
