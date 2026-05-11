@@ -82,123 +82,29 @@ Login with email and password.
 
 ---
 
-### `POST /v1/social-login`
-Login with Google or Apple token.
+## 2. Admin - Dashboard & Metrics
 
-**Request Body:**
-```json
-{
-  "provider": "google",
-  "token": "google_id_token_here"
-}
-```
-
-**Response `200`:** Same structure as `/v1/login`.
-
----
-
-### `POST /v1/signout`
-Invalidate the current JWT token.
-
-**Headers:** `Authorization: Bearer <token>`  
-**Body:** None
-
-**Response `200`:**
-```json
-{ "status": 200, "success": true, "message": "Successfully signed out" }
-```
-
----
-
-### `POST /v1/auth/refresh`
-Get a new access token for the current user.
-
-**Headers:** `Authorization: Bearer <token>`  
-**Body:** None
-
----
-
-### `POST /v1/auth/forgot-password`
-**Body:** None (placeholder — sends reset link if email exists)
-
-### `POST /v1/auth/reset-password`
-**Body:** None (placeholder)
-
-### `POST /v1/auth/update-password`
-**Body:** None (placeholder)
-
----
-
-## 2. Profile Endpoints
-
-### `PUT /v1/me/profile`
-Create or update the current user's profile. Call this after signup onboarding.
-
-**Headers:** `Authorization: Bearer <token>`
-
-**Request Body:**
-```json
-{
-  "gender": "female",
-  "age": 28,
-  "relationship_status": "single",
-  "slider_desire_relationship": 8,
-  "slider_fear_loneliness": 5,
-  "slider_desire_freedom": 7,
-  "slider_fear_rejection": 3,
-  "deepest_desire_fear": "I want to feel truly seen and understood.",
-  "specific_trigger": "A recent breakup left me feeling lost.",
-  "emotional_context": "Anxiety, confusion, but also hope.",
-  "country_city": "London, UK",
-  "life_phase": "career transition"
-}
-```
+### `GET /v1/admin/dashboard/figma-stats`
+Fetch platform metrics aligned with Figma designs (All, Confessions, Meditations, Journey).
 
 **Response `200`:**
 ```json
 {
   "status": 200,
   "success": true,
-  "message": "Profile updated successfully",
-  "data": { "id": "uuid", "gender": "female", "age": 28, "..." : "..." }
-}
-```
-
----
-
-### `GET /v1/me/profile`
-Fetch the current user's profile.
-
-**Headers:** `Authorization: Bearer <token>`  
-**Body:** None
-
-> Returns `404` if profile has not been created yet — call `PUT /v1/me/profile` first.
-
----
-
-### `GET /v1/auth/profile`
-Alias for `GET /v1/me/profile`. Same response.
-
----
-
-## 3. Dashboard Endpoints
-
-All require `Authorization: Bearer <token>`.
-
-### `GET /v1/dashboard/feed`
-Returns the main discovery grid (stories + liberation journey card).
-
-**Body:** None
-
-**Response `200`:**
-```json
-{
-  "status": 200,
-  "success": true,
-  "message": "Discovery feed loaded",
+  "message": "Figma dashboard stats fetched",
   "data": {
-    "items": [
-      { "card_type": "story", "title": "...", "audio_path": "...", "..." : "..." }
+    "all": { "count": 150, "delta": 12 },
+    "confessions": { "count": 45, "delta": -2 },
+    "meditations": { "count": 60, "delta": 8 },
+    "journey": { "count": 45, "delta": 5 },
+    "latest_activity": [
+      {
+        "id": "uuid",
+        "email": "user@example.com",
+        "action": "Generated Story",
+        "timestamp": "2026-05-12T10:00:00Z"
+      }
     ]
   }
 }
@@ -206,331 +112,167 @@ Returns the main discovery grid (stories + liberation journey card).
 
 ---
 
-### `GET /v1/dashboard/credits`
-Returns the user's daily credit status.
+### `POST /v1/admin/chat`
+Ask natural language questions about platform metrics (SuperGrok Powered).
+
+**Request Body:**
+```json
+{
+  "query": "Show me the top resonance content this week"
+}
+```
 
 **Response `200`:**
 ```json
 {
+  "status": 200,
+  "success": true,
+  "message": "Admin AI response generated",
   "data": {
-    "is_premium": false,
-    "daily_credits_remaining": 3,
-    "max_daily_credits": 3,
-    "message": "3/3 credits remaining today."
+    "answer": "Here are the top stories by resonance:\n1. \"Morning Calm\" — 9.2 pulse (45 reflections)\n2. \"Deep Healing\" — 8.8 pulse (32 reflections)"
   }
 }
 ```
 
 ---
 
-### `GET /v1/dashboard/recommendations`
-Returns personalised book recommendations.
-
----
-
-## 4. AI Endpoints
-
-### `POST /v1/ai/story/generate`
-Trigger AI story generation. Returns a `job_id` immediately — poll for status.
-
-**Headers:** `Authorization: Bearer <token>`
-
-**Request Body:**
-```json
-{
-  "story_type": "meditation",
-  "emotional_context": "overwhelmed and burned out from work",
-  "specific_trigger": "a difficult meeting with my manager",
-  "life_phase": "career growth"
-}
-```
-
-**Response `200`:**
-```json
-{
-  "data": { "job_id": "84be1e3c-c155-41eb-b462-04a938103156", "status": "queued" }
-}
-```
-
----
-
-### `GET /v1/admin/ai/status/{job_id}`
-Poll the status of a generation job. Keep polling until `status == "completed"`.
-
-**URL Param:** `job_id` — from the generate response.
-
-**Response `200`:**
-```json
-{
-  "data": { "status": "completed", "story_id": "uuid", "audio_url": "https://..." }
-}
-```
-
----
-
-### `POST /v1/ai/resonance`
-Generate a personalised journaling question after a user listens to a story.
-
-**Request Body:**
-```json
-{
-  "track_id": "story-uuid-here",
-  "touch_score": 8
-}
-```
-
----
-
-### `GET /v1/ai/search`
-Search for stories or content via AI.
-
-**Query Params:** `q=your search query`
-
----
-
-## 5. Stories
-
-### `GET /v1/stories/{story_id}`
-Fetch full story text, audio URL, and community stats.
-
-**URL Param:** `story_id`
-
----
-
-### `POST /v1/stories/{story_id}/feedback`
-Submit user feedback/reaction to a story.
-
-**Request Body:**
-```json
-{
-  "resonance_score": 9,
-  "comment": "This really spoke to me."
-}
-```
-
----
-
-## 6. Liberation Journey
-
-### `GET /v1/liberation/catalog`
-List all available liberation journeys.
-
-**Response `200`:**
-```json
-{
-  "data": { "definitions": [...], "total": 5 }
-}
-```
-
----
-
-### `GET /v1/liberation/status`
-Get the user's active journey progress/tree.
-
-> Returns `404` if not enrolled yet.
-
----
-
-### `POST /v1/liberation/enroll`
-Enroll in a liberation journey.
-
-**Request Body:**
-```json
-{
-  "journey_code": "journey-code-from-catalog"
-}
-```
-
----
-
-### `GET /v1/liberation/day/{day}`
-Fetch content for a specific day of the journey.
-
-**URL Param:** `day` — e.g. `1`
-
----
-
-### `POST /v1/liberation/day/{day}/generate`
-Generate the morning check-in story for a given day.
-
-**URL Param:** `day` — e.g. `1`  
-**Body:** None
-
----
-
-### `POST /v1/liberation/day/{day}/complete`
-Mark the day as complete and unlock the next day.
-
-**URL Param:** `day` — e.g. `1`  
-**Body:** None
-
----
-
-## 7. Payment & Subscription
-
-### `POST /v1/payment/checkout`
-Create a Stripe checkout session.
-
-**Request Body:**
-```json
-{
-  "price_id": "price_stripe_id_here"
-}
-```
-
-### `GET /v1/subscription/status`
-Get the current user's subscription status.
-
----
-
-## 8. Admin Endpoints
-
-> All admin endpoints require `Authorization: Bearer <token>` from an `is_admin: true` user.
->
-> **Admin credentials:**  
-> Email: `admin@transform.com`  
-> Password: `AdminPassword123!`
-
----
-
-### `GET /v1/admin/dashboard/stats`
-Fetch platform-wide KPI metrics.
-
-**Response `200`:**
-```json
-{
-  "data": {
-    "total_users": 18,
-    "active_subscriptions": 0,
-    "stories_generated_today": 3,
-    "revenue_this_month": 0
-  }
-}
-```
-
----
+## 3. Admin - Content Moderation
 
 ### `GET /v1/admin/moderation/queue`
-List all stories pending moderation.
+Fetch the moderation queue with counts for each status tab.
 
-**Optional Query Params:**
-- `moderation_status=pending` | `approved` | `rejected`
-- `search=keyword`
-- `limit=20` | `offset=0`
+**Query Params:**
+- `status_filter`: `pending` | `approved` | `rejected` | `flagged` | `all`
+- `search`: search by title or author email
+- `limit`, `offset`: pagination
 
----
-
-### `GET /v1/admin/moderation/story/{story_id}`
-Fetch full story details for review.
+**Response `200`:**
+```json
+{
+  "status": 200,
+  "success": true,
+  "message": "Moderation queue fetched",
+  "data": {
+    "stories": [
+      {
+        "id": "uuid",
+        "title": "My Transformation",
+        "story_type": "Journey",
+        "author": "user@example.com",
+        "created_at": "12 May 26",
+        "moderation_status": "Pending",
+        "cover_image_url": "https://..."
+      }
+    ],
+    "all": 150,
+    "pending": 12,
+    "flagged": 2,
+    "approved": 120,
+    "rejected": 16
+  }
+}
+```
 
 ---
 
 ### `PUT /v1/admin/moderation/story/{story_id}`
-Update a story's content before approving.
+Edit story content before approval.
 
 **Request Body:**
 ```json
 {
-  "title": "Revised Story Title",
-  "story_type": "meditation",
-  "story_text": "Updated story content goes here."
+  "title": "Updated Title",
+  "story_text": "Updated content...",
+  "story_type": "meditation"
 }
 ```
 
 ---
 
 ### `POST /v1/admin/moderation/story/{story_id}/approve`
-Approve a story for publication.
-
-**Body:** None
+Approve a story for public display.
 
 ---
 
 ### `POST /v1/admin/moderation/story/{story_id}/reject`
-Reject a story with a reason.
+Reject a story with internal notes.
 
 **Request Body:**
 ```json
 {
-  "reason": "Content does not meet platform guidelines."
+  "reason": "Violates safety guidelines"
 }
 ```
 
 ---
 
-### `DELETE /v1/admin/moderation/story/{story_id}`
-Permanently delete a story.
+## 4. Admin - Voice Review
 
-**Body:** None
+### `GET /v1/admin/voice-review`
+List stories with generated audio for quality review.
+
+**Response `200`:**
+```json
+{
+  "status": 200,
+  "success": true,
+  "message": "Voice review list fetched",
+  "data": {
+    "items": [
+      {
+        "id": "uuid",
+        "title": "Night Reflection",
+        "story_type": "Meditations",
+        "voice_name": "Aria (Warm)",
+        "audio_duration": "3:45",
+        "created_at": "11 May 26",
+        "audio_path": "media/audio/..."
+      }
+    ],
+    "total": 45
+  }
+}
+```
 
 ---
+
+### `POST /v1/admin/voice-review/{story_id}/regenerate`
+Trigger audio regeneration if the voice quality is poor.
+
+---
+
+## 5. Admin - Photo Management
 
 ### `GET /v1/admin/photos`
-List all cover images/photos.
+List all cover images available in the library.
 
 ### `POST /v1/admin/photos`
-Upload a new cover image (multipart form data).
-
-**Form Fields:** `story_type`, `file`
-
-### `GET /v1/admin/photos/{cover_id}`
-Fetch details for a specific cover image.
-
-### `PATCH /v1/admin/photos/{cover_id}`
-Update a cover image or its status.
-
-### `DELETE /v1/admin/photos/{cover_id}`
-Delete a cover image.
+Upload a new cover image (Multipart Form).
 
 ---
 
-### `POST /v1/admin/chat`
-Ask a natural language question about platform metrics.
+## 6. Admin - AI Bulk Generation
+
+### `POST /v1/admin/ai/generate/bulk`
+Trigger bulk generation of stories for a specific topic/type.
 
 **Request Body:**
 ```json
 {
-  "query": "How many stories were generated this week?"
+  "topic": "inner peace",
+  "story_type": "meditation",
+  "count": 5
 }
 ```
 
 ---
 
-## Error Response Format
+## Error Codes
 
-All errors follow this consistent structure:
-
-```json
-{
-  "status": 422,
-  "success": false,
-  "message": "Field required",
-  "data": null
-}
-```
-
-| Status Code | Meaning |
-|---|---|
-| `200` | Success |
-| `201` | Created |
-| `400` | Bad Request (e.g. email already exists) |
-| `401` | Unauthorized (missing/invalid token) |
-| `403` | Forbidden (not an admin) |
-| `404` | Not Found |
-| `422` | Validation Error (missing/wrong fields) |
-| `500` | Internal Server Error |
-
----
-
-## Quick Start
-
-```bash
-# 1. Login and get token
-curl -X POST http://34.255.26.146:8000/v1/login \
-  -H "Content-Type: application/json" \
-  -d '{"email": "admin@transform.com", "password": "AdminPassword123!"}'
-
-# 2. Use the token in subsequent requests
-curl http://34.255.26.146:8000/v1/dashboard/feed \
-  -H "Authorization: Bearer <your_access_token>"
-```
+| Status | Code | Description |
+|---|---|---|
+| `401` | Unauthorized | Missing or invalid token |
+| `403` | Forbidden | User is not an admin |
+| `404` | Not Found | Resource does not exist |
+| `422` | Validation Error | Invalid request parameters |
+| `503` | Service Unavailable | External AI service (xAI/ElevenLabs) is down or keys missing |

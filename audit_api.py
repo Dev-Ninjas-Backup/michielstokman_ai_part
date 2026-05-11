@@ -29,8 +29,9 @@ def test(method, path, headers=None, json_body=None, params=None, label=None):
         
         status = res.status_code
         ok = "✅" if status < 400 or status == 404 else "❌"
+        msg = res.text[:60].replace("\n", " ")
         results.append((ok, method, path, status, msg))
-        print(f"{ok} {method:6} {path:55} {status}  {msg}")
+        print(f"  {ok} {method:<6} {path:<40} {status}  {msg}")
         return res
     except Exception as e:
         results.append(("💥", method, path, "ERR", str(e)[:60]))
@@ -185,7 +186,7 @@ else:
 # ── Admin AI ──────────────────────────────────────────────────────────────────
 print("\n[ADMIN AI]")
 test("POST", "/v1/admin/ai/generate/bulk",       headers=h, json_body={"topic": "peace", "story_type": "meditation"})
-test("POST", "/v1/admin/ai/generate/submission", headers=h, json_body={"submission_id": "test_id_123"})
+test("POST", "/v1/admin/ai/generate/submission", headers=h, json_body={"submission_id": "84be1e3c-c155-41eb-b462-04a938103156"})
 
 # ── Signout last ──────────────────────────────────────────────────────────────
 print("\n[SIGNOUT]")
