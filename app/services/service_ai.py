@@ -246,12 +246,6 @@ class AIService:
     def bulk_generation_worker(job_id: str, topic: str, story_type: str, format: str):
         """
         Background worker for admin bulk story generation.
-
-        # --- EXTERNAL API / LOGIC COMMENTS ---
-        # 1. Build a StoryGenerateRequest from the topic and story_type
-        # 2. Call AIService.generate_and_voice_story(request)
-        # 3. Call StoryService.complete_story() to save text + audio_path
-        #    When S3 is ready: swap save_audio_locally() for S3 upload in llm.py
         """
         from app.core.db import SessionLocal
         from app.model.story import Story as StoryModel
@@ -261,8 +255,38 @@ class AIService:
             story_row = db.query(StoryModel).filter(
                 StoryModel.job_id == job_id
             ).first()
-            # TODO: implement actual generation and call story_data.complete_story()
-            logger.info(f"[Bulk Job {job_id}] Worker placeholder — implement generation here.")
+
+            if not story_row:
+                logger.error(f"[Bulk Job {job_id}] Story row not found in database.")
+                return
+
+            logger.info(f"[Bulk Job {job_id}] Starting generation for topic: {topic}")
+
+            # 1. Build a StoryGenerateRequest from the topic and story_type
+            from app.schemas.schema_ai import StoryGenerateRequest, StoryType
+            
+            request = StoryGenerateRequest(
+                story_type=StoryType(story_type),
+                topic=topic,
+                specific_trigger=topic, # Use topic as the specific trigger for the prompt
+                duration=5,
+                parameters={}
+            )
+
+            # 2. Call AIService.generate_and_voice_story(request)
+            title, story_text, audio_path = AIService.generate_and_voice_story(request)
+
+            # 3. Call story_data.complete_story() to save text + audio_path
+            story_data.complete_story(
+                db=db,
+                story=story_row,
+                story_text=story_text,
+                title=title,
+                audio_path=audio_path,
+            )
+            
+            logger.info(f"[Bulk Job {job_id}] Completed successfully.")
+            
         except Exception as e:
             logger.error(f"[Bulk Job {job_id}] FAILED: {e}", exc_info=True)
             try:
@@ -279,40 +303,136 @@ class AIService:
     def initiate_submission_generation(submission_id: str) -> str:
         """
         Registers a user submission background generation task.
-        Returns a job_id stored in stories.job_id.
+        Returns a job_id stored in liberation_definitions.job_id.
         """
+        from app.core.db import SessionLocal
+        from app.model.liberation import LiberationDefinition
+        
         job_id = str(uuid.uuid4())
-        logger.info(f"[Submission Job {job_id}] Queued for submission {submission_id}.")
+        db = SessionLocal()
+        try:
+            definition = db.query(LiberationDefinition).filter(LiberationDefinition.id == submission_id).first()
+            if definition:
+                definition.job_id = job_id
+                definition.generation_status = "processing"
+                db.commit()
+                logger.info(f"[Submission Job {job_id}] Queued for LiberationDefinition {submission_id}.")
+            else:
+                logger.error(f"Submission {submission_id} not found.")
+        finally:
+            db.close()
+            
         return job_id
 
     @staticmethod
     def submission_generation_worker(job_id: str, submission_id: str):
         """
-        Processes a user submission: analyse responses, generate a story.
-        TODO: implement full logic using app.data.story and AIService.generate_story()
+        Processes a user submission: generates the day-by-day curriculum for a LiberationDefinition.
         """
-        logger.info(f"[Submission Job {job_id}] Processing submission {submission_id}.")
+        from app.core.db import SessionLocal
+        from app.model.liberation import LiberationDefinition, LiberationDayDefinition
+        from app.core.llm import get_story_llm
+        import json
+        
+        db = SessionLocal()
+        try:
+            definition = db.query(LiberationDefinition).filter(LiberationDefinition.job_id == job_id).first()
+            if not definition:
+                logger.error(f"[Submission Job {job_id}] LiberationDefinition not found.")
+                return
+                
+            logger.info(f"[Submission Job {job_id}] Generating {definition.total_days} days for: {definition.title}")
+            
+            # Generate the curriculum
+            llm = get_story_llm()
+            prompt = f'''
+You are an expert curriculum designer for a mental health and meditation app.
+A user has requested a {definition.total_days}-day journey.
+Title: {definition.title}
+Description: {definition.description}
+
+Generate exactly {definition.total_days} daily themes for this journey.
+Return the result strictly as a JSON array of objects. Do not include markdown formatting or extra text.
+Each object must have "day_number" (integer) and "day_theme" (string).
+
+Example:
+[
+  {{"day_number": 1, "day_theme": "Awakening to the Present"}},
+  {{"day_number": 2, "day_theme": "Accepting the Shadows"}}
+]
+'''
+            response = llm.invoke(prompt)
+            response_text = response.content
+            
+            # Clean JSON if wrapped in markdown
+            if response_text.startswith("```json"):
+                response_text = response_text.strip("```json").strip("```").strip()
+            elif response_text.startswith("```"):
+                response_text = response_text.strip("```").strip()
+            
+            days_data = json.loads(response_text)
+            
+            # Delete existing days if any
+            db.query(LiberationDayDefinition).filter(LiberationDayDefinition.definition_id == definition.id).delete()
+            
+            # Insert new days
+            for day_data in days_data:
+                day_def = LiberationDayDefinition(
+                    definition_id=definition.id,
+                    day_number=day_data.get("day_number"),
+                    day_theme=day_data.get("day_theme")
+                )
+                db.add(day_def)
+                
+            definition.generation_status = "completed"
+            db.commit()
+            logger.info(f"[Submission Job {job_id}] Successfully generated {len(days_data)} days.")
+            
+        except Exception as e:
+            logger.error(f"[Submission Job {job_id}] FAILED: {e}", exc_info=True)
+            try:
+                definition = db.query(LiberationDefinition).filter(LiberationDefinition.job_id == job_id).first()
+                if definition:
+                    definition.generation_status = "failed"
+                    db.commit()
+            except Exception:
+                pass
+        finally:
+            db.close()
 
     # --- Job status — reads directly from PostgreSQL ------------------------
 
     @staticmethod
     def get_job_status(job_id: str) -> Optional[dict]:
         """
-        Fetches job status directly from the `stories` table by job_id.
+        Fetches job status by checking the `stories` table, then the `liberation_definitions` table.
         Returns a dict with 'status' and 'audio_path', or None if not found.
         """
         from app.core.db import SessionLocal
+        from app.model.liberation import LiberationDefinition
 
         db = SessionLocal()
         try:
+            # 1. Check Stories
             story = story_data.get_story_by_job_id(db=db, job_id=job_id)
-            if not story:
-                return None
-            return {
-                "status": story.generation_status.value,
-                "title": story.title,
-                "audio_path": story.audio_path,
-                "story_text": story.story_text,
-            }
+            if story:
+                return {
+                    "status": story.generation_status.value if hasattr(story.generation_status, 'value') else story.generation_status,
+                    "title": story.title,
+                    "audio_path": story.audio_path,
+                    "story_text": story.story_text,
+                }
+            
+            # 2. Check Liberation Definitions
+            definition = db.query(LiberationDefinition).filter(LiberationDefinition.job_id == job_id).first()
+            if definition:
+                return {
+                    "status": definition.generation_status,
+                    "title": definition.title,
+                    "audio_path": None,
+                    "story_text": f"Liberation Journey Blueprint with {definition.total_days} days."
+                }
+                
+            return None
         finally:
             db.close()

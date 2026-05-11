@@ -90,6 +90,13 @@ class LiberationDefinition(Base):
 
     is_active = Column(Boolean, default=True, nullable=False)   # Admin can deactivate
 
+    # Async job tracking for AI blueprint generation
+    job_id = Column(String, nullable=True, index=True)
+    generation_status = Column(
+        Enum("processing", "completed", "failed", name="generationstatus_liberation"),
+        nullable=True,
+    )
+
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
     updated_at = Column(
         DateTime,
