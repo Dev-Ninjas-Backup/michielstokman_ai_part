@@ -16,6 +16,7 @@ from typing import Any, Generic, Optional, TypeVar
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel
 
 DataT = TypeVar("DataT")
@@ -93,7 +94,7 @@ def register_exception_handlers(app: FastAPI) -> None:
                 "status": 422,
                 "success": False,
                 "message": _extract_message(exc.errors(), fallback="Validation error"),
-                "data": exc.errors(),
+                "data": jsonable_encoder(exc.errors()),
             },
         )
 

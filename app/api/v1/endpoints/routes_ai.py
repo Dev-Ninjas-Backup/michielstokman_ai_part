@@ -32,13 +32,22 @@ router = APIRouter()
 # ---------------------------------------------------------------------------
 
 @router.get("/ai/search", response_model=ApiResponse[SearchResult])
-async def ai_search(query: str = Query(..., description="The user's query about how they feel")):
+async def ai_search(
+    query: str = Query(None, alias="q", description="The user's query about how they feel"),
+    q: str = Query(None, description="Alias: same as 'query' — the user's query"),
+):
     """
     Takes a natural language query and returns the top 5 track IDs
-    using vector similarity search.
+    using vector similarity search. Pass as ?q=your+query or ?query=your+query
     """
-    result = AIService.search_tracks(query)
-    return success_response("Track search completed", status.HTTP_200_OK, result)
+    search_query = query or q
+    if not search_query:
+        raise HTTPException(status_code=422, detail="Query parameter 'q' is required")
+    try:
+        result = AIService.search_tracks(search_query)
+        return success_response("Track search completed", status.HTTP_200_OK, result)
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=f"AI search unavailable: {str(e)[:100]}")
 
 
 # ---------------------------------------------------------------------------
@@ -55,10 +64,13 @@ async def generate_resonance_question(request: ResonanceRequest):
         result = AIService.generate_resonance_question(request)
         return success_response("Resonance question generated", status.HTTP_200_OK, result)
     except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to generate resonance question: {str(e)}"
-        )
+        err = str(e)
+        if "API key" in err or "Incorrect API" in err:
+            raise HTTPException(
+                status_code=503,
+                detail="AI service temporarily unavailable — API key not configured on server."
+            )
+        raise HTTPException(status_code=500, detail=f"Failed to generate resonance question: {err[:200]}")
 
 
 # ---------------------------------------------------------------------------

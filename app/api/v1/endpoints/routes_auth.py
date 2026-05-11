@@ -1,4 +1,5 @@
-from fastapi import APIRouter, Depends, status, Header, HTTPException
+from fastapi import APIRouter, Depends, status, Header, HTTPException, Body, Request
+from datetime import timedelta
 from sqlalchemy.orm import Session
 
 from app.core.db import get_db
@@ -14,23 +15,81 @@ from app.schemas.profile import UserProfileResponse
 router = APIRouter()
 
 
-@router.post("/signup", response_model=ApiResponse[Token], status_code=status.HTTP_201_CREATED)
+@router.post("/signup", status_code=status.HTTP_201_CREATED)
 def signup(user_in: UserCreate, db: Session = Depends(get_db)):
     """
-    Register a new user with email and password and return a JWT token.
+    Register a new user and return a JWT token.
+    Compatible with Swagger Authorize.
     """
     token_payload = register_new_user(db, user_in)
-    return success_response("Signup successful", status.HTTP_201_CREATED, token_payload)
+    return {
+        "status": status.HTTP_201_CREATED,
+        "success": True,
+        "message": "Signup successful",
+        "data": token_payload,
+        "access_token": token_payload.get("access_token"),
+        "token_type": "bearer"
+    }
 
 
-@router.post("/login", response_model=ApiResponse[Token])
-def login(user_in: UserLogin, db: Session = Depends(get_db)):
+@router.post(
+    "/login",
+    openapi_extra={
+        "requestBody": {
+            "content": {
+                "application/json": {
+                    "schema": {
+                        "type": "object",
+                        "properties": {
+                            "email": {"type": "string", "example": "user@example.com"},
+                            "password": {"type": "string", "example": "Password123!"}
+                        },
+                        "required": ["email", "password"]
+                    }
+                }
+            },
+            "required": True
+        }
+    }
+)
+async def login(request: Request, db: Session = Depends(get_db)):
     """
-    Login endpoint to get an access token for future requests.
-    Expects a standard JSON body with 'email' and 'password'.
+    Login with email and password. Returns a JWT access token.
+    Use this token in the Authorization header as: **Bearer {token}**
     """
-    token_payload = authenticate_user(db, email=user_in.email, password=user_in.password)
-    return success_response("Login successful", status.HTTP_200_OK, token_payload)
+    email = None
+    password = None
+
+    content_type = request.headers.get("content-type", "")
+    try:
+        if "application/json" in content_type:
+            body = await request.json()
+            email = body.get("email")
+            password = body.get("password")
+        else:
+            # Form Data (Swagger Authorize button sends username/password)
+            form = await request.form()
+            email = form.get("username") or form.get("email")
+            password = form.get("password")
+    except Exception:
+        pass
+
+    if not email or not password:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Missing email or password"
+        )
+
+    token_payload = authenticate_user(db, email=email, password=password)
+
+    return {
+        "status": status.HTTP_200_OK,
+        "success": True,
+        "message": "Login successful",
+        "data": token_payload,
+        "access_token": token_payload.get("access_token"),
+        "token_type": "bearer"
+    }
 
 
 @router.post("/social-login", response_model=ApiResponse[Token])
@@ -76,16 +135,27 @@ def get_auth_profile(
     return success_response("Profile fetched successfully", status.HTTP_200_OK, profile)
 
 
-@router.post("/auth/refresh", response_model=ApiResponse[Token])
+@router.post("/auth/refresh")
 def refresh_token(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """
-    Placeholder for token refresh logic. For now, just returns a new token for the same user.
+    Returns a fresh JWT access token for the currently authenticated user.
     """
-    # In a real app, this would verify a refresh token and issue a new access token.
-    # For now, we mock it to prevent frontend errors.
-    from app.services.service_auth import create_user_token
-    token_payload = create_user_token(current_user)
-    return success_response("Token refreshed successfully", status.HTTP_200_OK, token_payload)
+    from app.core.config import settings
+    from app.core.security import create_access_token
+    access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = create_access_token(
+        data={"sub": str(current_user.id)},
+        user_token_version=current_user.token_version,
+        expires_delta=access_token_expires,
+    )
+    return {
+        "status": status.HTTP_200_OK,
+        "success": True,
+        "message": "Token refreshed successfully",
+        "data": {"access_token": access_token, "token_type": "bearer"},
+        "access_token": access_token,
+        "token_type": "bearer"
+    }
 
 
 @router.post("/auth/forgot-password")

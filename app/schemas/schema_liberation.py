@@ -64,14 +64,14 @@ class EnrollJourneyRequest(BaseModel):
 
 class DayCheckinRequest(BaseModel):
     """Payload for the pre-exercise screen: 'How are you feeling this morning?'"""
-    morning_feeling: str = Field(..., min_length=1, max_length=2000)
+    morning_feeling: str = Field(default="", max_length=2000, description="How the user is feeling this morning")
 
 
 class DayCompleteRequest(BaseModel):
     """Payload for the post-exercise reflection screen."""
-    energy_level: int = Field(..., ge=0, le=10)
-    what_opened: str = Field(..., min_length=1, max_length=5000)
-    key_takeaway: str = Field(..., min_length=1, max_length=5000)
+    energy_level: int = Field(default=5, ge=0, le=10, description="Energy level after exercise (0-10)")
+    what_opened: str = Field(default="", max_length=5000, description="What opened up during the exercise")
+    key_takeaway: str = Field(default="", max_length=5000, description="Key takeaway from the exercise")
 
 
 # ── Responses ───────────────────────────────────────────────────────────────
