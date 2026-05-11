@@ -50,25 +50,43 @@ class AIService:
     @staticmethod
     def search_tracks(query: str) -> SearchResult:
         """
-        Business logic: Connect to Pinecone and embed the query using OpenAI.
-
-        # --- EXTERNAL API / DB INTEGRATION COMMENTS ---
-        # 1. Embedding Call: Use text-embedding-3-small to embed the string
-        #    from langchain_openai import OpenAIEmbeddings
-        #    embeddings = OpenAIEmbeddings(model="text-embedding-3-small")
-        #    query_vector = embeddings.embed_query(query)
-        #
-        # 2. Vector DB Query: Connect to Pinecone or pgvector
-        #    index = pinecone.Index("transform-to-liberation")
-        #    response = index.query(vector=query_vector, top_k=5, include_metadata=True)
-        #
-        # 3. Process Results:
-        #    track_ids = [match['metadata']['track_id'] for match in response['matches']]
+        Business logic: Connect to Pinecone and embed the query using xAI.
+        Retrieves the top 5 most relevant liberation definitions (tracks).
         """
-        # Mocked semantic search return
-        return SearchResult(
-            track_ids=["trk_452", "trk_189", "trk_093", "trk_332", "trk_111"]
-        )
+        from app.services.service_rag import _get_embeddings, _get_pinecone_index
+        
+        try:
+            embeddings_client = _get_embeddings()
+            index = _get_pinecone_index()
+
+            # Embed the natural language query
+            query_vector = embeddings_client.embed_query(query)
+
+            # Query Pinecone for 'track' doc_types
+            response = index.query(
+                vector=query_vector,
+                top_k=5,
+                include_metadata=True,
+                filter={"doc_type": {"$eq": "track"}}
+            )
+
+            # Extract track_ids (journey_codes or IDs) from metadata
+            # The frontend expects strings, we use the journey_code for better readability if available, 
+            # or the UUID string.
+            track_ids = []
+            for match in response.get("matches", []):
+                meta = match.get("metadata", {})
+                # Use journey_code if present, else fallback to track_id (UUID)
+                t_id = meta.get("journey_code") or meta.get("track_id")
+                if t_id:
+                    track_ids.append(t_id)
+
+            return SearchResult(track_ids=track_ids)
+
+        except Exception as e:
+            logger.error(f"Track search failed: {e}", exc_info=True)
+            # Fallback to empty list or some default tracks if needed
+            return SearchResult(track_ids=[])
 
     # --- Resonance Question -------------------------------------------------
 

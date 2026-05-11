@@ -248,3 +248,26 @@ async def rag_ingest_new(
             status_code=500,
             detail=f"RAG incremental ingestion failed: {str(e)}",
         )
+
+
+@router.post("/ai/rag/ingest/tracks", response_model=ApiResponse[dict])
+async def rag_ingest_tracks(
+    db: Session = Depends(get_db),
+    admin: User = Depends(get_current_admin_user),
+):
+    """
+    Embed all approved liberation definitions and upsert into Pinecone.
+    Admin-only endpoint.
+    """
+    try:
+        count = RAGService.ingest_liberation_definitions(db)
+        return success_response(
+            "Track ingestion completed",
+            status.HTTP_200_OK,
+            {"total_tracks_indexed": count, "message": f"{count} tracks indexed."}
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Track ingestion failed: {str(e)}",
+        )

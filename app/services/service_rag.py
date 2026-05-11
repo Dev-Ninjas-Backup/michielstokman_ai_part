@@ -31,6 +31,7 @@ from app.schemas.schema_rag import (
     BookRecommendationsResponse,
     StoryTypeFilter,
 )
+from app.model.liberation import LiberationDefinition
 
 logger = logging.getLogger(__name__)
 
@@ -113,12 +114,39 @@ def _build_document_text(story: Story) -> str:
 def _build_metadata(story: Story) -> dict:
     """Pinecone vector metadata — used for filtering and display."""
     return {
+        "doc_type": "story",
         "story_id": str(story.id),
         "story_type": story.story_type.value if story.story_type else "",
         "title": story.title or "",
         "life_phase": story.life_phase or "",
         "user_id": str(story.user_id) if story.user_id else "",
         "created_at": story.created_at.isoformat() if story.created_at else "",
+    }
+
+
+def _build_liberation_document_text(lib: LiberationDefinition) -> str:
+    """Compose a rich text blob for embedding from a LiberationDefinition."""
+    parts = []
+    parts.append(f"Title: {lib.title}")
+    if lib.description:
+        parts.append(f"Description: {lib.description}")
+    
+    day_themes = [f"Day {dd.day_number}: {dd.day_theme}" for dd in lib.day_definitions]
+    if day_themes:
+        parts.append("Themes: " + ", ".join(day_themes))
+    
+    return "\n".join(parts)
+
+
+def _build_liberation_metadata(lib: LiberationDefinition) -> dict:
+    """Pinecone metadata for liberation journeys."""
+    return {
+        "doc_type": "track",
+        "track_id": str(lib.id),
+        "journey_code": lib.journey_code,
+        "title": lib.title,
+        "total_days": lib.total_days,
+        "created_at": lib.created_at.isoformat() if lib.created_at else "",
     }
 
 
@@ -147,6 +175,46 @@ class RAGService:
             return 0
 
         return RAGService._embed_and_upsert(stories)
+
+    @staticmethod
+    def ingest_liberation_definitions(db: Session) -> int:
+        """
+        Embed all approved liberation definitions (tracks) and upsert into Pinecone.
+        """
+        from app.model.liberation import LiberationDefinition, DefinitionStatus
+        
+        libs = (
+            db.query(LiberationDefinition)
+            .filter(LiberationDefinition.moderation_status == DefinitionStatus.approved)
+            .filter(LiberationDefinition.is_active.is_(True))
+            .all()
+        )
+
+        if not libs:
+            logger.info("No liberation definitions to index.")
+            return 0
+
+        embeddings_client = _get_embeddings()
+        index = _get_pinecone_index()
+
+        texts = [_build_liberation_document_text(l) for l in libs]
+        vectors = embeddings_client.embed_documents(texts)
+
+        upsert_data = []
+        for lib, vec in zip(libs, vectors):
+            upsert_data.append({
+                "id": f"track_{lib.id}",
+                "values": vec,
+                "metadata": _build_liberation_metadata(lib),
+            })
+
+        batch_size = 100
+        for i in range(0, len(upsert_data), batch_size):
+            batch = upsert_data[i : i + batch_size]
+            index.upsert(vectors=batch)
+
+        logger.info(f"Upserted {len(libs)} liberation definitions into Pinecone.")
+        return len(libs)
 
     @staticmethod
     def ingest_new_stories(db: Session, since: Optional[datetime] = None) -> int:
