@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime, timezone
-from sqlalchemy import Column, String, Text, DateTime, ForeignKey, Enum as SAEnum, Boolean
+from sqlalchemy import Column, String, Text, DateTime, ForeignKey, Enum as SAEnum, Boolean, Float, Integer
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship
 from app.core.db import Base
@@ -53,6 +53,12 @@ class Story(Base):
     specific_trigger = Column(String, nullable=True)
     emotional_context = Column(JSONB, nullable=True)   # slider values dict
     high_intensity = Column(Boolean, default=False, nullable=False)
+
+    # Figma Dashboard Metrics
+    views_count = Column(Integer, default=0, nullable=False)
+    shares_count = Column(Integer, default=0, nullable=False)
+    pulse_score = Column(Float, default=0.0, nullable=False)
+    reflections_count = Column(Integer, default=0, nullable=False)
 
     # Ownership:
     # - user_id is set when a USER generates their own story

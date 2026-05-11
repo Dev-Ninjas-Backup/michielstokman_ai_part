@@ -40,3 +40,38 @@ class AdminDashboardStatsResponse(BaseModel):
 class AdminDashboardDemoResponse(BaseModel):
     message: str
     admin_user_id: str
+
+
+# ── Figma UI Admin Dashboard Schemas ──
+
+class StatDelta(BaseModel):
+    value: str
+    percentage: str
+    trend: str  # "up", "down", "neutral"
+
+
+class TopStats(BaseModel):
+    total_views: StatDelta
+    avg_resonance: StatDelta
+    completion_rate: StatDelta
+    share_clicks: StatDelta
+
+
+class WeeklyTrend(BaseModel):
+    label: str
+    views: int
+    pulse: float
+    shares: int
+
+
+class TopResonanceContent(BaseModel):
+    id: str
+    title: str
+    pulse: float
+    reflections: int
+
+
+class AdminFigmaDashboardResponse(BaseModel):
+    top_stats: TopStats
+    weekly_trends: list[WeeklyTrend]
+    top_resonance_content: list[TopResonanceContent]

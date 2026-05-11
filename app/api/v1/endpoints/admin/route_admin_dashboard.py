@@ -16,9 +16,22 @@ from app.data.story import (
     count_failed_stories_today,
     get_stories_by_type_today,
 )
-from app.schemas.schema_system import AdminDashboardStatsResponse, AdminDashboardDemoResponse
+from app.data.admin_dashboard import get_figma_dashboard_stats
+from app.schemas.schema_system import AdminDashboardStatsResponse, AdminDashboardDemoResponse, AdminFigmaDashboardResponse
 
 router = APIRouter()
+
+
+@router.get("/admin/dashboard/figma-stats", response_model=ApiResponse[AdminFigmaDashboardResponse])
+def admin_dashboard_figma_stats(
+    current_user: User = Depends(get_current_admin_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Fetch exact stats required for the Figma UI Admin Dashboard.
+    """
+    data = get_figma_dashboard_stats(db)
+    return success_response("Figma Admin dashboard stats fetched", status.HTTP_200_OK, data)
 
 
 @router.get("/admin/dashboard/stats", response_model=ApiResponse[AdminDashboardStatsResponse])
