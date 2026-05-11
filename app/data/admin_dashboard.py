@@ -28,61 +28,76 @@ def get_figma_dashboard_stats(db: Session):
     seven_days_ago = now - timedelta(days=7)
     fourteen_days_ago = now - timedelta(days=14)
     
-    # --- Top Stats (Figma Row: All, Confessions, Meditations, Journey) ---
-    from app.model.story import StoryType, GenerationStatus
-    
-    def get_counts(start=None, end=None):
-        base = db.query(Story).filter(Story.generation_status == GenerationStatus.completed)
+    # --- Top Stats (Figma Row: Total Views, Avg Resonance, Completion Rate, Share Clicks) ---
+    def get_metrics(start=None, end=None):
+        # 1. Stories metrics
+        story_query = db.query(Story)
         if start:
-            base = base.filter(Story.created_at >= start)
+            story_query = story_query.filter(Story.created_at >= start)
         if end:
-            base = base.filter(Story.created_at < end)
+            story_query = story_query.filter(Story.created_at < end)
             
-        total = base.count()
-        confessions = base.filter(Story.story_type == StoryType.confession).count()
-        meditations = base.filter(Story.story_type == StoryType.meditation).count()
-        journey = base.filter(Story.story_type == StoryType.transformation).count()
-        return total, confessions, meditations, journey
+        story_stats = story_query.with_entities(
+            func.sum(Story.views_count).label("views"),
+            func.avg(Story.pulse_score).label("pulse"),
+            func.sum(Story.shares_count).label("shares")
+        ).first()
+        
+        # 2. Completion metrics
+        journey_query = db.query(UserJourney)
+        if start:
+            journey_query = journey_query.filter(UserJourney.created_at >= start)
+        if end:
+            journey_query = journey_query.filter(UserJourney.created_at < end)
+            
+        all_journeys = journey_query.count()
+        completed_journeys = journey_query.filter(UserJourney.status == JourneyStatus.completed).count()
+        completion_rate = (completed_journeys / all_journeys * 100.0) if all_journeys > 0 else 0.0
+        
+        return {
+            "views": int(story_stats.views or 0),
+            "pulse": float(story_stats.pulse or 0.0),
+            "shares": int(story_stats.shares or 0),
+            "completion": completion_rate
+        }
 
-    overall_all, overall_conf, overall_med, overall_jour = get_counts()
-    cw_all, cw_conf, cw_med, cw_jour = get_counts(seven_days_ago, now)
-    pw_all, pw_conf, pw_med, pw_jour = get_counts(fourteen_days_ago, seven_days_ago)
+    # Overall totals for the big numbers
+    overall = get_metrics()
+    # Current week (cw) and Previous week (pw) for the deltas
+    cw = get_metrics(seven_days_ago, now)
+    pw = get_metrics(fourteen_days_ago, seven_days_ago)
 
     top_stats = {
-        "all": {
-            "value": f"{overall_all:,}",
-            **calculate_delta(cw_all, pw_all)
+        "views": {
+            "value": f"{overall['views']:,}",
+            **calculate_delta(cw['views'], pw['views'])
         },
-        "confessions": {
-            "value": f"{overall_conf:,}",
-            **calculate_delta(cw_conf, pw_conf)
+        "resonance": {
+            "value": f"{overall['pulse']:.1f}",
+            **calculate_delta(cw['pulse'], pw['pulse'], is_absolute_diff=True)
         },
-        "meditations": {
-            "value": f"{overall_med:,}",
-            **calculate_delta(cw_med, pw_med)
+        "completion": {
+            "value": f"{int(overall['completion'])}%",
+            **calculate_delta(cw['completion'], pw['completion'])
         },
-        "journey": {
-            "value": f"{overall_jour:,}",
-            **calculate_delta(cw_jour, pw_jour)
+        "shares": {
+            "value": f"{overall['shares']:,}",
+            **calculate_delta(cw['shares'], pw['shares'])
         }
     }
     
-    # --- Weekly Trends (Keep views/pulse/shares for the chart) ---
+    # --- Weekly Trends (Chart) ---
     weekly_trends = []
     labels = ["This Week", "Last Week", "2 Weeks Ago", "3 Weeks Ago"]
     for i in range(4):
         start_date = now - timedelta(days=(i+1)*7)
         end_date = now - timedelta(days=i*7)
-        week_stats = db.query(
-            func.sum(Story.views_count).label("views"),
-            func.avg(Story.pulse_score).label("pulse"),
-            func.sum(Story.shares_count).label("shares")
-        ).filter(Story.created_at >= start_date, Story.created_at < end_date).first()
+        week_metrics = get_metrics(start_date, end_date)
         weekly_trends.append({
             "label": labels[i],
-            "views": int(week_stats.views or 0),
-            "pulse": float(week_stats.pulse or 0.0),
-            "shares": int(week_stats.shares or 0)
+            "views": week_metrics["views"],
+            "pulse": week_metrics["pulse"],
+            "shares": week_metrics["shares"]
         })
     
     # --- Top Resonance Content ---
@@ -108,7 +123,7 @@ def get_figma_dashboard_stats(db: Session):
         latest_activity.append({
             "user_email": s.user.email if s.user else "Anonymous",
             "action": f"generated a {str(s.story_type).replace('StoryType.', '')}",
-            "time_ago": "Recently" # Frontend usually calculates this from ISO date
+            "time_ago": "Recently" 
         })
 
     return {
@@ -117,3 +132,4 @@ def get_figma_dashboard_stats(db: Session):
         "top_resonance_content": top_resonance_content,
         "latest_activity": latest_activity
     }
+

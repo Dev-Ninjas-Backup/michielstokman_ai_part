@@ -51,10 +51,10 @@ class StatDelta(BaseModel):
 
 
 class TopStats(BaseModel):
-    all: StatDelta
-    confessions: StatDelta
-    meditations: StatDelta
-    journey: StatDelta
+    views: StatDelta
+    resonance: StatDelta
+    completion: StatDelta
+    shares: StatDelta
 
 
 class WeeklyTrend(BaseModel):
