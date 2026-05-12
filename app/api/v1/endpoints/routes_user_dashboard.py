@@ -39,48 +39,63 @@ router = APIRouter()
     response_model=ApiResponse[DiscoveryFeedResponse],
 )
 def get_discovery_feed(
+    story_type: Optional[str] = Query(None, description="Filter by 'confession', 'meditation', or 'transformation'"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """
     Returns the main story grid for the discovery page.
     Injects the Premium Liberation Journey card along with standard stories.
+    Supports filtering by story type.
     """
-    # 1. Fetch some approved stories for the grid
-    stories = (
+    # 1. Calculate Hero Stats
+    from app.model.user import User
+    from app.model.profile import UserProfile
+    user_count = db.query(User).count()
+    country_count = db.query(func.count(func.distinct(UserProfile.country))).scalar() or 0
+    hero_stats = {
+        "total_users": f"{user_count:,}",
+        "total_countries": max(country_count, 1)
+    }
+
+    # 2. Fetch approved stories for the grid
+    query = (
         db.query(story_data.Story)
         .filter(story_data.Story.generation_status == GenerationStatus.completed)
         .filter(story_data.Story.moderation_status == ModerationStatus.approved)
-        .order_by(story_data.Story.created_at.desc())
-        .limit(12)
-        .all()
     )
+
+    if story_type:
+        query = query.filter(story_data.Story.story_type == story_type)
+
+    stories = query.order_by(story_data.Story.created_at.desc()).limit(20).all()
 
     items = []
     
-    # 2. Add some regular stories
-    for s in stories[:5]:
+    # 3. Process stories into feed items
+    for s in stories:
         items.append(StoryFeedItem(
             id=str(s.id),
             title=s.title or "Untitled",
+            description=(s.story_text[:120] + "...") if s.story_text else None,
             story_type=s.story_type.value if s.story_type else "confession",
+            cover_image_url=s.cover_image_url,
             audio_path=s.audio_path,
+            rating=round(s.pulse_score / 2.3, 1) if s.pulse_score else 4.3, # Mock rating based on pulse
+            listened_count=s.views_count or 0,
+            is_explicit=False # Default to false for now
         ))
 
-    # 3. Inject the Liberation Journey card
-    lib_card = LiberationService.get_feed_card(db, current_user.id)
-    items.append(lib_card)
+    # 4. Inject the Liberation Journey card (if not filtering or if specifically looking for journeys)
+    if not story_type or story_type == "transformation":
+        lib_card = LiberationService.get_feed_card(db, current_user.id)
+        # Inject at position 3 or end
+        if len(items) >= 3:
+            items.insert(2, lib_card)
+        else:
+            items.append(lib_card)
 
-    # 4. Add the rest of the stories
-    for s in stories[5:]:
-        items.append(StoryFeedItem(
-            id=str(s.id),
-            title=s.title or "Untitled",
-            story_type=s.story_type.value if s.story_type else "confession",
-            audio_path=s.audio_path,
-        ))
-
-    result = DiscoveryFeedResponse(items=items)
+    result = DiscoveryFeedResponse(hero_stats=hero_stats, items=items)
     return success_response("Discovery feed loaded", status.HTTP_200_OK, result)
 
 
