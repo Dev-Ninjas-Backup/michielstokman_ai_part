@@ -49,12 +49,12 @@ class Story(Base):
     track_id = Column(String, nullable=True)
 
     # Snapshot of the user's profile context at generation time
-    country_city = Column(String, nullable=True)
+    # Figma Inputs
+    first_name = Column(String, nullable=True)
+    story_input = Column(Text, nullable=True)
+    growth_areas = Column(JSONB, nullable=True) # list of strings
     life_phase = Column(String, nullable=True)
-    relationship_status = Column(String, nullable=True)
-    deepest_desire_fear = Column(String, nullable=True)
-    specific_trigger = Column(String, nullable=True)
-    emotional_context = Column(JSONB, nullable=True)   # slider values dict
+    tags = Column(JSONB, nullable=True)         # list of strings
     high_intensity = Column(Boolean, default=False, nullable=False)
 
     # Figma Dashboard Metrics
