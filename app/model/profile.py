@@ -22,8 +22,9 @@ class UserProfile(Base):
     gender = Column(String, nullable=True)
     sexual_orientation = Column(String, nullable=True)
 
-    # Step 2: Life Phase
+    # Step 2: Life Phase & Bio
     life_phase = Column(String, nullable=True)
+    bio = Column(String, nullable=True)
 
     # Step 3: Priorities (Slider values, e.g., 0-5 or 0-10)
     slider_desire_relationship = Column(Float, nullable=True)
@@ -31,7 +32,7 @@ class UserProfile(Base):
     slider_career_money = Column(Float, nullable=True)
     slider_true_self = Column(Float, nullable=True)
     slider_sexuality_life_energy = Column(Float, nullable=True)
-    slider_free_freedom = Column(Float, nullable=True)
+    slider_fear_freedom = Column(Float, nullable=True)
     slider_health_body = Column(Float, nullable=True)
     slider_enlightenment = Column(Float, nullable=True)
 

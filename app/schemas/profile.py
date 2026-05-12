@@ -14,8 +14,9 @@ class UserProfileBase(BaseModel):
     gender: Optional[str] = None
     sexual_orientation: Optional[str] = None
 
-    # Step 2: Life Phase
+    # Step 2: Life Phase & Bio
     life_phase: Optional[str] = None
+    bio: Optional[str] = None
 
     # Step 3: Priorities (Slider values)
     slider_desire_relationship: Optional[float] = None
@@ -23,7 +24,7 @@ class UserProfileBase(BaseModel):
     slider_career_money: Optional[float] = None
     slider_true_self: Optional[float] = None
     slider_sexuality_life_energy: Optional[float] = None
-    slider_free_freedom: Optional[float] = None
+    slider_fear_freedom: Optional[float] = None
     slider_health_body: Optional[float] = None
     slider_enlightenment: Optional[float] = None
 
@@ -33,5 +34,10 @@ class UserProfileUpdate(UserProfileBase):
 class UserProfileResponse(UserProfileBase):
     id: UUID
     user_id: UUID
+    
+    # Calculated stats for the Profile UI
+    daily_credits: Optional[str] = "3/3 Remaining"
+    reflections_count: int = 0
+    avg_resonance: float = 0.0
 
     model_config = ConfigDict(from_attributes=True)

@@ -342,7 +342,7 @@ class RAGService:
                 "Career & Money": profile.slider_career_money,
                 "True Self": profile.slider_true_self,
                 "Sexuality & Life Energy": profile.slider_sexuality_life_energy,
-                "Fear & Freedom": profile.slider_free_freedom,
+                "Fear & Freedom": profile.slider_fear_freedom,
                 "Health & Body": profile.slider_health_body,
                 "Enlightenment": profile.slider_enlightenment,
             }
