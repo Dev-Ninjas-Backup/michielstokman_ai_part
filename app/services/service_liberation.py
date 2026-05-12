@@ -262,20 +262,8 @@ class LiberationService:
             ).order_by(LiberationDefinition.created_at.desc()).first()
 
             if not definition:
-                # If nothing in catalog, return empty/minimal (or keep a safe fallback if needed, but here we try to be dynamic)
-                return {
-                    "card_type": "liberation_journey",
-                    "journey_code": "vitality",
-                    "title": "Liberation Journey",
-                    "description": "Unlock your path to deeper presence.",
-                    "price_display": "€47",
-                    "price_cents": 4700,
-                    "total_days": 7,
-                    "is_enrolled": False,
-                    "current_day": None,
-                    "journey_status": None,
-                    "journey_id": None,
-                }
+                # No approved journey in catalog to show as teaser
+                return None
 
             return {
                 "card_type": "liberation_journey",
@@ -296,8 +284,8 @@ class LiberationService:
         title = journey.journey_code.replace("_", " ").title()
         description = f"Continue your {journey.total_days}-day path to greater awareness and energy."
         cover_image_url = None
-        price_display = "€47"
-        price_cents = 4700
+        price_display = "Free"
+        price_cents = 0
 
         if journey.definition:
             title = journey.definition.title

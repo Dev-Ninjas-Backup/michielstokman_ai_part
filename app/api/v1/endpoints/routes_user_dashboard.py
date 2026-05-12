@@ -56,7 +56,7 @@ def get_discovery_feed(
     country_count = db.query(func.count(func.distinct(UserProfile.country))).scalar() or 0
     hero_stats = {
         "total_users": f"{user_count:,}",
-        "total_countries": max(country_count, 1)
+        "total_countries": country_count
     }
 
     # 2. Fetch approved stories for the grid
@@ -90,11 +90,12 @@ def get_discovery_feed(
     # 4. Inject the Liberation Journey card (if not filtering or if specifically looking for journeys)
     if not story_type or story_type == "transformation":
         lib_card = LiberationService.get_feed_card(db, current_user.id)
-        # Inject at position 3 or end
-        if len(items) >= 3:
-            items.insert(2, lib_card)
-        else:
-            items.append(lib_card)
+        if lib_card:
+            # Inject at position 3 or end
+            if len(items) >= 3:
+                items.insert(2, lib_card)
+            else:
+                items.append(lib_card)
 
     result = DiscoveryFeedResponse(hero_stats=hero_stats, items=items)
     return success_response("Discovery feed loaded", status.HTTP_200_OK, result)
