@@ -71,26 +71,41 @@ def get_discovery_feed(
 
     stories = query.order_by(story_data.Story.created_at.desc()).limit(20).all()
 
+    # 3. Fetch latest category images for fallbacks (cached for this request)
+    from app.data import cover_image as cover_data
+    from app.model.cover_image import CoverImageType
+    
+    fallback_images = {
+        "confession": cover_data.get_latest_active_image_url(db, CoverImageType.confession),
+        "meditation": cover_data.get_latest_active_image_url(db, CoverImageType.meditation),
+        "transformation": cover_data.get_latest_active_image_url(db, CoverImageType.transformation),
+    }
+
     items = []
     
-    # 3. Process stories into feed items
+    # 4. Process stories into feed items
     for s in stories:
+        s_type = s.story_type.value if s.story_type else "confession"
         items.append(StoryFeedItem(
             id=str(s.id),
             title=s.title or "Untitled",
             description=(s.story_text[:120] + "...") if s.story_text else None,
-            story_type=s.story_type.value if s.story_type else "confession",
-            cover_image_url=s.cover_image_url,
+            story_type=s_type,
+            cover_image_url=s.cover_image_url or fallback_images.get(s_type),
             audio_path=s.audio_path,
             rating=round(s.pulse_score / 2.0, 1) if (s.pulse_score and s.pulse_score > 0) else None,
             listened_count=s.views_count or 0,
             is_explicit=False 
         ))
 
-    # 4. Inject the Liberation Journey card (if not filtering or if specifically looking for journeys)
+    # 5. Inject the Liberation Journey card (if not filtering or if specifically looking for journeys)
     if not story_type or story_type == "transformation":
         lib_card = LiberationService.get_feed_card(db, current_user.id)
         if lib_card:
+            # Fallback for Journey card image if definition doesn't have one
+            if not lib_card.get("cover_image_url"):
+                lib_card["cover_image_url"] = fallback_images.get("transformation")
+                
             # Inject at position 3 or end
             if len(items) >= 3:
                 items.insert(2, lib_card)
