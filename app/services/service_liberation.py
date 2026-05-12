@@ -247,20 +247,44 @@ class LiberationService:
     def get_feed_card(db: Session, user_id: UUID) -> dict:
         """
         Build the premium journey card for the discovery grid.
-        - Not enrolled → teaser with price
+        - Not enrolled → teaser with price from catalog
         - Enrolled → progress card with current day
         """
+        from app.model.liberation import LiberationDefinition, DefinitionStatus
+
         journey = lib_data.get_any_journey_for_user(db, user_id)
 
         if not journey:
+            # Look for the most recent approved catalog definition to show as a teaser
+            definition = db.query(LiberationDefinition).filter(
+                LiberationDefinition.moderation_status == DefinitionStatus.approved,
+                LiberationDefinition.is_active == True
+            ).order_by(LiberationDefinition.created_at.desc()).first()
+
+            if not definition:
+                # If nothing in catalog, return empty/minimal (or keep a safe fallback if needed, but here we try to be dynamic)
+                return {
+                    "card_type": "liberation_journey",
+                    "journey_code": "vitality",
+                    "title": "Liberation Journey",
+                    "description": "Unlock your path to deeper presence.",
+                    "price_display": "€47",
+                    "price_cents": 4700,
+                    "total_days": 7,
+                    "is_enrolled": False,
+                    "current_day": None,
+                    "journey_status": None,
+                    "journey_id": None,
+                }
+
             return {
                 "card_type": "liberation_journey",
-                "journey_code": "unknown",
-                "title": "A Life Journey",
-                "description": "Unlock a new journey to deeper vitality and presence.",
-                "price_display": "€47",
-                "price_cents": 4700,
-                "total_days": 1,
+                "journey_code": definition.journey_code,
+                "title": definition.title,
+                "description": definition.description or f"A {definition.total_days}-day path to transformation.",
+                "price_display": f"{definition.currency.replace('EUR', '€')}{definition.price_cents // 100}",
+                "price_cents": definition.price_cents,
+                "total_days": definition.total_days,
                 "is_enrolled": False,
                 "current_day": None,
                 "journey_status": None,
@@ -270,9 +294,14 @@ class LiberationService:
         # Resolve title from catalog
         title = journey.journey_code.replace("_", " ").title()
         description = f"Continue your {journey.total_days}-day path to greater awareness and energy."
+        price_display = "€47"
+        price_cents = 4700
+
         if journey.definition:
             title = journey.definition.title
             description = journey.definition.description or description
+            price_display = f"{journey.definition.currency.replace('EUR', '€')}{journey.definition.price_cents // 100}"
+            price_cents = journey.definition.price_cents
 
         # Calculate current day (highest available or completed)
         current_day = 1
@@ -285,8 +314,8 @@ class LiberationService:
             "journey_code": journey.journey_code,
             "title": title,
             "description": description,
-            "price_display": "€47",
-            "price_cents": 4700,
+            "price_display": price_display,
+            "price_cents": price_cents,
             "total_days": journey.total_days,
             "is_enrolled": True,
             "current_day": current_day,

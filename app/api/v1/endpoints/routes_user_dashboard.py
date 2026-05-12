@@ -81,9 +81,9 @@ def get_discovery_feed(
             story_type=s.story_type.value if s.story_type else "confession",
             cover_image_url=s.cover_image_url,
             audio_path=s.audio_path,
-            rating=round(s.pulse_score / 2.3, 1) if s.pulse_score else 4.3, # Mock rating based on pulse
+            rating=round(s.pulse_score / 2.0, 1) if (s.pulse_score and s.pulse_score > 0) else None,
             listened_count=s.views_count or 0,
-            is_explicit=False # Default to false for now
+            is_explicit=False 
         ))
 
     # 4. Inject the Liberation Journey card (if not filtering or if specifically looking for journeys)

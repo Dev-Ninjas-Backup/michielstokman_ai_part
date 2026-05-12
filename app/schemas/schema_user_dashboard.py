@@ -9,13 +9,13 @@ class StoryFeedItem(BaseModel):
     story_type: str  # "confession", "meditation", "transformation"
     cover_image_url: Optional[str] = None
     audio_path: Optional[str] = None
-    rating: float = 4.3
+    rating: Optional[float] = None
     listened_count: int = 0
     is_explicit: bool = False
 
 class HeroStats(BaseModel):
-    total_users: str = "85,000"
-    total_countries: int = 18
+    total_users: str
+    total_countries: int
 
 class DiscoveryFeedResponse(BaseModel):
     hero_stats: HeroStats
