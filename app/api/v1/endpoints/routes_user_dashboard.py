@@ -40,16 +40,22 @@ router = APIRouter()
     response_model=ApiResponse[DiscoveryFeedResponse],
 )
 def get_discovery_feed(
-    story_type: Optional[str] = Query(None, description="Filter by 'confession', 'meditation', or 'transformation'"),
+    story_type: Optional[List[str]] = Query(None, description="Filter by 'confession', 'meditation', or 'transformation' (can provide multiple)"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """
     Returns the main story grid for the discovery page.
     Injects the Premium Liberation Journey card along with standard stories.
-    Supports filtering by story type.
+    Supports filtering by one or more story types.
     """
-    # 1. Calculate Hero Stats
+    # 1. Parse multiple types (handles both ?story_type=a&story_type=b and ?story_type=a,b)
+    requested_types = []
+    if story_type:
+        for t in story_type:
+            requested_types.extend([item.strip() for item in t.split(",") if item.strip()])
+
+    # 2. Calculate Hero Stats
     from app.model.user import User
     from app.model.profile import UserProfile
     user_count = db.query(User).count()
@@ -59,19 +65,19 @@ def get_discovery_feed(
         "total_countries": country_count
     }
 
-    # 2. Fetch approved stories for the grid
+    # 3. Fetch approved stories for the grid
     query = (
         db.query(story_data.Story)
         .filter(story_data.Story.generation_status == GenerationStatus.completed)
         .filter(story_data.Story.moderation_status == ModerationStatus.approved)
     )
 
-    if story_type:
-        query = query.filter(story_data.Story.story_type == story_type)
+    if requested_types:
+        query = query.filter(story_data.Story.story_type.in_(requested_types))
 
     stories = query.order_by(story_data.Story.created_at.desc()).limit(20).all()
 
-    # 3. Fetch latest category images for fallbacks (cached for this request)
+    # 4. Fetch latest category images for fallbacks (cached for this request)
     from app.data import cover_image as cover_data
     from app.model.cover_image import CoverImageType
     
@@ -83,7 +89,7 @@ def get_discovery_feed(
 
     items = []
     
-    # 4. Process stories into feed items
+    # 5. Process stories into feed items
     for s in stories:
         s_type = s.story_type.value if s.story_type else "confession"
         items.append(StoryFeedItem(
@@ -98,8 +104,8 @@ def get_discovery_feed(
             is_explicit=False 
         ))
 
-    # 5. Inject the Liberation Journey card (if not filtering or if specifically looking for journeys)
-    if not story_type or story_type == "transformation":
+    # 6. Inject the Liberation Journey card (if not filtering or if specifically looking for journeys)
+    if not requested_types or "transformation" in requested_types:
         lib_card = LiberationService.get_feed_card(db, current_user.id)
         if lib_card:
             # Fallback for Journey card image if definition doesn't have one
