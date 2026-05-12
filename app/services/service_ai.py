@@ -95,7 +95,7 @@ class AIService:
         """
         Generates a deeply reflective journaling question using SuperGrok.
         Prompt template lives in app/utils/prompts.py.
-        Temperature is loaded from LLM_TEMPERATURE_RESONANCE in settings.
+        Now incorporates resonance_tags and feedback_text from Figma designs.
         """
         llm = get_story_llm(temperature=None)
 
@@ -104,16 +104,10 @@ class AIService:
             HumanMessagePromptTemplate.from_template(RESONANCE_HUMAN_TEMPLATE),
         ])
 
-        sliders_str = ""
-        if request.sliders:
-            sliders_str = "Her emotional state right now is: " + ", ".join(
-                [f"{k.replace('_', ' ')}: {v}/10" for k, v in request.sliders.items()]
-            ) + "\n"
-
         formatted_messages = chat_prompt.format_prompt(
-            track_id=request.track_id,
             touch_score=request.touch_score,
-            sliders_context=sliders_str,
+            resonance_tags=", ".join(request.resonance_tags) if request.resonance_tags else "None",
+            feedback_text=request.feedback_text or "No specific thought shared",
         ).to_messages()
 
         response = llm.invoke(formatted_messages)

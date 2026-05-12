@@ -13,11 +13,9 @@ This document provides exact request and response JSON payloads for all AI-power
 ```json
 {
   "track_id": "trk_12345",
-  "touch_score": 8.5,
-  "sliders": {
-    "tension": 80,
-    "openness": 30
-  }
+  "touch_score": 9.2,
+  "resonance_tags": ["Voice", "Liberation Moment", "Felt Seen"],
+  "feedback_text": "That moment about the grandmother really touched me."
 }
 ```
 
