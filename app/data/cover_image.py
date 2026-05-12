@@ -107,3 +107,13 @@ def delete_cover_image(db: Session, cover: CoverImage) -> None:
     """Permanently delete a cover image record from the database."""
     db.delete(cover)
     db.commit()
+
+def get_latest_active_image_url(db: Session, story_type: CoverImageType) -> Optional[str]:
+    """Fetches the URL of the most recently uploaded active cover image for a type."""
+    result = (
+        db.query(CoverImage)
+        .filter(CoverImage.story_type == story_type, CoverImage.is_active.is_(True))
+        .order_by(CoverImage.created_at.desc())
+        .first()
+    )
+    return result.image_url if result else None

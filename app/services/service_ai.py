@@ -206,9 +206,18 @@ class AIService:
             
             # Simple duration estimation (150 wpm) and default voice lookup
             from app.core.config import settings
+            from app.data import cover_image as cover_data
+            from app.model.cover_image import CoverImageType
+
             story_row.voice_name = settings.ELEVENLABS_VOICE_ID or "Aria (Warm)"
             word_count = len(story_text.split()) if story_text else 0
             story_row.audio_duration_seconds = int((word_count / 150) * 60)
+
+            # Auto-assign cover image from admin uploads if not already set
+            if not story_row.cover_image_url:
+                c_type = CoverImageType(story_row.story_type.value)
+                story_row.cover_image_url = cover_data.get_latest_active_image_url(db, c_type)
+
             db.commit()
             
             logger.info(f"[Job {job_id}] Completed. Audio saved: {audio_path}")
@@ -293,7 +302,14 @@ class AIService:
                 audio_path=audio_path,
             )
             
-            logger.info(f"[Bulk Job {job_id}] Completed successfully.")
+            # Auto-assign cover image from admin uploads if not already set
+            from app.data import cover_image as cover_data
+            from app.model.cover_image import CoverImageType
+            if not story_row.cover_image_url:
+                c_type = CoverImageType(story_row.story_type.value)
+                story_row.cover_image_url = cover_data.get_latest_active_image_url(db, c_type)
+
+            db.commit()
             
         except Exception as e:
             logger.error(f"[Bulk Job {job_id}] FAILED: {e}", exc_info=True)
