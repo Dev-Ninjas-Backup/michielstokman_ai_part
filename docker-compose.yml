@@ -13,6 +13,7 @@ services:
       - postgres_data:/var/lib/postgresql/data
 
   api:
+    build: .
     image: tashinmahmud/michielstokman-api:latest
     container_name: michielstokman-api-prod
     ports:
