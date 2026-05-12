@@ -42,22 +42,13 @@ This document provides exact request and response JSON payloads for all AI-power
 **Example Request:**
 ```json
 {
-  "story_type": "transformation",
-  "user_age": 30,
-  "user_gender": "female",
-  "country_city": "London",
-  "life_phase": "feeling stuck in career",
-  "relationship_status": "single",
-  "deepest_desire_fear": "fear of never reaching my potential",
-  "specific_trigger": "a difficult meeting at work today",
-  "emotional_sliders": {
-    "life_purpose": 2,
-    "true_self": 3
-  },
-  "session_sliders": {
-    "tension": 70
-  },
-  "track_id": "trk_9876",
+  "story_type": "confession",
+  "title": "Finding Peace in Solitude",
+  "first_name": "Sarah",
+  "story_input": "I have been feeling a lot of pressure at work lately, and I find myself snapping at the people I love. I want to explore why I'm pushing people away when I need them most.",
+  "growth_areas": ["Self-Acceptance", "Forgiveness", "Patience"],
+  "life_phase": "Deepening",
+  "tags": ["work stress", "relationships", "inner peace"],
   "high_intensity": false
 }
 ```
