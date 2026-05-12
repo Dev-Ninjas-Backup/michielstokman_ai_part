@@ -178,45 +178,25 @@ def build_story_system_template(story_type: StoryType) -> str:
 
 def build_user_context(request: StoryGenerateRequest) -> str:
     """
-    Builds the mandatory User Profile Block based on the new spec.
+    Builds the mandatory User Profile Block based on the Figma spec.
     Fills in available data from request and defaults the rest.
     """
-    age = str(request.user_age) if request.user_age else "Unknown"
-    gender = request.user_gender if request.user_gender else "Not specified"
-    country_city = request.country_city if request.country_city else "Not specified"
+    name = request.first_name if request.first_name else "Friend"
     life_phase = request.life_phase if request.life_phase else "Not specified"
-    relationship_status = request.relationship_status if request.relationship_status else "Not specified"
-    deepest_desire_fear = request.deepest_desire_fear if request.deepest_desire_fear else "Not specified"
+    growth_areas = ", ".join(request.growth_areas) if request.growth_areas else "General growth"
+    tags = ", ".join(request.tags) if request.tags else "None"
     
-    # sliders -> core emotional state
-    emotions = []
-    if request.emotional_sliders:
-        emotions.append("Core priorities: " + ", ".join(f"{k.replace('_', ' ')}={v}" for k, v in request.emotional_sliders.items()))
-    if request.session_sliders:
-        emotions.append("Current session state: " + ", ".join(f"{k.replace('_', ' ')}={v}" for k, v in request.session_sliders.items()))
-    core_emotional_state = " | ".join(emotions) if emotions else "Seeking understanding"
-
-    trigger_parts = []
-    if request.specific_trigger:
-        trigger_parts.append(request.specific_trigger)
-    if request.track_id:
-        trigger_parts.append(f"Listened to track {request.track_id}")
-    trigger_str = " | ".join(trigger_parts) if trigger_parts else "Not specified"
-
+    user_story_input = request.story_input
     intensity_toggle = "Activated" if getattr(request, 'high_intensity', False) else "Off"
 
     context_str = f"""
 User Profile Block (mandatory — always fill this in):
-- Age: {age}
-- Gender & Sexual orientation: {gender}
-- Country / City: {country_city}
+- Name: {name}
 - Life phase: {life_phase}
-- Relationship status & main dynamic: {relationship_status}
-- Core emotional state right now: {core_emotional_state}
-- Specific trigger / situation: {trigger_str}
-- Deepest desire or fear: {deepest_desire_fear}
+- Growth areas focusing on: {growth_areas}
+- Tags / Themes: {tags}
+- User's raw story/meditation input: {user_story_input}
 - Desired High Intensity Toggle: {intensity_toggle}
-- Extra context: None
 """
     return context_str.strip()
 

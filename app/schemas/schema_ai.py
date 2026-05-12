@@ -43,38 +43,25 @@ class ResonanceResponse(BaseModel):
 
 class StoryGenerateRequest(BaseModel):
     """
-    Payload for generating a personalised Confession, Meditation, or Transformation.
-    All user-profile fields are optional — if omitted the story degrades gracefully
-    to a warm, non-personalised version. When provided they are injected directly
-    into the SuperGrok prompt to ensure every story feels custom-made.
+    Payload for generating a personalised Confession or Meditation.
+    Matches the Figma 'Share Your Liberation' and 'Share Your Voice' screens exactly.
     """
-    story_type: StoryType = Field(..., description="Type of story to generate")
-
-    # User profile context (snapshot at request time)
-    user_age: Optional[int] = Field(None, description="User's age")
-    user_gender: Optional[str] = Field(None, description="User's gender")
-    country_city: Optional[str] = Field(None, description="User's country or city")
-    life_phase: Optional[str] = Field(None, description="User's current life phase, e.g. 'new mother', 'divorce'")
-    relationship_status: Optional[str] = Field(None, description="Relationship status and main dynamic")
-    deepest_desire_fear: Optional[str] = Field(None, description="User's deepest desire or fear")
-    specific_trigger: Optional[str] = Field(None, description="Specific trigger or situation prompting this story")
-
-    # Priority sliders (0-10 scale) from the user profile
-    emotional_sliders: Optional[Dict[str, int]] = Field(
-        None,
-        description="User's 9 priority sliders, e.g. {'desire_relationship': 8, 'life_purpose': 3, ...}"
+    story_type: StoryType = Field(..., description="Type of story: confession or meditation")
+    title: Optional[str] = Field(None, description="Title of the submission")
+    first_name: Optional[str] = Field(None, description="User's first name")
+    story_input: str = Field(..., description="The user's manual story or meditation script")
+    
+    growth_areas: List[str] = Field(
+        default_factory=list, 
+        description="Growth areas selected, e.g. ['Fear & Freedom', 'Self-Discovery']"
+    )
+    life_phase: Optional[str] = Field(None, description="Current life phase, e.g. 'Deepening'")
+    tags: List[str] = Field(
+        default_factory=list, 
+        description="Comma-separated tags converted to a list"
     )
 
-    # Session sliders set after listening to a track
-    session_sliders: Optional[Dict[str, int]] = Field(
-        None,
-        description="Emotional sliders from the resonance session, e.g. {'tension': 70, 'openness': 20}"
-    )
-
-    # The associated music track (optional)
-    track_id: Optional[str] = Field(None, description="ID of the track the user just listened to")
-
-    # High Intensity Toggle (safety/explicitness switch)
+    # Toggle for 'Contains sensitive content'
     high_intensity: bool = Field(
         False, 
         description="Toggle for high intensity/explicit content (True = Activated, False = Off)"

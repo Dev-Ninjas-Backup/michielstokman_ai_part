@@ -105,16 +105,12 @@ async def generate_story(
             job_id=job_id,
             user_id=str(current_user.id),
             admin_id=None,
-            track_id=request.track_id,
-            country_city=request.country_city,
+            title=request.title,
+            first_name=request.first_name,
+            story_input=request.story_input,
+            growth_areas=request.growth_areas,
             life_phase=request.life_phase,
-            relationship_status=request.relationship_status,
-            deepest_desire_fear=request.deepest_desire_fear,
-            specific_trigger=request.specific_trigger,
-            emotional_context={
-                **(request.emotional_sliders or {}),
-                **(request.session_sliders or {}),
-            } or None,
+            tags=request.tags,
             high_intensity=request.high_intensity,
         )
 
