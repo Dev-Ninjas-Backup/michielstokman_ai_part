@@ -3,6 +3,7 @@ from typing import Optional, List, Union
 from app.schemas.schema_liberation import LiberationFeedCard
 
 class StoryFeedItem(BaseModel):
+    card_type: str = "story"
     id: str
     title: str
     description: Optional[str] = None
