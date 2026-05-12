@@ -3,6 +3,7 @@ routes_user_dashboard.py
 User-facing dashboard endpoints — includes RAG-powered book recommendations
 and story detail view.
 """
+from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 from sqlalchemy.sql import func
