@@ -74,7 +74,7 @@ class LiberationDefinition(Base):
     description = Column(Text, nullable=True)                   # Shown on the sales page
     cover_image_url = Column(String, nullable=True)             # S3 image for the card
     total_days = Column(Integer, nullable=False)                 # 7, 20, 30 …
-    price_cents = Column(Integer, nullable=False, default=4700)  # €47 = 4700
+    price_cents = Column(Integer, nullable=False, default=0)
     currency = Column(String, default="EUR", nullable=False)
 
     # Who created it

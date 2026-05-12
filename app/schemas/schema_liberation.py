@@ -109,8 +109,8 @@ class LiberationFeedCard(BaseModel):
     title: str
     description: str
     cover_image_url: Optional[str] = None
-    price_display: str = "€47"
-    price_cents: int = 4700
+    price_display: str
+    price_cents: int
     total_days: int
     is_enrolled: bool = False
     current_day: Optional[int] = None
