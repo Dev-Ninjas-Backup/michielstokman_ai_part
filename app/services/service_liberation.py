@@ -271,7 +271,7 @@ class LiberationService:
                 "title": definition.title,
                 "description": definition.description or f"A {definition.total_days}-day path to transformation.",
                 "cover_image_url": definition.cover_image_url,
-                "price_display": f"{definition.currency.replace('EUR', '€')}{definition.price_cents // 100}",
+                "price_display": str(definition.price_cents // 100),
                 "price_cents": definition.price_cents,
                 "total_days": definition.total_days,
                 "is_enrolled": False,
@@ -284,14 +284,14 @@ class LiberationService:
         title = journey.journey_code.replace("_", " ").title()
         description = f"Continue your {journey.total_days}-day path to greater awareness and energy."
         cover_image_url = None
-        price_display = "Free"
+        price_display = "0"
         price_cents = 0
 
         if journey.definition:
             title = journey.definition.title
             description = journey.definition.description or description
             cover_image_url = journey.definition.cover_image_url
-            price_display = f"{journey.definition.currency.replace('EUR', '€')}{journey.definition.price_cents // 100}"
+            price_display = str(journey.definition.price_cents // 100)
             price_cents = journey.definition.price_cents
 
         # Calculate current day (highest available or completed)
