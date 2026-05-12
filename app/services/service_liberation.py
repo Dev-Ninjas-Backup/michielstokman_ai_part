@@ -282,6 +282,7 @@ class LiberationService:
                 "journey_code": definition.journey_code,
                 "title": definition.title,
                 "description": definition.description or f"A {definition.total_days}-day path to transformation.",
+                "cover_image_url": definition.cover_image_url,
                 "price_display": f"{definition.currency.replace('EUR', '€')}{definition.price_cents // 100}",
                 "price_cents": definition.price_cents,
                 "total_days": definition.total_days,
@@ -294,12 +295,14 @@ class LiberationService:
         # Resolve title from catalog
         title = journey.journey_code.replace("_", " ").title()
         description = f"Continue your {journey.total_days}-day path to greater awareness and energy."
+        cover_image_url = None
         price_display = "€47"
         price_cents = 4700
 
         if journey.definition:
             title = journey.definition.title
             description = journey.definition.description or description
+            cover_image_url = journey.definition.cover_image_url
             price_display = f"{journey.definition.currency.replace('EUR', '€')}{journey.definition.price_cents // 100}"
             price_cents = journey.definition.price_cents
 
@@ -314,6 +317,7 @@ class LiberationService:
             "journey_code": journey.journey_code,
             "title": title,
             "description": description,
+            "cover_image_url": cover_image_url,
             "price_display": price_display,
             "price_cents": price_cents,
             "total_days": journey.total_days,

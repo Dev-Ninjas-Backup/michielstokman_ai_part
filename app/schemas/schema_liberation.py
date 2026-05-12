@@ -108,6 +108,7 @@ class LiberationFeedCard(BaseModel):
     journey_code: str
     title: str
     description: str
+    cover_image_url: Optional[str] = None
     price_display: str = "€47"
     price_cents: int = 4700
     total_days: int
