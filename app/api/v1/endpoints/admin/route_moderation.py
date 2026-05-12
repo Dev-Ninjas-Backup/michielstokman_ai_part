@@ -133,12 +133,11 @@ def get_story_details(
         created_at=story.created_at.isoformat(),
         moderation_status=str(story.moderation_status).replace("ModerationStatus.", ""),
         moderation_notes=story.moderation_notes,
-        country_city=story.country_city,
+        first_name=story.first_name,
+        story_input=story.story_input,
+        growth_areas=story.growth_areas,
         life_phase=story.life_phase,
-        relationship_status=story.relationship_status,
-        deepest_desire_fear=story.deepest_desire_fear,
-        specific_trigger=story.specific_trigger,
-        emotional_context=story.emotional_context,
+        tags=story.tags,
     )
     return success_response("Story details fetched", status.HTTP_200_OK, result)
 
@@ -183,12 +182,11 @@ def update_story_details(
         created_at=story.created_at.isoformat(),
         moderation_status=str(story.moderation_status).replace("ModerationStatus.", ""),
         moderation_notes=story.moderation_notes,
-        country_city=story.country_city,
+        first_name=story.first_name,
+        story_input=story.story_input,
+        growth_areas=story.growth_areas,
         life_phase=story.life_phase,
-        relationship_status=story.relationship_status,
-        deepest_desire_fear=story.deepest_desire_fear,
-        specific_trigger=story.specific_trigger,
-        emotional_context=story.emotional_context,
+        tags=story.tags,
     )
     return success_response("Story updated successfully", status.HTTP_200_OK, result)
 

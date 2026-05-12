@@ -22,7 +22,8 @@ This document provides exact request and response JSON payloads for all AI-power
 **Example Response:**
 ```json
 {
-  "status": "success",
+  "status": 200,
+  "success": true,
   "message": "Resonance question generated successfully",
   "data": {
     "journaling_question": "What specific fear surfaced in your body during that moment of tension, and how can you hold space for it?"
@@ -54,7 +55,8 @@ This document provides exact request and response JSON payloads for all AI-power
 **Example Response:**
 ```json
 {
-  "status": "success",
+  "status": 200,
+  "success": true,
   "message": "Story generation queued",
   "data": {
     "story_id": "123e4567-e89b-12d3-a456-426614174000",
@@ -84,7 +86,8 @@ This document provides exact request and response JSON payloads for all AI-power
 **Example Response:**
 ```json
 {
-  "status": "success",
+  "status": 200,
+  "success": true,
   "message": "Daily exercise generated",
   "data": {
     "day_number": 1,
@@ -115,7 +118,8 @@ This document provides exact request and response JSON payloads for all AI-power
 **Example Response:**
 ```json
 {
-  "status": "success",
+  "status": 200,
+  "success": true,
   "message": "Bulk generation job queued",
   "data": {
     "job_id": "555fca9c-a1cf-48f1-989a-6b89b1658911",
@@ -141,7 +145,8 @@ This document provides exact request and response JSON payloads for all AI-power
 **Example Response:**
 ```json
 {
-  "status": "success",
+  "status": 200,
+  "success": true,
   "message": "Submission generation job queued",
   "data": {
     "job_id": "222fcdeb-51a2-43d7-9012-34567890ab22",
@@ -163,7 +168,8 @@ This document provides exact request and response JSON payloads for all AI-power
 **Example Response (Still Processing):**
 ```json
 {
-  "status": "success",
+  "status": 200,
+  "success": true,
   "message": "Job status retrieved",
   "data": {
     "job_id": "987fcdeb-51a2-43d7-9012-34567890abcd",
@@ -178,7 +184,8 @@ This document provides exact request and response JSON payloads for all AI-power
 **Example Response (Completed - Story):**
 ```json
 {
-  "status": "success",
+  "status": 200,
+  "success": true,
   "message": "Job status retrieved",
   "data": {
     "job_id": "987fcdeb-51a2-43d7-9012-34567890abcd",
@@ -193,7 +200,8 @@ This document provides exact request and response JSON payloads for all AI-power
 **Example Response (Completed - Liberation Submission):**
 ```json
 {
-  "status": "success",
+  "status": 200,
+  "success": true,
   "message": "Job status retrieved",
   "data": {
     "job_id": "222fcdeb-51a2-43d7-9012-34567890ab22",

@@ -20,12 +20,11 @@ class StoryDetailResponse(BaseModel):
     created_at: str
     moderation_status: str
     moderation_notes: str | None
-    country_city: str | None
+    first_name: str | None
+    story_input: str | None
+    growth_areas: list[str] | None
     life_phase: str | None
-    relationship_status: str | None
-    deepest_desire_fear: str | None
-    specific_trigger: str | None
-    emotional_context: dict | None
+    tags: list[str] | None
 
 
 class StoryListItemResponse(BaseModel):
