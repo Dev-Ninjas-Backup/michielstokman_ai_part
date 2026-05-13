@@ -15,6 +15,7 @@ from app.model.liberation import (
     LiberationDefinition,
     LiberationDayDefinition,
 )
+from app.schemas.schema_liberation_catalog import DayDefinitionInput
 
 
 # ── Definition CRUD ─────────────────────────────────────────────────────────
@@ -58,6 +59,21 @@ def list_pending_definitions(db: Session, limit: int = 50, offset: int = 0) -> l
     )
 
 
+def list_all_definitions(db: Session, limit: int = 50, offset: int = 0) -> list[LiberationDefinition]:
+    """Return ALL definitions for the admin dashboard."""
+    return (
+        db.query(LiberationDefinition)
+        .order_by(LiberationDefinition.created_at.desc())
+        .offset(offset)
+        .limit(limit)
+        .all()
+    )
+
+
+def count_all_definitions(db: Session) -> int:
+    return db.query(LiberationDefinition).count()
+
+
 def count_pending_definitions(db: Session) -> int:
     return (
         db.query(LiberationDefinition)
@@ -76,7 +92,7 @@ def create_definition(
     currency: str,
     created_by: UUID,
     is_admin_created: bool,
-    day_themes: list[str],
+    days: list[DayDefinitionInput],
     rating: Optional[float] = None,
     what_to_expect: Optional[list] = None,
     setup_instructions: Optional[list] = None,
@@ -104,11 +120,13 @@ def create_definition(
     db.add(definition)
     db.flush()  # get definition.id
 
-    for idx, theme in enumerate(day_themes, start=1):
+    for idx, day_def_input in enumerate(days, start=1):
         day_def = LiberationDayDefinition(
             definition_id=definition.id,
             day_number=idx,
-            day_theme=theme,
+            day_theme=day_def_input.title,
+            exercise_text=day_def_input.exercise_text,
+            why_text=day_def_input.why_text,
         )
         db.add(day_def)
 

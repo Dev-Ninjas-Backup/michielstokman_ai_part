@@ -9,7 +9,7 @@ from app.core.responses import register_exception_handlers
 from app.api.v1.endpoints import hello
 from app.api.v1.endpoints import routes_ai, routes_auth, routes_payment, routes_subscription, routes_profile
 from app.api.v1.endpoints import routes_user_dashboard, routes_feedback, routes_liberation, routes_liberation_catalog
-from app.api.v1.endpoints.admin import route_admin_dashboard, route_moderation, route_liberation_admin, route_admin_chat, route_photo_management, route_voice_review
+from app.api.v1.endpoints.admin import route_admin_dashboard, route_moderation, route_liberation_admin, route_admin_chat, route_photo_management, route_voice_review, route_billing_admin
 from app.schemas.schema_system import HealthResponse
 
 app = FastAPI(
@@ -58,6 +58,7 @@ app.include_router(route_liberation_admin.router, prefix="/v1", tags=["Admin - L
 app.include_router(route_admin_chat.router, prefix="/v1", tags=["Admin - Metrics Chat"])
 app.include_router(route_photo_management.router, prefix="/v1", tags=["Admin - Photo Management"])
 app.include_router(route_voice_review.router, prefix="/v1", tags=["Admin - Voice Review"])
+app.include_router(route_billing_admin.router, prefix="/v1", tags=["Admin - Billing"])
 
 # ---------------------------------------------------------------------------
 # System / Infrastructure Routes

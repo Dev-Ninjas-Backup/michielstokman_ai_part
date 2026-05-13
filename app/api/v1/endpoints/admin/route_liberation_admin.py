@@ -47,8 +47,13 @@ def _definition_to_response(d) -> LiberationDefinitionResponse:
         rating=d.rating,
         what_to_expect=d.what_to_expect or [],
         setup_instructions=d.setup_instructions or [],
-        day_themes=[
-            DayThemeItem(day_number=dd.day_number, day_theme=dd.day_theme)
+        days=[
+            DayThemeItem(
+                day_number=dd.day_number, 
+                day_theme=dd.day_theme,
+                exercise_text=dd.exercise_text,
+                why_text=dd.why_text
+            )
             for dd in d.day_definitions
         ],
     )
@@ -67,10 +72,10 @@ def admin_create_liberation(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_admin_user),
 ):
-    if len(payload.day_themes) != payload.total_days:
+    if len(payload.days) != payload.total_days:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=f"day_themes length ({len(payload.day_themes)}) must equal total_days ({payload.total_days}).",
+            detail=f"days length ({len(payload.days)}) must equal total_days ({payload.total_days}).",
         )
 
     existing = catalog_data.get_definition_by_code(db, payload.journey_code)
@@ -90,7 +95,7 @@ def admin_create_liberation(
         currency=payload.currency,
         created_by=current_user.id,
         is_admin_created=True,
-        day_themes=payload.day_themes,
+        days=payload.days,
         rating=payload.rating,
         what_to_expect=payload.what_to_expect,
         setup_instructions=payload.setup_instructions,
@@ -114,10 +119,10 @@ def admin_bulk_create_liberations(
 ):
     results = []
     for item in payload.definitions:
-        if len(item.day_themes) != item.total_days:
+        if len(item.days) != item.total_days:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail=f"[{item.journey_code}] day_themes length ({len(item.day_themes)}) must equal total_days ({item.total_days}).",
+                detail=f"[{item.journey_code}] days length ({len(item.days)}) must equal total_days ({item.total_days}).",
             )
         existing = catalog_data.get_definition_by_code(db, item.journey_code)
         if existing:
@@ -136,7 +141,7 @@ def admin_bulk_create_liberations(
             currency=item.currency,
             created_by=current_user.id,
             is_admin_created=True,
-            day_themes=item.day_themes,
+            days=item.days,
             rating=item.rating,
             what_to_expect=item.what_to_expect,
             setup_instructions=item.setup_instructions,
@@ -150,7 +155,25 @@ def admin_bulk_create_liberations(
     )
 
 
-# ── Admin: review queue ─────────────────────────────────────────────────────
+# ── Admin: review queue & full list ─────────────────────────────────────────
+
+@router.get(
+    "/admin/liberation",
+    response_model=ApiResponse[LiberationCatalogListResponse],
+    summary="Admin: list ALL liberation journeys (active and inactive, pending and approved)",
+)
+def admin_list_all(
+    limit: int = 50,
+    offset: int = 0,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_admin_user),
+):
+    definitions = catalog_data.list_all_definitions(db, limit=limit, offset=offset)
+    total = catalog_data.count_all_definitions(db)
+    items = [_definition_to_response(d) for d in definitions]
+    result = LiberationCatalogListResponse(definitions=items, total=total)
+    return success_response("All liberations fetched", status.HTTP_200_OK, result)
+
 
 @router.get(
     "/admin/liberation/pending",
@@ -257,21 +280,23 @@ def admin_update_liberation(
     if payload.setup_instructions is not None: definition.setup_instructions = payload.setup_instructions
 
     # 2. Update day themes if provided
-    if payload.day_themes is not None:
-        if len(payload.day_themes) != definition.total_days:
+    if payload.days is not None:
+        if len(payload.days) != definition.total_days:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail=f"day_themes length ({len(payload.day_themes)}) must equal total_days ({definition.total_days}).",
+                detail=f"days length ({len(payload.days)}) must equal total_days ({definition.total_days}).",
             )
         
         # Delete old days and insert new ones
         from app.model.liberation import LiberationDayDefinition
         db.query(LiberationDayDefinition).filter(LiberationDayDefinition.definition_id == definition.id).delete()
-        for i, theme in enumerate(payload.day_themes):
+        for i, day_def_input in enumerate(payload.days):
             db.add(LiberationDayDefinition(
                 definition_id=definition.id,
                 day_number=i+1,
-                day_theme=theme
+                day_theme=day_def_input.title,
+                exercise_text=day_def_input.exercise_text,
+                why_text=day_def_input.why_text
             ))
 
     db.commit()
