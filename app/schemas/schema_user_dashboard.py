@@ -12,6 +12,7 @@ class StoryFeedItem(BaseModel):
     audio_path: Optional[str] = None
     rating: Optional[float] = None
     listened_count: int = 0
+    author_name: Optional[str] = None
     is_explicit: bool = False
 
 class HeroStats(BaseModel):

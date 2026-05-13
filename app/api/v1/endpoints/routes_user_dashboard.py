@@ -96,6 +96,14 @@ def get_discovery_feed(
     from app.utils.messages import STORY_UNTITLED
     for s in stories:
         s_type = s.story_type.value if s.story_type else "confession"
+
+        # Resolve author/display name
+        author_display = s.first_name
+        if not author_display and s.user and s.user.profile:
+            author_display = s.user.profile.true_name
+        if not author_display and s.user:
+            author_display = s.user.email
+
         items.append(StoryFeedItem(
             id=str(s.id),
             title=s.title or STORY_UNTITLED,
@@ -105,6 +113,7 @@ def get_discovery_feed(
             audio_path=s.audio_path,
             rating=round(s.pulse_score / 2.0, 1) if (s.pulse_score and s.pulse_score > 0) else None,
             listened_count=s.views_count or 0,
+            author_name=author_display,
             is_explicit=False 
         ))
 
@@ -294,8 +303,11 @@ def get_story_detail(
         cover_image_url = None
 
     # --- Resolve author name ---
-    author_name = None
-    if story.user:
+    author_name = story.first_name
+    if not author_name and story.user and story.user.profile:
+        author_name = story.user.profile.true_name
+    
+    if not author_name and story.user:
         author_name = story.user.email
 
     from app.utils.messages import STORY_UNTITLED
