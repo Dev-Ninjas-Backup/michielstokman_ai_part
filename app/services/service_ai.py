@@ -104,10 +104,11 @@ class AIService:
             HumanMessagePromptTemplate.from_template(RESONANCE_HUMAN_TEMPLATE),
         ])
 
+        from app.utils.messages import AI_FALLBACK_FEEDBACK
         formatted_messages = chat_prompt.format_prompt(
             touch_score=request.touch_score,
             resonance_tags=", ".join(request.resonance_tags) if request.resonance_tags else "None",
-            feedback_text=request.feedback_text or "No specific thought shared",
+            feedback_text=request.feedback_text or AI_FALLBACK_FEEDBACK,
         ).to_messages()
 
         response = llm.invoke(formatted_messages)
@@ -203,7 +204,7 @@ class AIService:
             from app.data import cover_image as cover_data
             from app.model.cover_image import CoverImageType
 
-            story_row.voice_name = settings.ELEVENLABS_VOICE_ID or "Aria (Warm)"
+            story_row.voice_name = settings.ELEVENLABS_VOICE_ID
             word_count = len(story_text.split()) if story_text else 0
             story_row.audio_duration_seconds = int((word_count / 150) * 60)
 

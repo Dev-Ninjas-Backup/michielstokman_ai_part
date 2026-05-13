@@ -35,11 +35,12 @@ class LiberationService:
     @staticmethod
     def _verify_purchase(db: Session, user_id: UUID, journey_code: str) -> None:
         """Raises 403 if user does not own the specific journey code."""
+        from app.utils.messages import LIBERATION_PURCHASE_REQUIRED
         has_access = check_user_has_plan_code(db, user_id, plan_code=journey_code)
         if not has_access:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"You must purchase the '{journey_code}' journey to access it.",
+                detail=LIBERATION_PURCHASE_REQUIRED.format(journey_code=journey_code),
             )
 
     # ── Enroll ──────────────────────────────────────────────────────────────
@@ -82,13 +83,14 @@ class LiberationService:
     @staticmethod
     def get_status(db: Session, user_id: UUID) -> dict:
         """Return the full journey status with all summaries for the most recent journey."""
+        from app.utils.messages import LIBERATION_ENROLL_REQUIRED
         journey = lib_data.get_active_journey(db, user_id)
         if not journey:
             journey = lib_data.get_any_journey_for_user(db, user_id)
         if not journey:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="No liberation journey found. Please enroll first.",
+                detail=LIBERATION_ENROLL_REQUIRED,
             )
 
         LiberationService._verify_purchase(db, user_id, journey.journey_code)
@@ -203,10 +205,11 @@ class LiberationService:
             lib_data.mark_journey_completed(db, journey)
             logger.info(f"[Liberation] User {user_id} completed the full journey!")
 
+        from app.utils.messages import LIBERATION_DAY_COMPLETE, LIBERATION_JOURNEY_COMPLETE
         return {
             "day_number": day,
             "status": "completed",
-            "message": f"Day {day} complete — beautiful!" if day < journey.total_days else "Your Liberation is Complete 🌸",
+            "message": LIBERATION_DAY_COMPLETE.format(day=day) if day < journey.total_days else LIBERATION_JOURNEY_COMPLETE,
             "next_day_available": next_day_available,
         }
 
@@ -271,10 +274,10 @@ class LiberationService:
                 "title": definition.title,
                 "description": definition.description or f"A {definition.total_days}-day path to transformation.",
                 "cover_image_url": definition.cover_image_url,
-                "price_display": str(definition.price_cents // 100),
+                "price_display": definition.price_cents // 100,
                 "price_cents": definition.price_cents,
                 "total_days": definition.total_days,
-                "rating": definition.rating or 4.8,
+                "rating": definition.rating,
                 "what_to_expect": definition.what_to_expect or [],
                 "setup_instructions": definition.setup_instructions or [],
                 "is_enrolled": False,
@@ -283,18 +286,19 @@ class LiberationService:
                 "journey_id": None,
             }
 
+        from app.utils.messages import LIBERATION_CONTINUE_DESC
         # Resolve title from catalog
         title = journey.journey_code.replace("_", " ").title()
-        description = f"Continue your {journey.total_days}-day path to greater awareness and energy."
+        description = LIBERATION_CONTINUE_DESC.format(days=journey.total_days)
         cover_image_url = None
-        price_display = "0"
+        price_display = 0
         price_cents = 0
 
         if journey.definition:
             title = journey.definition.title
             description = journey.definition.description or description
             cover_image_url = journey.definition.cover_image_url
-            price_display = str(journey.definition.price_cents // 100)
+            price_display = journey.definition.price_cents // 100
             price_cents = journey.definition.price_cents
 
         # Calculate current day (highest available or completed)
@@ -312,7 +316,7 @@ class LiberationService:
             "price_display": price_display,
             "price_cents": price_cents,
             "total_days": journey.total_days,
-            "rating": journey.definition.rating if journey.definition else 4.8,
+            "rating": journey.definition.rating if journey.definition else None,
             "what_to_expect": journey.definition.what_to_expect if journey.definition else [],
             "setup_instructions": journey.definition.setup_instructions if journey.definition else [],
             "is_enrolled": True,
@@ -399,9 +403,10 @@ class LiberationService:
             why_text = parts2[1].strip()
         else:
             # Fallback: treat everything as the exercise text
+            from app.utils.messages import AI_FALLBACK_GREETING, AI_FALLBACK_WHY
             logger.warning(f"[Liberation] AI response did not follow expected format for Day {day_number}")
-            greeting = f"Hey friend, thank you for showing up today. Day {day_number} is about {day_theme}."
+            greeting = AI_FALLBACK_GREETING.format(day=day_number, theme=day_theme)
             exercise_text = content
-            why_text = f"This exercise connects you to the theme of {day_theme} — tuning into your body's natural wisdom."
+            why_text = AI_FALLBACK_WHY.format(theme=day_theme)
 
         return greeting, exercise_text, why_text

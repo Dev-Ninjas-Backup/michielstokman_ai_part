@@ -45,8 +45,8 @@ class AdminDashboardDemoResponse(BaseModel):
 # ── Figma UI Admin Dashboard Schemas ──
 
 class StatDelta(BaseModel):
-    value: str
-    percentage: str
+    value: float
+    percentage: float
     trend: str  # "up", "down", "neutral"
 
 

@@ -109,10 +109,10 @@ class LiberationFeedCard(BaseModel):
     title: str
     description: str
     cover_image_url: Optional[str] = None
-    price_display: str
+    price_display: int
     price_cents: int
     total_days: int
-    rating: float = 4.8
+    rating: Optional[float] = None
     what_to_expect: list[str] = []
     setup_instructions: list[str] = []
     is_enrolled: bool = False

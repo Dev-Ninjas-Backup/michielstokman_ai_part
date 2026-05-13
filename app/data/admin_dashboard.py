@@ -15,13 +15,8 @@ def calculate_delta(current: float, previous: float, is_absolute_diff: bool = Fa
             change = ((current - previous) / previous) * 100.0
 
     trend = "up" if change > 0 else "down" if change < 0 else "neutral"
-    sign = "+" if change > 0 else ""
-    pct_str = f"{sign}{change:.1f}%" if abs(change) < 10 and not change.is_integer() else f"{sign}{int(change)}%"
     
-    if is_absolute_diff:
-        pct_str = f"{sign}{change:.1f}" if not change.is_integer() else f"{sign}{int(change)}"
-        
-    return {"percentage": pct_str, "trend": trend}
+    return {"percentage": round(change, 2), "trend": trend}
 
 def get_figma_dashboard_stats(db: Session):
     now = datetime.now(timezone.utc)
@@ -69,19 +64,19 @@ def get_figma_dashboard_stats(db: Session):
 
     top_stats = {
         "views": {
-            "value": f"{overall['views']:,}",
+            "value": float(overall['views']),
             **calculate_delta(cw['views'], pw['views'])
         },
         "resonance": {
-            "value": f"{overall['pulse']:.1f}",
+            "value": float(overall['pulse']),
             **calculate_delta(cw['pulse'], pw['pulse'], is_absolute_diff=True)
         },
         "completion": {
-            "value": f"{int(overall['completion'])}%",
+            "value": float(overall['completion']),
             **calculate_delta(cw['completion'], pw['completion'])
         },
         "shares": {
-            "value": f"{overall['shares']:,}",
+            "value": float(overall['shares']),
             **calculate_delta(cw['shares'], pw['shares'])
         }
     }
@@ -106,24 +101,25 @@ def get_figma_dashboard_stats(db: Session):
         Story.title.isnot(None)
     ).order_by(desc(Story.pulse_score)).limit(5).all()
     
+    from app.utils.messages import STORY_UNTITLED
     top_resonance_content = []
     for story in top_content_query:
         top_resonance_content.append({
             "id": str(story.id),
-            "title": story.title or "Untitled",
+            "title": story.title or STORY_UNTITLED,
             "pulse": float(story.pulse_score),
             "reflections": int(getattr(story, 'reflections_count', 0))
         })
         
     # --- Latest Activity ---
-    from app.model.user import User
+    from app.utils.time_utils import format_relative_time
     latest_stories = db.query(Story).join(User, Story.user_id == User.id).order_by(desc(Story.created_at)).limit(5).all()
     latest_activity = []
     for s in latest_stories:
         latest_activity.append({
             "user_email": s.user.email if s.user else "Anonymous",
-            "action": f"generated a {str(s.story_type).replace('StoryType.', '')}",
-            "time_ago": "Recently" 
+            "action": f"generated a {str(s.story_type.value)}",
+            "time_ago": format_relative_time(s.created_at)
         })
 
     return {

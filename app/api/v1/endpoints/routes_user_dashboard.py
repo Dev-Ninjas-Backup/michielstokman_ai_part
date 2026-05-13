@@ -90,11 +90,12 @@ def get_discovery_feed(
     items = []
     
     # 5. Process stories into feed items
+    from app.utils.messages import STORY_UNTITLED
     for s in stories:
         s_type = s.story_type.value if s.story_type else "confession"
         items.append(StoryFeedItem(
             id=str(s.id),
-            title=s.title or "Untitled",
+            title=s.title or STORY_UNTITLED,
             description=(s.story_text[:120] + "...") if s.story_text else None,
             story_type=s_type,
             cover_image_url=s.cover_image_url or fallback_images.get(s_type),
@@ -142,12 +143,13 @@ def get_credit_status(
     """
     is_premium = credit_data.is_premium_user(db, str(current_user.id))
 
+    from app.utils.messages import STORY_GENERATION_CREDIT_REMAINING, STORY_GENERATION_PREMIUM_UNLIMITED
     if is_premium:
         result = CreditStatusResponse(
             is_premium=True,
             daily_credits_remaining=-1,
             max_daily_credits=-1,
-            message="Premium subscriber — unlimited stories.",
+            message=STORY_GENERATION_PREMIUM_UNLIMITED,
         )
     else:
         credit = credit_data.get_or_create_credit(db, str(current_user.id))
@@ -155,7 +157,10 @@ def get_credit_status(
             is_premium=False,
             daily_credits_remaining=credit.daily_credits_remaining,
             max_daily_credits=credit.max_daily_credits,
-            message=f"{credit.daily_credits_remaining}/{credit.max_daily_credits} credits remaining today.",
+            message=STORY_GENERATION_CREDIT_REMAINING.format(
+                remaining=credit.daily_credits_remaining,
+                max=credit.max_daily_credits
+            ),
         )
 
     return success_response("Credit status fetched", status.HTTP_200_OK, result)
@@ -284,9 +289,10 @@ def get_story_detail(
     if story.user:
         author_name = story.user.email
 
+    from app.utils.messages import STORY_UNTITLED
     result = StoryDetailUserResponse(
         id=str(story.id),
-        title=story.title or "Untitled",
+        title=story.title or STORY_UNTITLED,
         story_type=s_type,
         story_text=story.story_text,
         audio_path=story.audio_path,
