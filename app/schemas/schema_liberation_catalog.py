@@ -50,6 +50,20 @@ class BulkCreateLiberationRequest(BaseModel):
     definitions: list[CreateLiberationRequest] = Field(..., min_length=1)
 
 
+class UpdateLiberationRequest(BaseModel):
+    """Admin-only: update an existing liberation definition."""
+    title: Optional[str] = Field(None, min_length=3, max_length=300)
+    description: Optional[str] = Field(None, max_length=5000)
+    price_cents: Optional[int] = Field(None, ge=0)
+    currency: Optional[str] = Field(None, max_length=3)
+    cover_image_url: Optional[str] = None
+    is_active: Optional[bool] = None
+    rating: Optional[float] = Field(None, ge=0, le=5)
+    what_to_expect: Optional[list[str]] = None
+    setup_instructions: Optional[list[str]] = None
+    day_themes: Optional[list[str]] = None
+
+
 class ReviewLiberationRequest(BaseModel):
     """Admin action to approve or reject a user-submitted definition."""
     action: str = Field(..., pattern="^(approve|reject)$")
@@ -71,6 +85,10 @@ class LiberationDefinitionResponse(BaseModel):
     moderation_notes: Optional[str] = None
     is_active: bool
     created_at: datetime
+    cover_image_url: Optional[str] = None
+    rating: Optional[float] = None
+    what_to_expect: list[str] = []
+    setup_instructions: list[str] = []
     day_themes: list[DayThemeItem] = []
 
     class Config:

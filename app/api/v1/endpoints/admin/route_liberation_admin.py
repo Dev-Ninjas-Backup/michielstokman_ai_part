@@ -15,6 +15,7 @@ from app.model.user import User
 from app.data import liberation_catalog as catalog_data
 from app.schemas.schema_liberation_catalog import (
     CreateLiberationRequest,
+    UpdateLiberationRequest,
     BulkCreateLiberationRequest,
     ReviewLiberationRequest,
     LiberationDefinitionResponse,
@@ -42,6 +43,10 @@ def _definition_to_response(d) -> LiberationDefinitionResponse:
         moderation_notes=d.moderation_notes,
         is_active=d.is_active,
         created_at=d.created_at,
+        cover_image_url=d.cover_image_url,
+        rating=d.rating,
+        what_to_expect=d.what_to_expect or [],
+        setup_instructions=d.setup_instructions or [],
         day_themes=[
             DayThemeItem(day_number=dd.day_number, day_theme=dd.day_theme)
             for dd in d.day_definitions
@@ -223,3 +228,53 @@ def admin_deactivate_liberation(
         status="deactivated",
     )
     return success_response("Liberation deactivated", status.HTTP_200_OK, result)
+
+
+@router.patch(
+    "/admin/liberation/{definition_id}",
+    response_model=ApiResponse[LiberationDefinitionResponse],
+    summary="Admin: update an existing liberation journey",
+)
+def admin_update_liberation(
+    definition_id: str,
+    payload: UpdateLiberationRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_admin_user),
+):
+    definition = catalog_data.get_definition_by_id(db, definition_id)
+    if not definition:
+        raise HTTPException(status_code=404, detail="Liberation definition not found.")
+
+    # 1. Update basic fields
+    if payload.title is not None: definition.title = payload.title
+    if payload.description is not None: definition.description = payload.description
+    if payload.price_cents is not None: definition.price_cents = payload.price_cents
+    if payload.currency is not None: definition.currency = payload.currency
+    if payload.cover_image_url is not None: definition.cover_image_url = payload.cover_image_url
+    if payload.is_active is not None: definition.is_active = payload.is_active
+    if payload.rating is not None: definition.rating = payload.rating
+    if payload.what_to_expect is not None: definition.what_to_expect = payload.what_to_expect
+    if payload.setup_instructions is not None: definition.setup_instructions = payload.setup_instructions
+
+    # 2. Update day themes if provided
+    if payload.day_themes is not None:
+        if len(payload.day_themes) != definition.total_days:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"day_themes length ({len(payload.day_themes)}) must equal total_days ({definition.total_days}).",
+            )
+        
+        # Delete old days and insert new ones
+        from app.model.liberation import LiberationDayDefinition
+        db.query(LiberationDayDefinition).filter(LiberationDayDefinition.definition_id == definition.id).delete()
+        for i, theme in enumerate(payload.day_themes):
+            db.add(LiberationDayDefinition(
+                definition_id=definition.id,
+                day_number=i+1,
+                day_theme=theme
+            ))
+
+    db.commit()
+    db.refresh(definition)
+    
+    return success_response("Liberation updated successfully", status.HTTP_200_OK, _definition_to_response(definition))

@@ -55,14 +55,17 @@ def get_discovery_feed(
         for t in story_type:
             requested_types.extend([item.strip() for item in t.split(",") if item.strip()])
 
-    # 2. Calculate Hero Stats
     from app.model.user import User
     from app.model.profile import UserProfile
+    from app.model.story import Story
     user_count = db.query(User).count()
     country_count = db.query(func.count(func.distinct(UserProfile.country))).scalar() or 0
+    story_count = db.query(Story).filter(Story.generation_status == GenerationStatus.completed).count()
+    
     hero_stats = {
         "total_users": user_count,
-        "total_countries": country_count
+        "total_countries": country_count,
+        "total_stories_generated": story_count
     }
 
     # 3. Fetch approved stories for the grid
@@ -144,11 +147,16 @@ def get_credit_status(
     is_premium = credit_data.is_premium_user(db, str(current_user.id))
 
     from app.utils.messages import STORY_GENERATION_CREDIT_REMAINING, STORY_GENERATION_PREMIUM_UNLIMITED
+    from datetime import datetime, timedelta, timezone
+    
+    next_reset = (datetime.now(timezone.utc) + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+
     if is_premium:
         result = CreditStatusResponse(
             is_premium=True,
             daily_credits_remaining=-1,
             max_daily_credits=-1,
+            next_reset_at=None,
             message=STORY_GENERATION_PREMIUM_UNLIMITED,
         )
     else:
@@ -157,6 +165,7 @@ def get_credit_status(
             is_premium=False,
             daily_credits_remaining=credit.daily_credits_remaining,
             max_daily_credits=credit.max_daily_credits,
+            next_reset_at=next_reset,
             message=STORY_GENERATION_CREDIT_REMAINING.format(
                 remaining=credit.daily_credits_remaining,
                 max=credit.max_daily_credits

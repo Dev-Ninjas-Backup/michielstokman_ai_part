@@ -17,6 +17,7 @@ class StoryFeedItem(BaseModel):
 class HeroStats(BaseModel):
     total_users: int
     total_countries: int
+    total_stories_generated: int
 
 class DiscoveryFeedResponse(BaseModel):
     hero_stats: HeroStats
