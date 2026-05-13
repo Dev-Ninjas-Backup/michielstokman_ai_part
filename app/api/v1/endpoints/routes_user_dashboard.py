@@ -307,8 +307,12 @@ def get_story_detail(
         audio_path=story.audio_path,
         cover_image_url=cover_image_url,
         author_name=author_name,
+        voice_name=story.voice_name,
         track_id=story.track_id,
         high_intensity=story.high_intensity,
+        is_explicit=False, # Defaulting to false as per previous discovery feed logic
+        listened_count=story.views_count or 0,
+        audio_duration_seconds=story.audio_duration_seconds,
         created_at=story.created_at.isoformat(),
         avg_rating=avg_rating,
         avg_resonance=avg_resonance,

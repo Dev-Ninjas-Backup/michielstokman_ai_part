@@ -85,8 +85,12 @@ class StoryDetailUserResponse(BaseModel):
     audio_path: Optional[str] = None
     cover_image_url: Optional[str] = None  # Admin-managed category image
     author_name: Optional[str] = None
+    voice_name: Optional[str] = None
     track_id: Optional[str] = None
     high_intensity: bool = False
+    is_explicit: bool = False
+    listened_count: int = 0
+    audio_duration_seconds: Optional[int] = None
     created_at: str
 
     # Aggregated feedback stats (from StoryFeedback table)
