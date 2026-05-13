@@ -223,3 +223,51 @@ def list_payments_by_user(db: Session, user_id: UUID) -> list[PaymentTransaction
         .order_by(PaymentTransaction.created_at.desc())
         .all()
     )
+
+
+def get_admin_order_stats(db: Session) -> tuple[int, int]:
+    """Return (total_revenue_cents, total_orders) all-time."""
+    from sqlalchemy import func
+    stats = db.query(
+        func.sum(PaymentTransaction.amount_cents),
+        func.count(PaymentTransaction.id)
+    ).filter(
+        PaymentTransaction.status == PaymentStatus.succeeded
+    ).first()
+    
+    return int(stats[0] or 0), int(stats[1] or 0)
+
+
+def list_admin_orders(
+    db: Session, 
+    search: str | None = None, 
+    days_back: int | None = None,
+    limit: int = 50, 
+    offset: int = 0
+) -> tuple[list[Any], int]:
+    """Fetch paginated orders with filters for admin dashboard."""
+    from app.model.user import User
+    from sqlalchemy import desc
+
+    query = db.query(
+        PaymentTransaction.id,
+        SubscriptionPlan.name.label("plan_name"),
+        PaymentTransaction.amount_cents,
+        PaymentTransaction.currency,
+        User.email.label("user_email"),
+        PaymentTransaction.paid_at
+    ).join(User, PaymentTransaction.user_id == User.id)\
+     .join(SubscriptionPlan, PaymentTransaction.plan_id == SubscriptionPlan.id)\
+     .filter(PaymentTransaction.status == PaymentStatus.succeeded)
+
+    if search:
+        query = query.filter(SubscriptionPlan.name.ilike(f"%{search}%"))
+    
+    if days_back:
+        since = datetime.now(timezone.utc) - timedelta(days=days_back)
+        query = query.filter(PaymentTransaction.paid_at >= since)
+
+    total = query.count()
+    results = query.order_by(desc(PaymentTransaction.paid_at)).offset(offset).limit(limit).all()
+    
+    return results, total

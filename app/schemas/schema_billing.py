@@ -78,3 +78,21 @@ class CancelSubscriptionRequest(BaseModel):
 class CancelSubscriptionResponse(BaseModel):
     cancelled: bool
     status: Literal["cancelled", "none"]
+
+
+class AdminOrderListItem(BaseModel):
+    id: UUID4
+    plan_name: str
+    amount_cents: int
+    currency: str
+    user_email: str
+    paid_at: datetime | None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class AdminOrderHistoryResponse(BaseModel):
+    total_revenue_cents: int
+    total_orders: int
+    orders: list[AdminOrderListItem]
+    total_filtered: int
