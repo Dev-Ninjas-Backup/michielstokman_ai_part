@@ -14,10 +14,10 @@ class UserCreate(UserBase):
 class UserLogin(UserBase):
     password: str
 
-# Properties to receive via API for social login (Google/Apple)
+# Properties to receive via API for social login (Firebase)
 class SocialLoginRequest(BaseModel):
-    provider: str  # "google" or "apple"
-    token: str     # The id_token or JWT from the provider
+    provider: str  # "firebase"
+    token: str     # The id_token from Firebase Auth
 
 # Properties to return via API (Response)
 class UserResponse(UserBase):

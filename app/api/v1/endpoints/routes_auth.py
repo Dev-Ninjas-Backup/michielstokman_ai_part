@@ -95,8 +95,8 @@ async def login(request: Request, db: Session = Depends(get_db)):
 @router.post("/social-login", response_model=ApiResponse[Token])
 def social_login(payload: SocialLoginRequest, db: Session = Depends(get_db)):
     """
-    Login endpoint to securely authenticate Google/Apple users.
-    Pass 'provider' ("google" or "apple") and their 'token'.
+    Login endpoint to securely authenticate Firebase users.
+    Pass 'provider' ("firebase") and their 'id_token' from Firebase Auth.
     """
     token_payload = authenticate_social_user(db, provider=payload.provider, token=payload.token)
     return success_response("Login successful", status.HTTP_200_OK, token_payload)

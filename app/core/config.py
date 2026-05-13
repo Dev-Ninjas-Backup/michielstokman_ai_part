@@ -66,7 +66,20 @@ class Settings:
         
         # Social Auth
         self.GOOGLE_CLIENT_ID: str | None = os.getenv("GOOGLE_CLIENT_ID")
-        self.APPLE_CLIENT_ID: str | None = os.getenv("APPLE_CLIENT_ID")
+        self.FIREBASE_PROJECT_ID: str = os.getenv("FIREBASE_PROJECT_ID", "shejan-a82dd")
+        
+        # Firebase service account (from .env as base64-encoded JSON)
+        import base64
+        import json
+        firebase_service_account_b64 = os.getenv("FIREBASE_SERVICE_ACCOUNT_JSON", "")
+        if firebase_service_account_b64:
+            try:
+                firebase_json_str = base64.b64decode(firebase_service_account_b64).decode('utf-8')
+                self.FIREBASE_SERVICE_ACCOUNT_JSON = json.loads(firebase_json_str)
+            except Exception:
+                self.FIREBASE_SERVICE_ACCOUNT_JSON = None
+        else:
+            self.FIREBASE_SERVICE_ACCOUNT_JSON = None
 
     @property
     def DATABASE_URL(self) -> str:

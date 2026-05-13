@@ -117,18 +117,24 @@ def authenticate_social_user(db: Session, provider: str, token: str):
     email = None
     provider_account_id = None
     
-    if provider.lower() == "google":
-        if not settings.GOOGLE_CLIENT_ID:
-            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Google Auth not configured")
+    if provider.lower() == "firebase":
+        if not settings.FIREBASE_PROJECT_ID or not settings.FIREBASE_SERVICE_ACCOUNT_JSON:
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Firebase Auth not configured")
         try:
-            from google.oauth2 import id_token
-            from google.auth.transport import requests as google_requests
+            import firebase_admin
+            from firebase_admin import credentials, auth
             
-            user_info = id_token.verify_oauth2_token(token, google_requests.Request(), settings.GOOGLE_CLIENT_ID)
-            email = user_info.get('email')
-            provider_account_id = user_info['sub']
+            # Initialize Firebase app if not already done
+            if not firebase_admin._apps:
+                cred = credentials.Certificate(settings.FIREBASE_SERVICE_ACCOUNT_JSON)
+                firebase_admin.initialize_app(cred)
+            
+            # Verify the Firebase ID token
+            decoded_token = auth.verify_id_token(token)
+            email = decoded_token.get('email')
+            provider_account_id = decoded_token['uid']
         except Exception:
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid Google Token")
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid Firebase Token")
             
     elif provider.lower() == "apple":
         if not settings.APPLE_CLIENT_ID:

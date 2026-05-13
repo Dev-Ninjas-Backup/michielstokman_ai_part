@@ -16,3 +16,4 @@ requests>=2.32.5
 sqlalchemy>=2.0.48
 stripe>=15.0.1
 uvicorn[standard]>=0.42.0
+firebase-admin==6.2.0
