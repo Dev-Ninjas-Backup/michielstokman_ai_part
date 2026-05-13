@@ -14,7 +14,7 @@ import uuid
 import enum
 from datetime import datetime, timezone
 
-from sqlalchemy import Boolean, Column, String, Integer, DateTime, ForeignKey, Enum, Text
+from sqlalchemy import Boolean, Column, String, Integer, DateTime, ForeignKey, Enum, Text, Float, JSON
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 
@@ -76,6 +76,11 @@ class LiberationDefinition(Base):
     total_days = Column(Integer, nullable=False)                 # 7, 20, 30 …
     price_cents = Column(Integer, nullable=False, default=0)
     currency = Column(String, default="EUR", nullable=False)
+    
+    # Figma alignment fields
+    rating = Column(Float, nullable=True, default=4.8)
+    what_to_expect = Column(JSON, nullable=True)     # List of bullet points
+    setup_instructions = Column(JSON, nullable=True) # "Before You Begin" items
 
     # Who created it
     created_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, index=True)

@@ -112,6 +112,9 @@ class LiberationFeedCard(BaseModel):
     price_display: str
     price_cents: int
     total_days: int
+    rating: float = 4.8
+    what_to_expect: list[str] = []
+    setup_instructions: list[str] = []
     is_enrolled: bool = False
     current_day: Optional[int] = None
     journey_status: Optional[str] = None  # "active" | "completed" | None
