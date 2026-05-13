@@ -155,7 +155,25 @@ def admin_bulk_create_liberations(
     )
 
 
-# ── Admin: review queue ─────────────────────────────────────────────────────
+# ── Admin: review queue & full list ─────────────────────────────────────────
+
+@router.get(
+    "/admin/liberation",
+    response_model=ApiResponse[LiberationCatalogListResponse],
+    summary="Admin: list ALL liberation journeys (active and inactive, pending and approved)",
+)
+def admin_list_all(
+    limit: int = 50,
+    offset: int = 0,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_admin_user),
+):
+    definitions = catalog_data.list_all_definitions(db, limit=limit, offset=offset)
+    total = catalog_data.count_all_definitions(db)
+    items = [_definition_to_response(d) for d in definitions]
+    result = LiberationCatalogListResponse(definitions=items, total=total)
+    return success_response("All liberations fetched", status.HTTP_200_OK, result)
+
 
 @router.get(
     "/admin/liberation/pending",
