@@ -34,6 +34,10 @@ class CreateLiberationRequest(BaseModel):
     total_days: int = Field(..., ge=1, le=365)
     price_cents: int = Field(default=4700, ge=0)
     currency: str = Field(default="EUR", max_length=3)
+    # Visual / card fields — admin can set these on creation
+    rating: Optional[float] = Field(None, ge=0, le=5, description="Journey rating shown on the card")
+    what_to_expect: Optional[list[str]] = Field(None, description="Bullet points for 'What to Expect' section")
+    setup_instructions: Optional[list[str]] = Field(None, description="'Before You Begin' checklist items")
     day_themes: list[str] = Field(
         ...,
         min_length=1,

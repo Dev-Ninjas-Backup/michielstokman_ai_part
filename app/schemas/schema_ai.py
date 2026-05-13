@@ -32,6 +32,7 @@ class ResonanceRequest(BaseModel):
     """
     track_id: str = Field(..., description="The ID of the story/track the user listened to")
     touch_score: float = Field(..., description="Slider value 0-10 (How much did this touch you?)")
+    star_rating: Optional[float] = Field(None, ge=0, le=5, description="Star rating 0-5 from the Resonance Reflection screen")
     resonance_tags: List[str] = Field(
         default_factory=list, 
         description="Markers selected, e.g. ['Voice', 'Energy Shift', 'Didn't Connect']"

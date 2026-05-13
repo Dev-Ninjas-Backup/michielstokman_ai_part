@@ -77,6 +77,9 @@ def create_definition(
     created_by: UUID,
     is_admin_created: bool,
     day_themes: list[str],
+    rating: Optional[float] = None,
+    what_to_expect: Optional[list] = None,
+    setup_instructions: Optional[list] = None,
 ) -> LiberationDefinition:
     """
     Create a new liberation definition together with its day-theme rows.
@@ -94,6 +97,9 @@ def create_definition(
         moderation_status=(
             DefinitionStatus.approved if is_admin_created else DefinitionStatus.pending
         ),
+        rating=rating,
+        what_to_expect=what_to_expect,
+        setup_instructions=setup_instructions,
     )
     db.add(definition)
     db.flush()  # get definition.id

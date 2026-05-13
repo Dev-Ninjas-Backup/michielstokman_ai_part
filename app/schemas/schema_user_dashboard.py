@@ -15,7 +15,7 @@ class StoryFeedItem(BaseModel):
     is_explicit: bool = False
 
 class HeroStats(BaseModel):
-    total_users: str
+    total_users: int
     total_countries: int
 
 class DiscoveryFeedResponse(BaseModel):

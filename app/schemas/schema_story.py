@@ -83,6 +83,8 @@ class StoryDetailUserResponse(BaseModel):
     story_type: str
     story_text: Optional[str] = None
     audio_path: Optional[str] = None
+    cover_image_url: Optional[str] = None  # Admin-managed category image
+    author_name: Optional[str] = None
     track_id: Optional[str] = None
     high_intensity: bool = False
     created_at: str

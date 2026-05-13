@@ -59,7 +59,7 @@ def get_voice_review_list(
                 id=story.id,
                 title=story.title or "Untitled",
                 story_type=display_type,
-                voice_name=story.voice_name or "Aria (Warm)",
+                voice_name=story.voice_name,
                 audio_duration=duration_str,
                 created_at=story.created_at.strftime("%d %b %y"),  # format to "12 Jan 26"
                 audio_path=story.audio_path,

@@ -61,7 +61,7 @@ def get_discovery_feed(
     user_count = db.query(User).count()
     country_count = db.query(func.count(func.distinct(UserProfile.country))).scalar() or 0
     hero_stats = {
-        "total_users": f"{user_count:,}",
+        "total_users": user_count,
         "total_countries": country_count
     }
 
@@ -269,12 +269,29 @@ def get_story_detail(
 
     top_tags = sorted(tag_counts, key=tag_counts.get, reverse=True)[:5]
 
+    # --- Resolve admin-managed cover image for this story type ---
+    from app.data import cover_image as cover_data
+    from app.model.cover_image import CoverImageType
+    s_type = story.story_type.value if story.story_type else "confession"
+    try:
+        cover_type = CoverImageType(s_type)
+        cover_image_url = cover_data.get_latest_active_image_url(db, cover_type)
+    except (ValueError, Exception):
+        cover_image_url = None
+
+    # --- Resolve author name ---
+    author_name = None
+    if story.user:
+        author_name = story.user.email
+
     result = StoryDetailUserResponse(
         id=str(story.id),
         title=story.title or "Untitled",
-        story_type=story.story_type.value if story.story_type else "story",
+        story_type=s_type,
         story_text=story.story_text,
         audio_path=story.audio_path,
+        cover_image_url=cover_image_url,
+        author_name=author_name,
         track_id=story.track_id,
         high_intensity=story.high_intensity,
         created_at=story.created_at.isoformat(),

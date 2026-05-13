@@ -17,6 +17,7 @@ class UserProfileBase(BaseModel):
     # Step 2: Life Phase & Bio
     life_phase: Optional[str] = None
     bio: Optional[str] = None
+    profile_image_url: Optional[str] = None  # Avatar URL
 
     # Step 3: Priorities (Slider values)
     slider_desire_relationship: Optional[float] = None

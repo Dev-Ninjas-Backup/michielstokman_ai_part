@@ -86,6 +86,9 @@ def admin_create_liberation(
         created_by=current_user.id,
         is_admin_created=True,
         day_themes=payload.day_themes,
+        rating=payload.rating,
+        what_to_expect=payload.what_to_expect,
+        setup_instructions=payload.setup_instructions,
     )
     result = _definition_to_response(definition)
     return success_response("Liberation created successfully", status.HTTP_201_CREATED, result)
@@ -129,6 +132,9 @@ def admin_bulk_create_liberations(
             created_by=current_user.id,
             is_admin_created=True,
             day_themes=item.day_themes,
+            rating=item.rating,
+            what_to_expect=item.what_to_expect,
+            setup_instructions=item.setup_instructions,
         )
         results.append(_definition_to_response(definition))
 

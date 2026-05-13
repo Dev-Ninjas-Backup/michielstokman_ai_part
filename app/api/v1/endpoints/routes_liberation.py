@@ -166,7 +166,7 @@ def get_feed_card(
 ):
     """
     Returns the premium journey card to inject into the story discovery grid.
-    - If user is NOT enrolled: shows €47 price + 'Begin Your Liberation' CTA.
+    - If user is NOT enrolled: shows price + 'Begin Your Liberation' CTA.
     - If user IS enrolled: shows current progress + 'Continue' CTA.
     """
     result = LiberationService.get_feed_card(db, current_user.id)

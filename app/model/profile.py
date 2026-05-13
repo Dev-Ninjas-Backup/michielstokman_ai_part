@@ -25,6 +25,7 @@ class UserProfile(Base):
     # Step 2: Life Phase & Bio
     life_phase = Column(String, nullable=True)
     bio = Column(String, nullable=True)
+    profile_image_url = Column(String, nullable=True)  # Avatar image URL
 
     # Step 3: Priorities (Slider values, e.g., 0-5 or 0-10)
     slider_desire_relationship = Column(Float, nullable=True)
