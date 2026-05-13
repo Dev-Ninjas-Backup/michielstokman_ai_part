@@ -141,14 +141,31 @@ class LiberationService:
         if journey.definition:
             journey_title = journey.definition.title
 
-        # Generate AI content
-        greeting, exercise_text, why_text = LiberationService._generate_exercise_content(
-            journey_title=journey_title,
-            total_days=journey.total_days,
-            day_number=day,
-            day_theme=step.day_theme or JOURNEY_DAY_THEMES.get(day, f"Day {day}"),
-            morning_feeling=morning_feeling,
-        )
+        # Check if there is pre-written content for this day
+        pre_written_exercise = None
+        pre_written_why = None
+        if journey.definition and journey.definition.day_definitions:
+            for d_def in journey.definition.day_definitions:
+                if d_def.day_number == day:
+                    pre_written_exercise = d_def.exercise_text
+                    pre_written_why = d_def.why_text
+                    break
+        
+        if pre_written_exercise and pre_written_why:
+            from app.utils.messages import AI_FALLBACK_GREETING
+            theme = step.day_theme or f"Day {day}"
+            greeting = AI_FALLBACK_GREETING.format(day=day, theme=theme)
+            exercise_text = pre_written_exercise
+            why_text = pre_written_why
+        else:
+            # Generate AI content
+            greeting, exercise_text, why_text = LiberationService._generate_exercise_content(
+                journey_title=journey_title,
+                total_days=journey.total_days,
+                day_number=day,
+                day_theme=step.day_theme or JOURNEY_DAY_THEMES.get(day, f"Day {day}"),
+                morning_feeling=morning_feeling,
+            )
 
         # Save everything to the step
         lib_data.save_ai_content(db, step, greeting, exercise_text, why_text)

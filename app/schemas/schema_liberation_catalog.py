@@ -12,9 +12,16 @@ from pydantic import BaseModel, Field
 
 # ── Day theme (used inside requests and responses) ──────────────────────────
 
+class DayDefinitionInput(BaseModel):
+    title: str = Field(..., description="Corresponds to the day's theme/title")
+    exercise_text: Optional[str] = Field(None, description="What to do")
+    why_text: Optional[str] = Field(None, description="Why this exercise")
+
 class DayThemeItem(BaseModel):
     day_number: int
     day_theme: str
+    exercise_text: Optional[str] = None
+    why_text: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -38,10 +45,10 @@ class CreateLiberationRequest(BaseModel):
     rating: Optional[float] = Field(None, ge=0, le=5, description="Journey rating shown on the card")
     what_to_expect: Optional[list[str]] = Field(None, description="Bullet points for 'What to Expect' section")
     setup_instructions: Optional[list[str]] = Field(None, description="'Before You Begin' checklist items")
-    day_themes: list[str] = Field(
+    days: list[DayDefinitionInput] = Field(
         ...,
         min_length=1,
-        description="Ordered list of themes, one per day. Length MUST equal total_days.",
+        description="Ordered list of day definitions. Length MUST equal total_days.",
     )
 
 
@@ -61,7 +68,7 @@ class UpdateLiberationRequest(BaseModel):
     rating: Optional[float] = Field(None, ge=0, le=5)
     what_to_expect: Optional[list[str]] = None
     setup_instructions: Optional[list[str]] = None
-    day_themes: Optional[list[str]] = None
+    days: Optional[list[DayDefinitionInput]] = None
 
 
 class ReviewLiberationRequest(BaseModel):
@@ -89,7 +96,7 @@ class LiberationDefinitionResponse(BaseModel):
     rating: Optional[float] = None
     what_to_expect: list[str] = []
     setup_instructions: list[str] = []
-    day_themes: list[DayThemeItem] = []
+    days: list[DayThemeItem] = []
 
     class Config:
         from_attributes = True

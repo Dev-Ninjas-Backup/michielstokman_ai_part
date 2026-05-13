@@ -135,6 +135,8 @@ class LiberationDayDefinition(Base):
 
     day_number = Column(Integer, nullable=False)   # 1 … N
     day_theme = Column(String, nullable=False)      # "Awakening", "Grounding", etc.
+    exercise_text = Column(Text, nullable=True)     # "What to do" (Pre-written by admin)
+    why_text = Column(Text, nullable=True)          # "Why this exercise" (Pre-written by admin)
 
     # Relationships
     definition = relationship("LiberationDefinition", back_populates="day_definitions")
