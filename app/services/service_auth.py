@@ -117,7 +117,7 @@ def authenticate_social_user(db: Session, provider: str, token: str):
     email = None
     provider_account_id = None
     
-    if provider.lower() == "firebase":
+    if provider.lower() in ["firebase", "google", "apple"]:
         if not settings.FIREBASE_PROJECT_ID or not settings.FIREBASE_SERVICE_ACCOUNT_JSON:
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Firebase Auth not configured")
         try:
@@ -133,51 +133,10 @@ def authenticate_social_user(db: Session, provider: str, token: str):
             decoded_token = auth.verify_id_token(token)
             email = decoded_token.get('email')
             provider_account_id = decoded_token['uid']
-        except Exception:
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid Firebase Token")
-            
-    elif provider.lower() == "apple":
-        if not settings.APPLE_CLIENT_ID:
-            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Apple Auth not configured")
-        try:
-            import jwt 
-            import requests
-            from jwt.algorithms import RSAAlgorithm
-            
-            # Extract header securely to get Apple's Key ID (kid)
-            unverified_header = jwt.get_unverified_header(token)
-            kid = unverified_header.get("kid")
-            if not kid:
-                raise ValueError("No kid found in Apple token header")
-                
-            # Fetch Apple's public signature keys
-            jwks_response = requests.get("https://appleid.apple.com/auth/keys", timeout=5)
-            jwks_response.raise_for_status()
-            apple_keys = jwks_response.json().get("keys", [])
-            
-            # Find the matching RSA key used to sign this token
-            matched_key = next((key for key in apple_keys if key.get("kid") == kid), None)
-            if not matched_key:
-                raise ValueError("Apple public key mismatch")
-                
-            # Convert JSON Web Key to a standard RSA Public Key
-            public_key = RSAAlgorithm.from_jwk(matched_key)
-            
-            # Fully and securely verify the token's cryptographic signature
-            verified_payload = jwt.decode(
-                token,
-                public_key,
-                algorithms=["RS256"],
-                audience=settings.APPLE_CLIENT_ID,
-                issuer="https://appleid.apple.com"
-            )
-            
-            email = verified_payload.get("email")
-            provider_account_id = verified_payload.get("sub")
-            if not provider_account_id:
-                raise ValueError("No subscriber ID found")
-        except Exception:
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid Apple Token")
+        except Exception as e:
+            import logging
+            logging.error(f"Firebase auth error: {e}")
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=f"Invalid Firebase Token: {str(e)}")
             
     else:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Unsupported provider")
