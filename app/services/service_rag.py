@@ -39,8 +39,8 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
-EMBEDDING_MODEL = "v1"                     # xAI embedding model name
-EMBEDDING_DIMENSION = 2048                  # xAI default embedding dimension
+EMBEDDING_MODEL = "grok-embedding-small"     # xAI embedding model name
+EMBEDDING_DIMENSION = 1024                   # xAI default embedding dimension
 PINECONE_METRIC = "cosine"
 TOP_K = 5
 
