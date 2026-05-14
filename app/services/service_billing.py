@@ -185,13 +185,13 @@ class BillingService:
         subscription_status = None
 
         if event_type == "checkout.session.completed":
-            provider_payment_id = data.get("id")
+            provider_payment_id = data.id
             payment = get_payment_by_provider_payment_id(db, provider_payment_id)
             if payment:
                 payment = update_payment_status(db, payment, PaymentStatus.succeeded)
                 
-                if data.get("mode") == "subscription":
-                    subscription_id = data.get("subscription")
+                if getattr(data, "mode", None) == "subscription":
+                    subscription_id = getattr(data, "subscription", None)
                     subscription = upsert_active_subscription(
                         db,
                         user_id=payment.user_id,
@@ -204,7 +204,7 @@ class BillingService:
                 return {"processed": True, "payment_status": payment.status.value, "subscription_status": subscription_status}
 
         elif event_type in ("checkout.session.expired", "checkout.session.async_payment_failed"):
-            provider_payment_id = data.get("id")
+            provider_payment_id = data.id
             payment = get_payment_by_provider_payment_id(db, provider_payment_id)
             if payment:
                 payment = update_payment_status(db, payment, PaymentStatus.failed, failure_reason="Session failed or expired.")
