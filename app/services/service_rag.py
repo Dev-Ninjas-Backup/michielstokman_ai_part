@@ -39,8 +39,8 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
-EMBEDDING_MODEL = "v1"                     # xAI embedding model name
-EMBEDDING_DIMENSION = 2048                  # xAI default embedding dimension
+EMBEDDING_MODEL = "grok-embedding-small"     # xAI embedding model name
+EMBEDDING_DIMENSION = 1024                   # xAI default embedding dimension
 PINECONE_METRIC = "cosine"
 TOP_K = 5
 
@@ -104,10 +104,12 @@ def _build_document_text(story: Story) -> str:
         parts.append(f"Story: {story.story_text}")
     if story.life_phase:
         parts.append(f"Life Phase: {story.life_phase}")
-    if story.emotional_context:
-        parts.append(f"Emotional Context: {json.dumps(story.emotional_context)}")
-    if story.deepest_desire_fear:
-        parts.append(f"Deepest Desire/Fear: {story.deepest_desire_fear}")
+    if story.growth_areas:
+        parts.append(f"Growth Areas: {json.dumps(story.growth_areas)}")
+    if story.story_input:
+        parts.append(f"Original Input: {story.story_input}")
+    if story.tags:
+        parts.append(f"Tags: {json.dumps(story.tags)}")
     return "\n".join(parts)
 
 

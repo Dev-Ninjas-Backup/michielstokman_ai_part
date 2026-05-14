@@ -3,6 +3,7 @@ from sqlalchemy import func, desc, select, Float
 from datetime import datetime, timedelta, timezone
 
 from app.model.story import Story
+from app.model.user import User
 from app.model.liberation import UserJourney, JourneyStatus
 
 def calculate_delta(current: float, previous: float, is_absolute_diff: bool = False) -> dict:

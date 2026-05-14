@@ -53,6 +53,8 @@ def list_catalog(
             moderation_notes=d.moderation_notes,
             is_active=d.is_active,
             created_at=d.created_at,
+            what_to_expect=d.what_to_expect or [],
+            setup_instructions=d.setup_instructions or [],
             day_themes=[
                 DayThemeItem(day_number=dd.day_number, day_theme=dd.day_theme)
                 for dd in d.day_definitions
@@ -92,6 +94,8 @@ def get_catalog_item(
         moderation_notes=definition.moderation_notes,
         is_active=definition.is_active,
         created_at=definition.created_at,
+        what_to_expect=definition.what_to_expect or [],
+        setup_instructions=definition.setup_instructions or [],
         day_themes=[
             DayThemeItem(day_number=dd.day_number, day_theme=dd.day_theme)
             for dd in definition.day_definitions
