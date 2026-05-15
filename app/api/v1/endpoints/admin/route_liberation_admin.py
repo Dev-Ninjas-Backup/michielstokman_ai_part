@@ -90,7 +90,7 @@ def admin_create_liberation(
         currency=payload.currency,
         created_by=current_user.id,
         is_admin_created=True,
-        days=payload.days,
+        days=payload.get_days_list(),
         rating=payload.rating,
         what_to_expect=payload.what_to_expect,
         setup_instructions=payload.setup_instructions,
@@ -131,7 +131,7 @@ def admin_bulk_create_liberations(
             currency=item.currency,
             created_by=current_user.id,
             is_admin_created=True,
-            days=item.days,
+            days=item.get_days_list(),
             rating=item.rating,
             what_to_expect=item.what_to_expect,
             setup_instructions=item.setup_instructions,
@@ -269,20 +269,30 @@ def admin_update_liberation(
     if payload.what_to_expect is not None: definition.what_to_expect = payload.what_to_expect
     if payload.setup_instructions is not None: definition.setup_instructions = payload.setup_instructions
 
-    # 2. Update day themes if provided (Schema enforces exactly 7 days)
-    if payload.days is not None:
-        
-        # Delete old days and insert new ones
+    # 2. Update day themes if any are provided
+    days_to_update = payload.get_days_dict()
+    if days_to_update:
         from app.model.liberation import LiberationDayDefinition
-        db.query(LiberationDayDefinition).filter(LiberationDayDefinition.definition_id == definition.id).delete()
-        for i, day_def_input in enumerate(payload.days):
-            db.add(LiberationDayDefinition(
-                definition_id=definition.id,
-                day_number=i+1,
-                day_theme=day_def_input.title,
-                exercise_text=day_def_input.exercise_text,
-                why_text=day_def_input.why_text
-            ))
+        
+        for day_num, day_input in days_to_update.items():
+            # Update specific day or insert if missing (though journeys should have all 7)
+            existing_day = db.query(LiberationDayDefinition).filter(
+                LiberationDayDefinition.definition_id == definition.id,
+                LiberationDayDefinition.day_number == day_num
+            ).first()
+
+            if existing_day:
+                existing_day.day_theme = day_input.title
+                existing_day.exercise_text = day_input.exercise_text
+                existing_day.why_text = day_input.why_text
+            else:
+                db.add(LiberationDayDefinition(
+                    definition_id=definition.id,
+                    day_number=day_num,
+                    day_theme=day_input.title,
+                    exercise_text=day_input.exercise_text,
+                    why_text=day_input.why_text
+                ))
 
     db.commit()
     db.refresh(definition)

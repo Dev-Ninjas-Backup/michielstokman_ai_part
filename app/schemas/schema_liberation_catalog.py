@@ -44,12 +44,17 @@ class CreateLiberationRequest(BaseModel):
     rating: Optional[float] = Field(None, ge=0, le=5, description="Journey rating shown on the card")
     what_to_expect: Optional[list[str]] = Field(None, description="Bullet points for 'What to Expect' section")
     setup_instructions: Optional[list[str]] = Field(None, description="'Before You Begin' checklist items")
-    days: list[DayDefinitionInput] = Field(
-        ...,
-        min_length=7,
-        max_length=7,
-        description="Ordered list of day definitions. MUST be exactly 7 days.",
-    )
+    
+    day_1: DayDefinitionInput
+    day_2: DayDefinitionInput
+    day_3: DayDefinitionInput
+    day_4: DayDefinitionInput
+    day_5: DayDefinitionInput
+    day_6: DayDefinitionInput
+    day_7: DayDefinitionInput
+
+    def get_days_list(self) -> list[DayDefinitionInput]:
+        return [self.day_1, self.day_2, self.day_3, self.day_4, self.day_5, self.day_6, self.day_7]
 
 
 class BulkCreateLiberationRequest(BaseModel):
@@ -68,7 +73,25 @@ class UpdateLiberationRequest(BaseModel):
     rating: Optional[float] = Field(None, ge=0, le=5)
     what_to_expect: Optional[list[str]] = None
     setup_instructions: Optional[list[str]] = None
-    days: Optional[list[DayDefinitionInput]] = Field(None, min_length=7, max_length=7)
+    day_1: Optional[DayDefinitionInput] = None
+    day_2: Optional[DayDefinitionInput] = None
+    day_3: Optional[DayDefinitionInput] = None
+    day_4: Optional[DayDefinitionInput] = None
+    day_5: Optional[DayDefinitionInput] = None
+    day_6: Optional[DayDefinitionInput] = None
+    day_7: Optional[DayDefinitionInput] = None
+
+    def get_days_dict(self) -> dict[int, DayDefinitionInput]:
+        """Returns a map of day_number -> input if provided."""
+        mapping = {}
+        if self.day_1: mapping[1] = self.day_1
+        if self.day_2: mapping[2] = self.day_2
+        if self.day_3: mapping[3] = self.day_3
+        if self.day_4: mapping[4] = self.day_4
+        if self.day_5: mapping[5] = self.day_5
+        if self.day_6: mapping[6] = self.day_6
+        if self.day_7: mapping[7] = self.day_7
+        return mapping
 
 
 class ReviewLiberationRequest(BaseModel):
