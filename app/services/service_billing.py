@@ -18,7 +18,10 @@ from app.data.billing import (
     update_payment_status,
     upsert_active_subscription,
 )
-from app.data.liberation_catalog import get_definition_by_id as get_journey_by_id
+from app.data.liberation_catalog import (
+    get_definition_by_id as get_journey_by_id,
+    get_definition_by_code as get_journey_by_code,
+)
 from app.data.user import get_user_by_id
 from app.model.billing import PaymentStatus, SubscriptionInterval, SubscriptionStatus
 
@@ -86,22 +89,34 @@ class BillingService:
         ]
 
     @staticmethod
-    def start_checkout(db: Session, user_id: UUID, provider: str, plan_id: UUID | None = None, journey_id: UUID | None = None):
+    def start_checkout(
+        db: Session, 
+        user_id: UUID, 
+        provider: str, 
+        plan_id: UUID | None = None, 
+        journey_id: UUID | None = None,
+        journey_code: str | None = None
+    ):
         user = get_user_by_id(db, str(user_id))
         if not user:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
-        if journey_id:
+        if journey_code:
+            journey = get_journey_by_code(db, journey_code)
+            if not journey:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Journey code not found")
+            plan = BillingService.get_or_create_plan_for_journey(db, journey)
+        elif journey_id:
             journey = get_journey_by_id(db, journey_id)
             if not journey:
-                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Journey not found")
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Journey ID not found")
             plan = BillingService.get_or_create_plan_for_journey(db, journey)
         elif plan_id:
             plan = get_plan_by_id(db, plan_id)
             if not plan:
                 raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Plan not found")
         else:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Either plan_id or journey_id must be provided")
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Either plan_id, journey_id, or journey_code must be provided")
 
         import stripe
         from app.core.config import settings
