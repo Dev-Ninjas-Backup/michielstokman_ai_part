@@ -78,6 +78,10 @@ class ReviewLiberationRequest(BaseModel):
 
 # ── Responses ───────────────────────────────────────────────────────────────
 
+class SetLiberationActiveRequest(BaseModel):
+    is_active: bool
+
+
 class LiberationDefinitionResponse(BaseModel):
     id: UUID
     journey_code: str

@@ -23,6 +23,7 @@ from app.schemas.schema_liberation_catalog import (
     LiberationCatalogListResponse,
     LiberationReviewResponse,
     DayThemeItem,
+    SetLiberationActiveRequest,
 )
 
 router = APIRouter()
@@ -234,12 +235,13 @@ def admin_review_liberation(
         return success_response("Liberation rejected", status.HTTP_200_OK, result)
 
 @router.post(
-    "/admin/liberation/{definition_id}/toggle-active",
+    "/admin/liberation/{definition_id}/set-active",
     response_model=ApiResponse[LiberationReviewResponse],
-    summary="Admin: toggle liberation active/inactive status",
+    summary="Admin: set liberation active/inactive status",
 )
-def admin_toggle_liberation_active(
+def admin_set_liberation_active(
     definition_id: str,
+    payload: SetLiberationActiveRequest,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_admin_user),
 ):
@@ -247,13 +249,11 @@ def admin_toggle_liberation_active(
     if not definition:
         raise HTTPException(status_code=404, detail="Liberation definition not found.")
 
-    # Toggle the status
-    new_status = not definition.is_active
-    definition.is_active = new_status
+    definition.is_active = payload.is_active
     db.commit()
     db.refresh(definition)
 
-    status_str = "activated" if new_status else "deactivated"
+    status_str = "activated" if payload.is_active else "deactivated"
     result = LiberationReviewResponse(
         message=f"Liberation {status_str}.",
         definition_id=definition.id,
