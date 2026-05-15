@@ -85,12 +85,12 @@ def admin_create_liberation(
         journey_code=payload.journey_code,
         title=payload.title,
         description=payload.description,
-        total_days=7,
+        total_days=payload.total_days,
         price_cents=payload.price_cents,
         currency=payload.currency,
         created_by=current_user.id,
         is_admin_created=True,
-        days=payload.get_days_list(),
+        days=payload.days,
         rating=payload.rating,
         what_to_expect=payload.what_to_expect,
         setup_instructions=payload.setup_instructions,
@@ -126,12 +126,12 @@ def admin_bulk_create_liberations(
             journey_code=item.journey_code,
             title=item.title,
             description=item.description,
-            total_days=7,
+            total_days=item.total_days,
             price_cents=item.price_cents,
             currency=item.currency,
             created_by=current_user.id,
             is_admin_created=True,
-            days=item.get_days_list(),
+            days=item.days,
             rating=item.rating,
             what_to_expect=item.what_to_expect,
             setup_instructions=item.setup_instructions,
@@ -269,12 +269,11 @@ def admin_update_liberation(
     if payload.what_to_expect is not None: definition.what_to_expect = payload.what_to_expect
     if payload.setup_instructions is not None: definition.setup_instructions = payload.setup_instructions
 
-    # 2. Update day themes if any are provided
-    days_to_update = payload.get_days_dict()
-    if days_to_update:
+    # 2. Update day themes if provided
+    if payload.days:
         from app.model.liberation import LiberationDayDefinition
         
-        for _, day_input in days_to_update.items():
+        for day_input in payload.days:
             # Update specific day or insert if missing
             existing_day = db.query(LiberationDayDefinition).filter(
                 LiberationDayDefinition.definition_id == definition.id,
