@@ -44,6 +44,7 @@ def admin_get_order_history(
             id=r.id,
             plan_name=r.plan_name,
             amount_cents=r.amount_cents,
+            amount=r.amount_cents / 100.0,
             currency=r.currency,
             user_email=r.user_email,
             paid_at=r.paid_at
@@ -53,6 +54,7 @@ def admin_get_order_history(
     
     data = AdminOrderHistoryResponse(
         total_revenue_cents=total_revenue,
+        total_revenue=total_revenue / 100.0,
         total_orders=total_orders,
         orders=orders,
         total_filtered=total_filtered

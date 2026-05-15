@@ -10,6 +10,7 @@ class SubscriptionPlanResponse(BaseModel):
     name: str
     description: str | None = None
     price_cents: int
+    price: float
     currency: str
     interval_unit: Literal["month", "year"]
     interval_count: int
@@ -50,6 +51,7 @@ class PaymentHistoryItem(BaseModel):
     provider: str
     provider_payment_id: str
     amount_cents: int
+    amount: float
     currency: str
     status: Literal["pending", "succeeded", "failed", "refunded"]
     checkout_status: str
@@ -84,6 +86,7 @@ class AdminOrderListItem(BaseModel):
     id: UUID4
     plan_name: str
     amount_cents: int
+    amount: float
     currency: str
     user_email: str
     paid_at: datetime | None
@@ -93,6 +96,7 @@ class AdminOrderListItem(BaseModel):
 
 class AdminOrderHistoryResponse(BaseModel):
     total_revenue_cents: int
+    total_revenue: float
     total_orders: int
     orders: list[AdminOrderListItem]
     total_filtered: int
