@@ -166,6 +166,13 @@ def reject_definition(
     return definition
 
 
+def activate_definition(db: Session, definition: LiberationDefinition) -> LiberationDefinition:
+    definition.is_active = True
+    db.commit()
+    db.refresh(definition)
+    return definition
+
+
 def deactivate_definition(db: Session, definition: LiberationDefinition) -> LiberationDefinition:
     definition.is_active = False
     db.commit()

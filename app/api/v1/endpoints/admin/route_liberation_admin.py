@@ -233,15 +233,12 @@ def admin_review_liberation(
         )
         return success_response("Liberation rejected", status.HTTP_200_OK, result)
 
-
-# ── Admin: deactivate ──────────────────────────────────────────────────────
-
 @router.post(
-    "/admin/liberation/{definition_id}/deactivate",
+    "/admin/liberation/{definition_id}/toggle-active",
     response_model=ApiResponse[LiberationReviewResponse],
-    summary="Admin: deactivate a liberation (remove from storefront)",
+    summary="Admin: toggle liberation active/inactive status",
 )
-def admin_deactivate_liberation(
+def admin_toggle_liberation_active(
     definition_id: str,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_admin_user),
@@ -250,13 +247,19 @@ def admin_deactivate_liberation(
     if not definition:
         raise HTTPException(status_code=404, detail="Liberation definition not found.")
 
-    catalog_data.deactivate_definition(db, definition)
+    # Toggle the status
+    new_status = not definition.is_active
+    definition.is_active = new_status
+    db.commit()
+    db.refresh(definition)
+
+    status_str = "activated" if new_status else "deactivated"
     result = LiberationReviewResponse(
-        message="Liberation deactivated.",
+        message=f"Liberation {status_str}.",
         definition_id=definition.id,
-        status="deactivated",
+        status=status_str,
     )
-    return success_response("Liberation deactivated", status.HTTP_200_OK, result)
+    return success_response(f"Liberation {status_str}", status.HTTP_200_OK, result)
 
 
 @router.patch(
