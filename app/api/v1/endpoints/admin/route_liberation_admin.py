@@ -74,8 +74,8 @@ def admin_create_liberation(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_admin_user),
 ):
-    # 1. Resolve / generate unique journey_code
-    j_code = payload.journey_code or generate_slug(payload.title)
+    # 1. Generate unique journey_code from title
+    j_code = generate_slug(payload.title)
     
     # Simple uniqueness check & suffix if needed
     base_code = j_code
@@ -118,8 +118,8 @@ def admin_bulk_create_liberations(
 ):
     results = []
     for item in payload.definitions:
-        # 1. Resolve / generate unique journey_code
-        j_code = item.journey_code or generate_slug(item.title)
+        # 1. Generate unique journey_code from title
+        j_code = generate_slug(item.title)
         
         base_code = j_code
         counter = 1

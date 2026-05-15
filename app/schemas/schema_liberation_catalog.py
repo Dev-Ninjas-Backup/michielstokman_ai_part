@@ -36,7 +36,6 @@ class CreateLiberationRequest(BaseModel):
     The caller only needs to provide the journey blueprint;
     the route decides if it is auto-approved (admin) or pending (user).
     """
-    journey_code: Optional[str] = Field(None, min_length=2, max_length=100, example="inner_peace")
     title: str = Field(..., min_length=3, max_length=300, example="The Path to Inner Peace")
     description: Optional[str] = Field(None, max_length=5000)
     price_cents: int = Field(default=4700, ge=0)
