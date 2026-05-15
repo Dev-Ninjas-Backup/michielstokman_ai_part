@@ -12,6 +12,7 @@ from app.api.deps import get_current_admin_user
 from app.core.db import get_db
 from app.core.responses import ApiResponse, success_response
 from app.model.user import User
+from app.utils.slug import generate_slug
 from app.data import liberation_catalog as catalog_data
 from app.schemas.schema_liberation_catalog import (
     CreateLiberationRequest,
@@ -73,16 +74,19 @@ def admin_create_liberation(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_admin_user),
 ):
-    existing = catalog_data.get_definition_by_code(db, payload.journey_code)
-    if existing:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=f"A liberation with code '{payload.journey_code}' already exists.",
-        )
+    # 1. Resolve / generate unique journey_code
+    j_code = payload.journey_code or generate_slug(payload.title)
+    
+    # Simple uniqueness check & suffix if needed
+    base_code = j_code
+    counter = 1
+    while catalog_data.get_definition_by_code(db, j_code):
+        j_code = f"{base_code}-{counter}"
+        counter += 1
 
     definition = catalog_data.create_definition(
         db=db,
-        journey_code=payload.journey_code,
+        journey_code=j_code,
         title=payload.title,
         description=payload.description,
         total_days=payload.total_days,
@@ -114,16 +118,18 @@ def admin_bulk_create_liberations(
 ):
     results = []
     for item in payload.definitions:
-        existing = catalog_data.get_definition_by_code(db, item.journey_code)
-        if existing:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail=f"A liberation with code '{item.journey_code}' already exists.",
-            )
+        # 1. Resolve / generate unique journey_code
+        j_code = item.journey_code or generate_slug(item.title)
+        
+        base_code = j_code
+        counter = 1
+        while catalog_data.get_definition_by_code(db, j_code):
+            j_code = f"{base_code}-{counter}"
+            counter += 1
 
         definition = catalog_data.create_definition(
             db=db,
-            journey_code=item.journey_code,
+            journey_code=j_code,
             title=item.title,
             description=item.description,
             total_days=item.total_days,
