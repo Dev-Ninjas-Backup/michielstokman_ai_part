@@ -120,10 +120,10 @@ def create_definition(
     db.add(definition)
     db.flush()  # get definition.id
 
-    for idx, day_def_input in enumerate(days, start=1):
+    for day_def_input in days:
         day_def = LiberationDayDefinition(
             definition_id=definition.id,
-            day_number=idx,
+            day_number=day_def_input.day,
             day_theme=day_def_input.title,
             exercise_text=day_def_input.exercise_text,
             why_text=day_def_input.why_text,

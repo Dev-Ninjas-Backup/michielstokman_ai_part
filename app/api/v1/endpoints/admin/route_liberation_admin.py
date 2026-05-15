@@ -274,11 +274,11 @@ def admin_update_liberation(
     if days_to_update:
         from app.model.liberation import LiberationDayDefinition
         
-        for day_num, day_input in days_to_update.items():
-            # Update specific day or insert if missing (though journeys should have all 7)
+        for _, day_input in days_to_update.items():
+            # Update specific day or insert if missing
             existing_day = db.query(LiberationDayDefinition).filter(
                 LiberationDayDefinition.definition_id == definition.id,
-                LiberationDayDefinition.day_number == day_num
+                LiberationDayDefinition.day_number == day_input.day
             ).first()
 
             if existing_day:
@@ -288,7 +288,7 @@ def admin_update_liberation(
             else:
                 db.add(LiberationDayDefinition(
                     definition_id=definition.id,
-                    day_number=day_num,
+                    day_number=day_input.day,
                     day_theme=day_input.title,
                     exercise_text=day_input.exercise_text,
                     why_text=day_input.why_text

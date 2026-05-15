@@ -13,6 +13,7 @@ from pydantic import BaseModel, Field
 # ── Day theme (used inside requests and responses) ──────────────────────────
 
 class DayDefinitionInput(BaseModel):
+    day: int = Field(..., description="Day number (1-7)")
     title: str = Field(..., description="Corresponds to the day's theme/title")
     exercise_text: Optional[str] = Field(None, description="What to do")
     why_text: Optional[str] = Field(None, description="Why this exercise")
