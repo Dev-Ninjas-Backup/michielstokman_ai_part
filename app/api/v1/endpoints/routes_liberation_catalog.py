@@ -47,6 +47,7 @@ def list_catalog(
             description=d.description,
             total_days=d.total_days,
             price_cents=d.price_cents,
+            price=d.price_cents / 100.0,
             currency=d.currency,
             is_admin_created=d.is_admin_created,
             moderation_status=d.moderation_status.value,
@@ -55,7 +56,7 @@ def list_catalog(
             created_at=d.created_at,
             what_to_expect=d.what_to_expect or [],
             setup_instructions=d.setup_instructions or [],
-            day_themes=[
+            days=[
                 DayThemeItem(day_number=dd.day_number, day_theme=dd.day_theme)
                 for dd in d.day_definitions
             ],
@@ -88,6 +89,7 @@ def get_catalog_item(
         description=definition.description,
         total_days=definition.total_days,
         price_cents=definition.price_cents,
+        price=definition.price_cents / 100.0,
         currency=definition.currency,
         is_admin_created=definition.is_admin_created,
         moderation_status=definition.moderation_status.value,
@@ -96,7 +98,7 @@ def get_catalog_item(
         created_at=definition.created_at,
         what_to_expect=definition.what_to_expect or [],
         setup_instructions=definition.setup_instructions or [],
-        day_themes=[
+        days=[
             DayThemeItem(day_number=dd.day_number, day_theme=dd.day_theme)
             for dd in definition.day_definitions
         ],
@@ -157,13 +159,14 @@ def submit_liberation(
         description=definition.description,
         total_days=definition.total_days,
         price_cents=definition.price_cents,
+        price=definition.price_cents / 100.0,
         currency=definition.currency,
         is_admin_created=definition.is_admin_created,
         moderation_status=definition.moderation_status.value,
         moderation_notes=definition.moderation_notes,
         is_active=definition.is_active,
         created_at=definition.created_at,
-        day_themes=[
+        days=[
             DayThemeItem(day_number=dd.day_number, day_theme=dd.day_theme)
             for dd in definition.day_definitions
         ],

@@ -37,6 +37,7 @@ def _definition_to_response(d) -> LiberationDefinitionResponse:
         description=d.description,
         total_days=d.total_days,
         price_cents=d.price_cents,
+        price=d.price_cents / 100.0,
         currency=d.currency,
         is_admin_created=d.is_admin_created,
         moderation_status=d.moderation_status.value,

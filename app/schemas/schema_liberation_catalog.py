@@ -86,6 +86,7 @@ class LiberationDefinitionResponse(BaseModel):
     description: Optional[str] = None
     total_days: int
     price_cents: int
+    price: float
     currency: str
     is_admin_created: bool
     moderation_status: str
