@@ -57,7 +57,12 @@ def list_catalog(
             what_to_expect=d.what_to_expect or [],
             setup_instructions=d.setup_instructions or [],
             days=[
-                DayThemeItem(day_number=dd.day_number, day_theme=dd.day_theme)
+                DayThemeItem(
+                    day_number=dd.day_number, 
+                    day_theme=dd.day_theme,
+                    exercise_text=dd.exercise_text,
+                    why_text=dd.why_text
+                )
                 for dd in d.day_definitions
             ],
         )
@@ -99,7 +104,12 @@ def get_catalog_item(
         what_to_expect=definition.what_to_expect or [],
         setup_instructions=definition.setup_instructions or [],
         days=[
-            DayThemeItem(day_number=dd.day_number, day_theme=dd.day_theme)
+            DayThemeItem(
+                day_number=dd.day_number, 
+                day_theme=dd.day_theme,
+                exercise_text=dd.exercise_text,
+                why_text=dd.why_text
+            )
             for dd in definition.day_definitions
         ],
     )
@@ -167,7 +177,12 @@ def submit_liberation(
         is_active=definition.is_active,
         created_at=definition.created_at,
         days=[
-            DayThemeItem(day_number=dd.day_number, day_theme=dd.day_theme)
+            DayThemeItem(
+                day_number=dd.day_number, 
+                day_theme=dd.day_theme,
+                exercise_text=dd.exercise_text,
+                why_text=dd.why_text
+            )
             for dd in definition.day_definitions
         ],
     )
