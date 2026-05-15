@@ -18,6 +18,7 @@ from app.data.billing import (
     update_payment_status,
     upsert_active_subscription,
 )
+from app.data.liberation_catalog import get_definition_by_id as get_journey_by_id
 from app.data.user import get_user_by_id
 from app.model.billing import PaymentStatus, SubscriptionInterval, SubscriptionStatus
 
@@ -48,6 +49,24 @@ class BillingService:
             )
 
     @staticmethod
+    def get_or_create_plan_for_journey(db: Session, journey) -> any:
+        # Create a special code for the journey plan
+        plan_code = f"journey_{journey.journey_code}"
+        plan = get_plan_by_code(db, plan_code)
+        if not plan:
+            plan = create_plan(
+                db,
+                code=plan_code,
+                name=journey.title,
+                description=f"Lifetime access to: {journey.title}",
+                price_cents=journey.price_cents,
+                interval_unit=SubscriptionInterval.lifetime,
+                interval_count=1,
+                currency=journey.currency
+            )
+        return plan
+
+    @staticmethod
     def list_plans(db: Session):
         BillingService.ensure_default_plans(db)
         plans = get_active_plans(db)
@@ -67,14 +86,22 @@ class BillingService:
         ]
 
     @staticmethod
-    def start_checkout(db: Session, user_id: UUID, plan_id: UUID, provider: str):
+    def start_checkout(db: Session, user_id: UUID, provider: str, plan_id: UUID | None = None, journey_id: UUID | None = None):
         user = get_user_by_id(db, str(user_id))
         if not user:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
-        plan = get_plan_by_id(db, plan_id)
-        if not plan:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Plan not found")
+        if journey_id:
+            journey = get_journey_by_id(db, journey_id)
+            if not journey:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Journey not found")
+            plan = BillingService.get_or_create_plan_for_journey(db, journey)
+        elif plan_id:
+            plan = get_plan_by_id(db, plan_id)
+            if not plan:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Plan not found")
+        else:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Either plan_id or journey_id must be provided")
 
         import stripe
         from app.core.config import settings

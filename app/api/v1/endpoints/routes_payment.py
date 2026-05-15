@@ -22,6 +22,7 @@ def start_checkout(payload: StartCheckoutRequest, db: Session = Depends(get_db))
         db=db,
         user_id=payload.user_id,
         plan_id=payload.plan_id,
+        journey_id=payload.journey_id,
         provider=payload.provider,
     )
     return success_response("Checkout started successfully", status.HTTP_200_OK, checkout)

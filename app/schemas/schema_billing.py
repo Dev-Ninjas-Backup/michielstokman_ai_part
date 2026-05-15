@@ -20,8 +20,9 @@ class SubscriptionPlanResponse(BaseModel):
 
 class StartCheckoutRequest(BaseModel):
     user_id: UUID4
-    plan_id: UUID4
-    provider: str = "mockpay"
+    plan_id: UUID4 | None = None
+    journey_id: UUID4 | None = None
+    provider: str = "stripe"
 
 
 class StartCheckoutResponse(BaseModel):
