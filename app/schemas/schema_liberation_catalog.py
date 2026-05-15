@@ -39,6 +39,7 @@ class CreateLiberationRequest(BaseModel):
     title: str = Field(..., min_length=3, max_length=300, example="The Path to Inner Peace")
     description: Optional[str] = Field(None, max_length=5000)
     price_cents: int = Field(default=4700, ge=0)
+    price: Optional[float] = Field(None, description="Human readable price (e.g. 47.00)")
     currency: str = Field(default="EUR", max_length=3)
     # Visual / card fields — admin can set these on creation
     rating: Optional[float] = Field(None, ge=0, le=5, description="Journey rating shown on the card")
@@ -59,6 +60,7 @@ class UpdateLiberationRequest(BaseModel):
     title: Optional[str] = Field(None, min_length=3, max_length=300)
     description: Optional[str] = Field(None, max_length=5000)
     price_cents: Optional[int] = Field(None, ge=0)
+    price: Optional[float] = Field(None)
     currency: Optional[str] = Field(None, max_length=3)
     cover_image_url: Optional[str] = None
     is_active: Optional[bool] = None

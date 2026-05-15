@@ -77,6 +77,11 @@ def admin_create_liberation(
     # 1. Generate unique journey_code from title
     j_code = generate_slug(payload.title)
     
+    # 2. Sync price/price_cents if price is provided
+    final_price_cents = payload.price_cents
+    if payload.price is not None:
+        final_price_cents = int(payload.price * 100)
+    
     # Simple uniqueness check & suffix if needed
     base_code = j_code
     counter = 1
@@ -90,7 +95,7 @@ def admin_create_liberation(
         title=payload.title,
         description=payload.description,
         total_days=payload.total_days,
-        price_cents=payload.price_cents,
+        price_cents=final_price_cents,
         currency=payload.currency,
         created_by=current_user.id,
         is_admin_created=True,
@@ -121,6 +126,11 @@ def admin_bulk_create_liberations(
         # 1. Generate unique journey_code from title
         j_code = generate_slug(item.title)
         
+        # 2. Sync price/price_cents
+        final_price_cents = item.price_cents
+        if item.price is not None:
+            final_price_cents = int(item.price * 100)
+
         base_code = j_code
         counter = 1
         while catalog_data.get_definition_by_code(db, j_code):
@@ -133,7 +143,7 @@ def admin_bulk_create_liberations(
             title=item.title,
             description=item.description,
             total_days=item.total_days,
-            price_cents=item.price_cents,
+            price_cents=final_price_cents,
             currency=item.currency,
             created_by=current_user.id,
             is_admin_created=True,
@@ -267,7 +277,12 @@ def admin_update_liberation(
     # 1. Update basic fields
     if payload.title is not None: definition.title = payload.title
     if payload.description is not None: definition.description = payload.description
-    if payload.price_cents is not None: definition.price_cents = payload.price_cents
+    
+    if payload.price is not None:
+        definition.price_cents = int(payload.price * 100)
+    elif payload.price_cents is not None:
+        definition.price_cents = payload.price_cents
+
     if payload.currency is not None: definition.currency = payload.currency
     if payload.cover_image_url is not None: definition.cover_image_url = payload.cover_image_url
     if payload.is_active is not None: definition.is_active = payload.is_active
