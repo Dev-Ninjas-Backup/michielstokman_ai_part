@@ -38,7 +38,6 @@ class CreateLiberationRequest(BaseModel):
     journey_code: str = Field(..., min_length=2, max_length=100, example="inner_peace")
     title: str = Field(..., min_length=3, max_length=300, example="The Path to Inner Peace")
     description: Optional[str] = Field(None, max_length=5000)
-    total_days: Optional[int] = Field(default=7, ge=1, le=365)
     price_cents: int = Field(default=4700, ge=0)
     currency: str = Field(default="EUR", max_length=3)
     # Visual / card fields — admin can set these on creation
@@ -47,8 +46,9 @@ class CreateLiberationRequest(BaseModel):
     setup_instructions: Optional[list[str]] = Field(None, description="'Before You Begin' checklist items")
     days: list[DayDefinitionInput] = Field(
         ...,
-        min_length=1,
-        description="Ordered list of day definitions. Length MUST equal total_days.",
+        min_length=7,
+        max_length=7,
+        description="Ordered list of day definitions. MUST be exactly 7 days.",
     )
 
 
@@ -68,7 +68,7 @@ class UpdateLiberationRequest(BaseModel):
     rating: Optional[float] = Field(None, ge=0, le=5)
     what_to_expect: Optional[list[str]] = None
     setup_instructions: Optional[list[str]] = None
-    days: Optional[list[DayDefinitionInput]] = None
+    days: Optional[list[DayDefinitionInput]] = Field(None, min_length=7, max_length=7)
 
 
 class ReviewLiberationRequest(BaseModel):

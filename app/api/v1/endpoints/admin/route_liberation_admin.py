@@ -73,12 +73,6 @@ def admin_create_liberation(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_admin_user),
 ):
-    if len(payload.days) != payload.total_days:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=f"days length ({len(payload.days)}) must equal total_days ({payload.total_days}).",
-        )
-
     existing = catalog_data.get_definition_by_code(db, payload.journey_code)
     if existing:
         raise HTTPException(
@@ -91,7 +85,7 @@ def admin_create_liberation(
         journey_code=payload.journey_code,
         title=payload.title,
         description=payload.description,
-        total_days=payload.total_days,
+        total_days=7,
         price_cents=payload.price_cents,
         currency=payload.currency,
         created_by=current_user.id,
@@ -120,11 +114,6 @@ def admin_bulk_create_liberations(
 ):
     results = []
     for item in payload.definitions:
-        if len(item.days) != item.total_days:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail=f"[{item.journey_code}] days length ({len(item.days)}) must equal total_days ({item.total_days}).",
-            )
         existing = catalog_data.get_definition_by_code(db, item.journey_code)
         if existing:
             raise HTTPException(
@@ -137,7 +126,7 @@ def admin_bulk_create_liberations(
             journey_code=item.journey_code,
             title=item.title,
             description=item.description,
-            total_days=item.total_days,
+            total_days=7,
             price_cents=item.price_cents,
             currency=item.currency,
             created_by=current_user.id,
@@ -280,13 +269,8 @@ def admin_update_liberation(
     if payload.what_to_expect is not None: definition.what_to_expect = payload.what_to_expect
     if payload.setup_instructions is not None: definition.setup_instructions = payload.setup_instructions
 
-    # 2. Update day themes if provided
+    # 2. Update day themes if provided (Schema enforces exactly 7 days)
     if payload.days is not None:
-        if len(payload.days) != definition.total_days:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail=f"days length ({len(payload.days)}) must equal total_days ({definition.total_days}).",
-            )
         
         # Delete old days and insert new ones
         from app.model.liberation import LiberationDayDefinition
