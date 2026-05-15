@@ -95,7 +95,9 @@ class BillingService:
         provider: str, 
         plan_id: UUID | None = None, 
         journey_id: UUID | None = None,
-        journey_code: str | None = None
+        journey_code: str | None = None,
+        success_url: str | None = None,
+        cancel_url: str | None = None,
     ):
         user = get_user_by_id(db, str(user_id))
         if not user:
@@ -128,8 +130,9 @@ class BillingService:
             stripe.api_key = settings.STRIPE_API_KEY
             mode = "subscription" if plan.interval_unit.value in ["month", "year"] else "payment"
             
-            # Using FRONTEND_URL from environment settings
-            frontend_url = settings.FRONTEND_URL
+            # Using provided URLs or fallback to FRONTEND_URL from settings
+            base_success_url = success_url or f"{settings.FRONTEND_URL}/dashboard?payment=success"
+            base_cancel_url = cancel_url or f"{settings.FRONTEND_URL}/dashboard?payment=cancelled"
             
             session = stripe.checkout.Session.create(
                 payment_method_types=['card'],
@@ -146,8 +149,8 @@ class BillingService:
                     'quantity': 1,
                 }],
                 mode=mode,
-                success_url=f"{frontend_url}/dashboard?payment=success",
-                cancel_url=f"{frontend_url}/dashboard?payment=cancelled",
+                success_url=base_success_url,
+                cancel_url=base_cancel_url,
                 client_reference_id=str(user_id),
                 metadata={"plan_id": str(plan.id)}
             )
