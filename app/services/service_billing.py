@@ -50,7 +50,21 @@ class BillingService:
     @staticmethod
     def list_plans(db: Session):
         BillingService.ensure_default_plans(db)
-        return get_active_plans(db)
+        plans = get_active_plans(db)
+        return [
+            {
+                "id": p.id,
+                "code": p.code,
+                "name": p.name,
+                "description": p.description,
+                "price_cents": p.price_cents,
+                "price": p.price_cents / 100.0,
+                "currency": p.currency,
+                "interval_unit": p.interval_unit.value,
+                "interval_count": p.interval_count
+            }
+            for p in plans
+        ]
 
     @staticmethod
     def start_checkout(db: Session, user_id: UUID, plan_id: UUID, provider: str):
@@ -283,4 +297,23 @@ class BillingService:
         if not user:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
-        return list_payments_by_user(db, user_id)
+        payments = list_payments_by_user(db, user_id)
+        return [
+            {
+                "id": pm.id,
+                "user_id": pm.user_id,
+                "plan_id": pm.plan_id,
+                "subscription_id": pm.subscription_id,
+                "provider": pm.provider,
+                "provider_payment_id": pm.provider_payment_id,
+                "amount_cents": pm.amount_cents,
+                "amount": pm.amount_cents / 100.0,
+                "currency": pm.currency,
+                "status": pm.status.value,
+                "checkout_status": pm.checkout_status,
+                "failure_reason": pm.failure_reason,
+                "created_at": pm.created_at,
+                "paid_at": pm.paid_at
+            }
+            for pm in payments
+        ]
