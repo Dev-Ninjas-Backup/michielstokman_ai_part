@@ -112,36 +112,40 @@ class BillingService:
         if not user:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
+        # Resolve the journey and plan regardless of which identifier was provided
+        journey = None
+
         if journey_code:
             journey = get_journey_by_code(db, journey_code)
             if not journey:
                 raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Journey code not found")
-            
-            if check_user_has_plan_code(db, user.id, f"journey_{journey.journey_code}"):
-                raise HTTPException(
-                    status_code=status.HTTP_409_CONFLICT, 
-                    detail="You have already purchased this journey."
-                )
-                
-            plan = BillingService.get_or_create_plan_for_journey(db, journey)
         elif journey_id:
             journey = get_journey_by_id(db, journey_id)
             if not journey:
                 raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Journey ID not found")
-            
+        elif plan_id:
+            # If only plan_id is provided, try to resolve the journey from the plan code
+            plan = get_plan_by_id(db, plan_id)
+            if not plan:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Plan not found")
+            # Check if this plan is a journey plan (code starts with "journey_")
+            if plan.code and plan.code.startswith("journey_"):
+                j_code = plan.code.replace("journey_", "", 1)
+                journey = get_journey_by_code(db, j_code)
+        else:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Either plan_id, journey_id, or journey_code must be provided")
+
+        if journey:
+            # Duplicate purchase check
             if check_user_has_plan_code(db, user.id, f"journey_{journey.journey_code}"):
                 raise HTTPException(
                     status_code=status.HTTP_409_CONFLICT, 
                     detail="You have already purchased this journey."
                 )
-                
+            # Always sync from the journey's live catalog data
             plan = BillingService.get_or_create_plan_for_journey(db, journey)
-        elif plan_id:
-            plan = get_plan_by_id(db, plan_id)
-            if not plan:
-                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Plan not found")
-        else:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Either plan_id, journey_id, or journey_code must be provided")
+        elif not plan_id:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Could not resolve a plan for checkout")
 
         import stripe
         from app.core.config import settings
@@ -152,6 +156,12 @@ class BillingService:
             
             stripe.api_key = settings.STRIPE_API_KEY
             mode = "subscription" if plan.interval_unit.value in ["month", "year"] else "payment"
+
+            # For journey plans, always use the journey's live price directly
+            checkout_price = journey.price_cents if journey else plan.price_cents
+            checkout_currency = journey.currency if journey else plan.currency
+            checkout_name = journey.title if journey else plan.name
+            checkout_desc = f"Lifetime access to: {journey.title}" if journey else plan.description
             
             # Using provided URLs or fallback to FRONTEND_URL from settings
             base_success_url = success_url or f"{settings.FRONTEND_URL}/dashboard?payment=success"
@@ -161,12 +171,12 @@ class BillingService:
                 payment_method_types=['card'],
                 line_items=[{
                     'price_data': {
-                        'currency': plan.currency,
+                        'currency': checkout_currency,
                         'product_data': {
-                            'name': plan.name,
-                            'description': plan.description,
+                            'name': checkout_name,
+                            'description': checkout_desc,
                         },
-                        'unit_amount': plan.price_cents,
+                        'unit_amount': checkout_price,
                         **({'recurring': {'interval': plan.interval_unit.value}} if mode == "subscription" else {})
                     },
                     'quantity': 1,
