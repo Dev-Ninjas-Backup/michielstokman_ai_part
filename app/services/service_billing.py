@@ -17,6 +17,7 @@ from app.data.billing import (
     list_payments_by_user,
     update_payment_status,
     upsert_active_subscription,
+    check_user_has_plan_code,
 )
 from app.data.liberation_catalog import (
     get_definition_by_id as get_journey_by_id,
@@ -107,11 +108,25 @@ class BillingService:
             journey = get_journey_by_code(db, journey_code)
             if not journey:
                 raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Journey code not found")
+            
+            if check_user_has_plan_code(db, user.id, f"journey_{journey.journey_code}"):
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT, 
+                    detail="You have already purchased this journey."
+                )
+                
             plan = BillingService.get_or_create_plan_for_journey(db, journey)
         elif journey_id:
             journey = get_journey_by_id(db, journey_id)
             if not journey:
                 raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Journey ID not found")
+            
+            if check_user_has_plan_code(db, user.id, f"journey_{journey.journey_code}"):
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT, 
+                    detail="You have already purchased this journey."
+                )
+                
             plan = BillingService.get_or_create_plan_for_journey(db, journey)
         elif plan_id:
             plan = get_plan_by_id(db, plan_id)
