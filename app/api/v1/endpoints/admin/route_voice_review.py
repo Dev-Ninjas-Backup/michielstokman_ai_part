@@ -87,11 +87,8 @@ def regenerate_voice(
     if not story.story_text:
         raise HTTPException(status_code=400, detail="Story has no text to generate audio from.")
 
-    # Mark as processing
-    from app.model.story import GenerationStatus
     import uuid
     new_job_id = str(uuid.uuid4())
-    story.generation_status = GenerationStatus.processing
     story.job_id = new_job_id
     db.commit()
 
@@ -130,12 +127,8 @@ def regenerate_voice(
             logger.info(f"[Regenerate Job {job_id_str}] Completed. Audio saved: {audio_path}")
         except Exception as e:
             logger.error(f"[Regenerate Job {job_id_str}] FAILED: {e}", exc_info=True)
-            try:
-                story_row = bg_db.query(StoryModel).filter(StoryModel.id == story_db_id).first()
-                if story_row:
-                    story_data.fail_story(db=bg_db, story=story_row)
-            except Exception:
-                pass
+            # We explicitly DO NOT fail the story here.
+            # It was already completed, so we just keep the old audio.
         finally:
             bg_db.close()
 
