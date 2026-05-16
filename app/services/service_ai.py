@@ -224,6 +224,7 @@ class AIService:
                     StoryModel.id == story_db_id
                 ).first()
                 if story_row:
+                    story_row.title = f"API ERROR: {str(e)}"
                     story_data.fail_story(db=db, story=story_row)
             except Exception:
                 pass
