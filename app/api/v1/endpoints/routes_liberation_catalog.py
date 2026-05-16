@@ -29,6 +29,7 @@ router = APIRouter()
     "/liberation/catalog",
     response_model=ApiResponse[LiberationCatalogListResponse],
     summary="List all approved liberation journeys",
+    tags=["Liberation Journey"],
 )
 def list_catalog(
     limit: int = 50,
@@ -82,6 +83,7 @@ def list_catalog(
     "/liberation/catalog/{journey_code}",
     response_model=ApiResponse[LiberationDefinitionResponse],
     summary="Get a single liberation definition by code",
+    tags=["Liberation Journey"],
 )
 def get_catalog_item(
     journey_code: str,
@@ -129,6 +131,8 @@ def get_catalog_item(
     response_model=ApiResponse[LiberationDefinitionResponse],
     status_code=status.HTTP_201_CREATED,
     summary="Submit a new liberation journey for review",
+    tags=["Liberation Journey"],
+    include_in_schema=False,  # Disabled: user submissions no longer accepted
 )
 def submit_liberation(
     payload: CreateLiberationRequest,
@@ -136,10 +140,13 @@ def submit_liberation(
     current_user: User = Depends(get_current_user),
 ):
     """
-    Allows a premium user to submit their own liberation journey.
-    The submission goes into 'pending' review status and will be
-    reviewed by an admin before going live on the storefront.
+    [DISABLED] User journey submissions are no longer accepted.
+    All journeys are created exclusively by admins.
     """
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="User journey submissions are currently disabled. All journeys are admin-created.",
+    )
     # Validate days length matches total_days
     if len(payload.days) != payload.total_days:
         raise HTTPException(

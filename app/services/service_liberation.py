@@ -81,12 +81,12 @@ class LiberationService:
     # ── Journey Status ──────────────────────────────────────────────────────
 
     @staticmethod
-    def get_status(db: Session, user_id: UUID) -> dict:
-        """Return the full journey status with all summaries for the most recent journey."""
+    def get_status(db: Session, user_id: UUID, journey_code: str) -> dict:
+        """Return the full journey status with all summaries for the specified journey."""
         from app.utils.messages import LIBERATION_ENROLL_REQUIRED
-        journey = lib_data.get_active_journey(db, user_id)
+        journey = lib_data.get_active_journey(db, user_id, journey_code)
         if not journey:
-            journey = lib_data.get_any_journey_for_user(db, user_id)
+            journey = lib_data.get_any_journey_for_user(db, user_id, journey_code)
         if not journey:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -171,15 +171,14 @@ class LiberationService:
     # ── Generate Daily Exercise ─────────────────────────────────────────────
 
     @staticmethod
-    def generate_day(db: Session, user_id: UUID, day: int, morning_feeling: str) -> dict:
+    def generate_day(db: Session, user_id: UUID, journey_code: str, day: int, morning_feeling: str) -> dict:
         """
         1. Verify the day is 'available'.
         2. Verify purchase based on active journey.
         3. Save the morning feeling.
-        4. Call SuperGrok with the Liberation prompt.
-        5. Save AI content to the step row.
+        4. Return admin-written content. Falls back to AI if content is missing.
         """
-        journey = lib_data.get_active_journey(db, user_id)
+        journey = lib_data.get_active_journey(db, user_id, journey_code)
         if not journey:
             raise HTTPException(status_code=404, detail="No active journey found.")
 
@@ -254,12 +253,12 @@ class LiberationService:
     # ── Complete Day ────────────────────────────────────────────────────────
 
     @staticmethod
-    def complete_day(db: Session, user_id: UUID, day: int, energy_level: int, what_opened: str, key_takeaway: str) -> dict:
+    def complete_day(db: Session, user_id: UUID, journey_code: str, day: int, energy_level: int, what_opened: str, key_takeaway: str) -> dict:
         """
         Save the user's post-exercise reflection, mark the day completed,
         and unlock the next day.
         """
-        journey = lib_data.get_active_journey(db, user_id)
+        journey = lib_data.get_active_journey(db, user_id, journey_code)
         if not journey:
             raise HTTPException(status_code=404, detail="No active journey found.")
 
@@ -304,11 +303,11 @@ class LiberationService:
     # ── Get Step Detail (for revisiting a completed day) ────────────────────
 
     @staticmethod
-    def get_day_detail(db: Session, user_id: UUID, day: int) -> dict:
+    def get_day_detail(db: Session, user_id: UUID, journey_code: str, day: int) -> dict:
         """Return the full detail of a specific day (for playback or review)."""
-        journey = lib_data.get_active_journey(db, user_id)
+        journey = lib_data.get_active_journey(db, user_id, journey_code)
         if not journey:
-            journey = lib_data.get_any_journey_for_user(db, user_id)
+            journey = lib_data.get_any_journey_for_user(db, user_id, journey_code)
         if not journey:
             raise HTTPException(status_code=404, detail="No journey found.")
 

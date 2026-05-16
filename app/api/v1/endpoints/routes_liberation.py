@@ -31,11 +31,13 @@ router = APIRouter()
 # ── Enroll in the journey (called after Stripe payment succeeds) ────────────
 
 @router.post(
-    "/liberation/enroll",
+    "/liberation/{journey_code}/enroll",
     response_model=ApiResponse[JourneyStatusResponse],
     summary="Start a new Liberation Journey after payment",
+    tags=["Liberation Journey"],
 )
 def enroll_journey(
+    journey_code: str,
     payload: EnrollJourneyRequest,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -48,7 +50,7 @@ def enroll_journey(
     result = LiberationService.enroll(
         db=db,
         user_id=current_user.id,
-        journey_code=payload.journey_code,
+        journey_code=journey_code,
         total_days=payload.total_days,
         reminder_preference=payload.reminder_preference,
     )
@@ -58,19 +60,21 @@ def enroll_journey(
 # ── Journey status dashboard (Screen 9: the 7-day progress list) ───────────
 
 @router.get(
-    "/liberation/status",
+    "/liberation/{journey_code}/status",
     response_model=ApiResponse[JourneyStatusResponse],
-    summary="Get current journey progress with all 7 day statuses",
+    summary="Get specific journey progress with all day statuses",
+    tags=["Liberation Journey"],
 )
 def get_journey_status(
+    journey_code: str,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """
     Returns the full journey status including each day's lock/available/completed state.
-    Used to render the progress dashboard (Screen 9 in the Figma).
+    Used to render the progress dashboard for a specific journey.
     """
-    result = LiberationService.get_status(db, current_user.id)
+    result = LiberationService.get_status(db, current_user.id, journey_code)
     return success_response("Journey status fetched", status.HTTP_200_OK, result)
 
 
@@ -80,6 +84,7 @@ def get_journey_status(
     "/liberation/my-journeys",
     response_model=ApiResponse[PurchasedJourneysResponse],
     summary="Get all purchased journeys for the user",
+    tags=["Liberation Journey"],
 )
 def get_my_journeys(
     db: Session = Depends(get_db),
@@ -96,11 +101,13 @@ def get_my_journeys(
 # ── Generate daily exercise (Screen 4 → 5: check-in → AI exercise) ────────
 
 @router.post(
-    "/liberation/day/{day}/generate",
+    "/liberation/{journey_code}/day/{day}/generate",
     response_model=ApiResponse[DayGenerateResponse],
-    summary="Submit morning feeling and receive AI-generated daily exercise",
+    summary="Submit morning feeling and receive daily exercise content",
+    tags=["Liberation Journey"],
 )
 def generate_day(
+    journey_code: str,
     day: int,
     payload: DayCheckinRequest,
     db: Session = Depends(get_db),
@@ -108,15 +115,13 @@ def generate_day(
 ):
     """
     1. Saves the user's morning feeling for the specified day.
-    2. Calls SuperGrok with the 'Transformation' persona to generate
-       a personalised greeting, exercise steps, and explanation.
-    3. Returns the full exercise content.
-
-    If the day was already generated, returns the cached version.
+    2. Returns the admin-written exercise content for that day.
+    3. If the day was already generated, returns the cached version.
     """
     result = LiberationService.generate_day(
         db=db,
         user_id=current_user.id,
+        journey_code=journey_code,
         day=day,
         morning_feeling=payload.morning_feeling,
     )
@@ -126,11 +131,13 @@ def generate_day(
 # ── Complete a day (Screen 7: post-exercise reflection) ─────────────────────
 
 @router.post(
-    "/liberation/day/{day}/complete",
+    "/liberation/{journey_code}/day/{day}/complete",
     response_model=ApiResponse[DayCompleteResponse],
     summary="Submit post-exercise reflection and unlock the next day",
+    tags=["Liberation Journey"],
 )
 def complete_day(
+    journey_code: str,
     day: int,
     payload: DayCompleteRequest,
     db: Session = Depends(get_db),
@@ -139,11 +146,12 @@ def complete_day(
     """
     Saves the energy slider and two reflection text fields.
     Marks the current day as 'completed' and unlocks the next day.
-    On Day 7, marks the entire journey as 'completed'.
+    On the final day, marks the entire journey as 'completed'.
     """
     result = LiberationService.complete_day(
         db=db,
         user_id=current_user.id,
+        journey_code=journey_code,
         day=day,
         energy_level=payload.energy_level,
         what_opened=payload.what_opened,
@@ -155,21 +163,23 @@ def complete_day(
 # ── Get a specific day's detail (for playback / review) ────────────────────
 
 @router.get(
-    "/liberation/day/{day}",
+    "/liberation/{journey_code}/day/{day}",
     response_model=ApiResponse[StepDetail],
     summary="Get full detail of a specific day (for review or playback)",
+    tags=["Liberation Journey"],
 )
 def get_day_detail(
+    journey_code: str,
     day: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """
     Returns the complete data for a specific day — morning feeling,
-    AI content, and post-exercise reflections.
+    content, and post-exercise reflections.
     Useful for revisiting completed days.
     """
-    result = LiberationService.get_day_detail(db, current_user.id, day)
+    result = LiberationService.get_day_detail(db, current_user.id, journey_code, day)
     return success_response("Day detail fetched", status.HTTP_200_OK, result)
 
 
@@ -179,6 +189,7 @@ def get_day_detail(
     "/liberation/feed-card",
     response_model=ApiResponse[LiberationFeedCard],
     summary="Get the liberation journey card for the discovery grid",
+    tags=["Liberation Journey"],
 )
 def get_feed_card(
     db: Session = Depends(get_db),

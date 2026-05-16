@@ -69,6 +69,7 @@ def _definition_to_response(d) -> LiberationDefinitionResponse:
     response_model=ApiResponse[LiberationDefinitionResponse],
     status_code=status.HTTP_201_CREATED,
     summary="Admin: create a single liberation (auto-approved)",
+    tags=["Liberation Admin"],
 )
 def admin_create_liberation(
     payload: CreateLiberationRequest,
@@ -116,6 +117,7 @@ def admin_create_liberation(
     response_model=ApiResponse[list[LiberationDefinitionResponse]],
     status_code=status.HTTP_201_CREATED,
     summary="Admin: create multiple liberations at once",
+    tags=["Liberation Admin"],
 )
 def admin_bulk_create_liberations(
     payload: BulkCreateLiberationRequest,
@@ -168,6 +170,7 @@ def admin_bulk_create_liberations(
     "/admin/liberation",
     response_model=ApiResponse[LiberationCatalogListResponse],
     summary="Admin: list ALL liberation journeys (active and inactive, pending and approved)",
+    tags=["Liberation Admin"],
 )
 def admin_list_all(
     limit: int = 50,
@@ -186,6 +189,8 @@ def admin_list_all(
     "/admin/liberation/pending",
     response_model=ApiResponse[LiberationCatalogListResponse],
     summary="Admin: list pending liberation submissions",
+    tags=["Liberation Admin"],
+    include_in_schema=False,  # Disabled: no user submissions in admin-only model
 )
 def admin_list_pending(
     limit: int = 50,
@@ -200,12 +205,66 @@ def admin_list_pending(
     return success_response("Pending liberations fetched", status.HTTP_200_OK, result)
 
 
-# ── Admin: approve or reject ────────────────────────────────────────────────
+# ── Admin: get single journey detail ────────────────────────────────────────
+
+@router.get(
+    "/admin/liberation/{definition_id}",
+    response_model=ApiResponse[LiberationDefinitionResponse],
+    summary="Admin: get full details of a specific liberation journey",
+    tags=["Liberation Admin"],
+)
+def admin_get_liberation(
+    definition_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_admin_user),
+):
+    """Returns the full metadata and all day definitions for a specific liberation journey."""
+    definition = catalog_data.get_definition_by_id(db, definition_id)
+    if not definition:
+        raise HTTPException(status_code=404, detail="Liberation definition not found.")
+    return success_response("Liberation fetched", status.HTTP_200_OK, _definition_to_response(definition))
+
+
+# ── Admin: get single day detail ─────────────────────────────────────────────
+
+@router.get(
+    "/admin/liberation/{definition_id}/day/{day_number}",
+    response_model=ApiResponse[DayThemeItem],
+    summary="Admin: get the content of a specific day in a liberation journey",
+    tags=["Liberation Admin"],
+)
+def admin_get_liberation_day(
+    definition_id: str,
+    day_number: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_admin_user),
+):
+    """Returns the exercise_text and why_text for a specific day in a journey."""
+    from app.model.liberation import LiberationDayDefinition
+    definition = catalog_data.get_definition_by_id(db, definition_id)
+    if not definition:
+        raise HTTPException(status_code=404, detail="Liberation definition not found.")
+    day = db.query(LiberationDayDefinition).filter(
+        LiberationDayDefinition.definition_id == definition.id,
+        LiberationDayDefinition.day_number == day_number,
+    ).first()
+    if not day:
+        raise HTTPException(status_code=404, detail=f"Day {day_number} not found in this journey.")
+    result = DayThemeItem(
+        day_number=day.day_number,
+        day_theme=day.day_theme,
+        exercise_text=day.exercise_text,
+        why_text=day.why_text,
+    )
+    return success_response(f"Day {day_number} detail fetched", status.HTTP_200_OK, result)
+
 
 @router.post(
     "/admin/liberation/{definition_id}/review",
     response_model=ApiResponse[LiberationReviewResponse],
     summary="Admin: approve or reject a liberation submission",
+    tags=["Liberation Admin"],
+    include_in_schema=False,  # Disabled: no user submissions in admin-only model
 )
 def admin_review_liberation(
     definition_id: str,
@@ -238,6 +297,7 @@ def admin_review_liberation(
     "/admin/liberation/{definition_id}/set-active",
     response_model=ApiResponse[LiberationReviewResponse],
     summary="Admin: set liberation active/inactive status",
+    tags=["Liberation Admin"],
 )
 def admin_set_liberation_active(
     definition_id: str,
@@ -266,6 +326,7 @@ def admin_set_liberation_active(
     "/admin/liberation/{definition_id}",
     response_model=ApiResponse[LiberationDefinitionResponse],
     summary="Admin: update an existing liberation journey",
+    tags=["Liberation Admin"],
 )
 def admin_update_liberation(
     definition_id: str,
