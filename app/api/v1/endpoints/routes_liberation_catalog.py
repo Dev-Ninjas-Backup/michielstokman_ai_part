@@ -10,6 +10,7 @@ from app.api.deps import get_current_user
 from app.core.db import get_db
 from app.core.responses import ApiResponse, success_response
 from app.model.user import User
+from app.utils.slug import generate_slug
 from app.data import liberation_catalog as catalog_data
 from app.data.billing import check_user_has_plan_code
 from app.schemas.schema_liberation_catalog import (
@@ -147,7 +148,7 @@ def submit_liberation(
         )
 
     # Check uniqueness
-    existing = catalog_data.get_definition_by_code(db, payload.title.lower().replace(" ", "-"))
+    existing = catalog_data.get_definition_by_code(db, generate_slug(payload.title))
     if existing:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -156,6 +157,7 @@ def submit_liberation(
 
     definition = catalog_data.create_definition(
         db=db,
+        journey_code=generate_slug(payload.title),
         title=payload.title,
         description=payload.description,
         total_days=payload.total_days,
