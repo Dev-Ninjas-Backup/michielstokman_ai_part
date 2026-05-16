@@ -96,6 +96,7 @@ def create_definition(
     rating: Optional[float] = None,
     what_to_expect: Optional[list] = None,
     setup_instructions: Optional[list] = None,
+    is_active: bool = True,
 ) -> LiberationDefinition:
     """
     Create a new liberation definition together with its day-theme rows.
@@ -116,6 +117,7 @@ def create_definition(
         rating=rating,
         what_to_expect=what_to_expect,
         setup_instructions=setup_instructions,
+        is_active=is_active,
     )
     db.add(definition)
     db.flush()  # get definition.id
