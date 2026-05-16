@@ -117,15 +117,16 @@ def get_discovery_feed(
             is_explicit=False 
         ))
 
-    # 6. Inject the Liberation Journey card (if not filtering or if specifically looking for journeys)
+    # 6. Inject the Liberation Journey cards (if not filtering or if specifically looking for journeys)
     if not requested_types or "transformation" in requested_types:
-        lib_card = LiberationService.get_feed_card(db, current_user.id)
-        if lib_card:
+        lib_cards = LiberationService.get_all_feed_cards(db, current_user.id)
+        
+        for lib_card in lib_cards:
             # Fallback for Journey card image if definition doesn't have one
             if not lib_card.get("cover_image_url"):
                 lib_card["cover_image_url"] = fallback_images.get("transformation")
                 
-            # Inject at position 3 or end
+            # Inject at position 3, then 4, 5 etc, or at the end if not enough items
             if len(items) >= 3:
                 items.insert(2, lib_card)
             else:

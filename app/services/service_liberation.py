@@ -414,6 +414,68 @@ class LiberationService:
             "journey_id": journey.id,
         }
 
+    @staticmethod
+    def get_all_feed_cards(db: Session, user_id: UUID) -> list[dict]:
+        """
+        Builds premium journey cards for ALL active/approved journeys in the catalog.
+        Injects the user's progress if they are enrolled, and access status.
+        """
+        from app.model.liberation import LiberationDefinition, DefinitionStatus, UserJourney
+        from app.utils.messages import LIBERATION_CONTINUE_DESC
+
+        # 1. Get all active catalog definitions
+        definitions = db.query(LiberationDefinition).filter(
+            LiberationDefinition.moderation_status == DefinitionStatus.approved,
+            LiberationDefinition.is_active == True
+        ).order_by(LiberationDefinition.created_at.desc()).all()
+
+        # 2. Get all of the user's enrolled journeys
+        enrolled_journeys = db.query(UserJourney).filter(UserJourney.user_id == user_id).all()
+        enrollment_map = {j.journey_code: j for j in enrolled_journeys}
+
+        cards = []
+        for d in definitions:
+            enrolled = enrollment_map.get(d.journey_code)
+            
+            is_enrolled = enrolled is not None
+            current_day = None
+            journey_status = None
+            journey_id = None
+            
+            # Use catalog details as base
+            title = d.title
+            description = d.description or f"A {d.total_days}-day path to transformation."
+            
+            if is_enrolled:
+                description = LIBERATION_CONTINUE_DESC.format(days=enrolled.total_days)
+                journey_status = enrolled.status.value
+                journey_id = enrolled.id
+                current_day = 1
+                for step in enrolled.steps:
+                    if step.status in (StepStatus.available, StepStatus.completed):
+                        current_day = step.day_number
+
+            cards.append({
+                "card_type": "liberation_journey",
+                "journey_code": d.journey_code,
+                "title": title,
+                "description": description,
+                "cover_image_url": d.cover_image_url,
+                "price_display": d.price_cents // 100,
+                "price_cents": d.price_cents,
+                "total_days": d.total_days,
+                "rating": d.rating,
+                "what_to_expect": d.what_to_expect or [],
+                "setup_instructions": d.setup_instructions or [],
+                "is_enrolled": is_enrolled,
+                "has_access": check_user_has_plan_code(db, user_id, f"journey_{d.journey_code}"),
+                "current_day": current_day,
+                "journey_status": journey_status,
+                "journey_id": journey_id,
+            })
+            
+        return cards
+
     # ── Private helpers ─────────────────────────────────────────────────────
 
     @staticmethod
