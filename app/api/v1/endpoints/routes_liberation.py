@@ -21,6 +21,7 @@ from app.schemas.schema_liberation import (
     StepDetail,
     LiberationFeedCard,
     EnrollJourneyRequest,
+    PurchasedJourneysResponse,
 )
 from app.services.service_liberation import LiberationService
 
@@ -72,6 +73,25 @@ def get_journey_status(
     result = LiberationService.get_status(db, current_user.id)
     return success_response("Journey status fetched", status.HTTP_200_OK, result)
 
+
+# ── My Purchased Journeys (Library) ─────────────────────────────────────────
+
+@router.get(
+    "/liberation/my-journeys",
+    response_model=ApiResponse[PurchasedJourneysResponse],
+    summary="Get all purchased journeys for the user",
+)
+def get_my_journeys(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Returns a list of all journeys the user has purchased (active subscriptions).
+    Includes enrollment status and current progress if they have started it.
+    Perfect for a 'My Library' or 'Purchased Content' screen.
+    """
+    result = LiberationService.get_purchased_journeys(db, current_user.id)
+    return success_response("Purchased journeys fetched", status.HTTP_200_OK, result)
 
 # ── Generate daily exercise (Screen 4 → 5: check-in → AI exercise) ────────
 
