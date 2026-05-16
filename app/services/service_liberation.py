@@ -36,7 +36,7 @@ class LiberationService:
     def _verify_purchase(db: Session, user_id: UUID, journey_code: str) -> None:
         """Raises 403 if user does not own the specific journey code."""
         from app.utils.messages import LIBERATION_PURCHASE_REQUIRED
-        has_access = check_user_has_plan_code(db, user_id, plan_code=journey_code)
+        has_access = check_user_has_plan_code(db, user_id, plan_code=f"journey_{journey_code}")
         if not has_access:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
