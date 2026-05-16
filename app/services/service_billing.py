@@ -17,6 +17,11 @@ from app.data.billing import (
     list_payments_by_user,
     update_payment_status,
     upsert_active_subscription,
+    check_user_has_plan_code,
+)
+from app.data.liberation_catalog import (
+    get_definition_by_id as get_journey_by_id,
+    get_definition_by_code as get_journey_by_code,
 )
 from app.data.user import get_user_by_id
 from app.model.billing import PaymentStatus, SubscriptionInterval, SubscriptionStatus
@@ -48,6 +53,24 @@ class BillingService:
             )
 
     @staticmethod
+    def get_or_create_plan_for_journey(db: Session, journey) -> any:
+        # Create a special code for the journey plan
+        plan_code = f"journey_{journey.journey_code}"
+        plan = get_plan_by_code(db, plan_code)
+        if not plan:
+            plan = create_plan(
+                db,
+                code=plan_code,
+                name=journey.title,
+                description=f"Lifetime access to: {journey.title}",
+                price_cents=journey.price_cents,
+                interval_unit=SubscriptionInterval.lifetime,
+                interval_count=1,
+                currency=journey.currency
+            )
+        return plan
+
+    @staticmethod
     def list_plans(db: Session):
         BillingService.ensure_default_plans(db)
         plans = get_active_plans(db)
@@ -67,14 +90,50 @@ class BillingService:
         ]
 
     @staticmethod
-    def start_checkout(db: Session, user_id: UUID, plan_id: UUID, provider: str):
+    def start_checkout(
+        db: Session, 
+        user_id: UUID, 
+        provider: str, 
+        plan_id: UUID | None = None, 
+        journey_id: UUID | None = None,
+        journey_code: str | None = None,
+        success_url: str | None = None,
+        cancel_url: str | None = None,
+    ):
         user = get_user_by_id(db, str(user_id))
         if not user:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
-        plan = get_plan_by_id(db, plan_id)
-        if not plan:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Plan not found")
+        if journey_code:
+            journey = get_journey_by_code(db, journey_code)
+            if not journey:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Journey code not found")
+            
+            if check_user_has_plan_code(db, user.id, f"journey_{journey.journey_code}"):
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT, 
+                    detail="You have already purchased this journey."
+                )
+                
+            plan = BillingService.get_or_create_plan_for_journey(db, journey)
+        elif journey_id:
+            journey = get_journey_by_id(db, journey_id)
+            if not journey:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Journey ID not found")
+            
+            if check_user_has_plan_code(db, user.id, f"journey_{journey.journey_code}"):
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT, 
+                    detail="You have already purchased this journey."
+                )
+                
+            plan = BillingService.get_or_create_plan_for_journey(db, journey)
+        elif plan_id:
+            plan = get_plan_by_id(db, plan_id)
+            if not plan:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Plan not found")
+        else:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Either plan_id, journey_id, or journey_code must be provided")
 
         import stripe
         from app.core.config import settings
@@ -86,8 +145,9 @@ class BillingService:
             stripe.api_key = settings.STRIPE_API_KEY
             mode = "subscription" if plan.interval_unit.value in ["month", "year"] else "payment"
             
-            # Using FRONTEND_URL from environment settings
-            frontend_url = settings.FRONTEND_URL
+            # Using provided URLs or fallback to FRONTEND_URL from settings
+            base_success_url = success_url or f"{settings.FRONTEND_URL}/dashboard?payment=success"
+            base_cancel_url = cancel_url or f"{settings.FRONTEND_URL}/dashboard?payment=cancelled"
             
             session = stripe.checkout.Session.create(
                 payment_method_types=['card'],
@@ -104,8 +164,8 @@ class BillingService:
                     'quantity': 1,
                 }],
                 mode=mode,
-                success_url=f"{frontend_url}/dashboard?payment=success",
-                cancel_url=f"{frontend_url}/dashboard?payment=cancelled",
+                success_url=base_success_url,
+                cancel_url=base_cancel_url,
                 client_reference_id=str(user_id),
                 metadata={"plan_id": str(plan.id)}
             )

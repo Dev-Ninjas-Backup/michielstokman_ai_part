@@ -120,10 +120,10 @@ def create_definition(
     db.add(definition)
     db.flush()  # get definition.id
 
-    for idx, day_def_input in enumerate(days, start=1):
+    for day_def_input in days:
         day_def = LiberationDayDefinition(
             definition_id=definition.id,
-            day_number=idx,
+            day_number=day_def_input.day,
             day_theme=day_def_input.title,
             exercise_text=day_def_input.exercise_text,
             why_text=day_def_input.why_text,
@@ -161,6 +161,13 @@ def reject_definition(
     definition.reviewed_by = reviewer_id
     definition.reviewed_at = datetime.now(timezone.utc)
     definition.moderation_notes = notes
+    db.commit()
+    db.refresh(definition)
+    return definition
+
+
+def activate_definition(db: Session, definition: LiberationDefinition) -> LiberationDefinition:
+    definition.is_active = True
     db.commit()
     db.refresh(definition)
     return definition

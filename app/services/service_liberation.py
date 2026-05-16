@@ -97,6 +97,77 @@ class LiberationService:
 
         return LiberationService._build_status_dict(journey)
 
+    @staticmethod
+    def get_purchased_journeys(db: Session, user_id: UUID) -> dict:
+        """
+        Return a list of all journeys the user has purchased.
+        Merges catalog definition data with the user's progress (if enrolled).
+        """
+        from app.model.billing import UserSubscription, SubscriptionPlan, SubscriptionStatus
+        from app.model.liberation import UserJourney
+        
+        # 1. Find all purchased journey codes for this user
+        subscriptions = (
+            db.query(SubscriptionPlan.code)
+            .join(UserSubscription, UserSubscription.plan_id == SubscriptionPlan.id)
+            .filter(
+                UserSubscription.user_id == user_id,
+                UserSubscription.status == SubscriptionStatus.active,
+                SubscriptionPlan.code.startswith("journey_")
+            )
+            .all()
+        )
+        
+        purchased_codes = [sub.code.replace("journey_", "") for sub in subscriptions]
+        if not purchased_codes:
+            return {"journeys": [], "total": 0}
+
+        # 2. Find enrolled journeys to get progress
+        enrolled_journeys = (
+            db.query(UserJourney)
+            .filter(
+                UserJourney.user_id == user_id,
+                UserJourney.journey_code.in_(purchased_codes)
+            )
+            .all()
+        )
+        
+        enrollment_map = {j.journey_code: j for j in enrolled_journeys}
+
+        # 3. Build the response list
+        results = []
+        for code in purchased_codes:
+            # Fetch catalog definition for title/image
+            definition = catalog_data.get_definition_by_code(db, code)
+            if not definition:
+                continue
+                
+            enrolled = enrollment_map.get(code)
+            
+            is_enrolled = enrolled is not None
+            current_day = None
+            status = "purchased"
+            
+            if is_enrolled:
+                status = enrolled.status.value
+                current_day = 1
+                for step in enrolled.steps:
+                    if step.status in (StepStatus.available, StepStatus.completed):
+                        current_day = step.day_number
+
+            results.append({
+                "journey_code": code,
+                "title": definition.title,
+                "description": definition.description,
+                "cover_image_url": definition.cover_image_url,
+                "total_days": definition.total_days,
+                "is_enrolled": is_enrolled,
+                "current_day": current_day,
+                "status": status
+            })
+
+        return {"journeys": results, "total": len(results)}
+
     # ── Generate Daily Exercise ─────────────────────────────────────────────
 
     @staticmethod
@@ -298,6 +369,7 @@ class LiberationService:
                 "what_to_expect": definition.what_to_expect or [],
                 "setup_instructions": definition.setup_instructions or [],
                 "is_enrolled": False,
+                "has_access": check_user_has_plan_code(db, user_id, f"journey_{definition.journey_code}"),
                 "current_day": None,
                 "journey_status": None,
                 "journey_id": None,
@@ -337,6 +409,7 @@ class LiberationService:
             "what_to_expect": journey.definition.what_to_expect if journey.definition else [],
             "setup_instructions": journey.definition.setup_instructions if journey.definition else [],
             "is_enrolled": True,
+            "has_access": True, # If they are enrolled, they definitely have access
             "current_day": current_day,
             "journey_status": journey.status.value,
             "journey_id": journey.id,

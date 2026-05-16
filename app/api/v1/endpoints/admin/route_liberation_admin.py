@@ -12,6 +12,7 @@ from app.api.deps import get_current_admin_user
 from app.core.db import get_db
 from app.core.responses import ApiResponse, success_response
 from app.model.user import User
+from app.utils.slug import generate_slug
 from app.data import liberation_catalog as catalog_data
 from app.schemas.schema_liberation_catalog import (
     CreateLiberationRequest,
@@ -22,6 +23,7 @@ from app.schemas.schema_liberation_catalog import (
     LiberationCatalogListResponse,
     LiberationReviewResponse,
     DayThemeItem,
+    SetLiberationActiveRequest,
 )
 
 router = APIRouter()
@@ -73,26 +75,28 @@ def admin_create_liberation(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_admin_user),
 ):
-    if len(payload.days) != payload.total_days:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=f"days length ({len(payload.days)}) must equal total_days ({payload.total_days}).",
-        )
-
-    existing = catalog_data.get_definition_by_code(db, payload.journey_code)
-    if existing:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=f"A liberation with code '{payload.journey_code}' already exists.",
-        )
+    # 1. Generate unique journey_code from title
+    j_code = generate_slug(payload.title)
+    
+    # 2. Sync price/price_cents if price is provided
+    final_price_cents = payload.price_cents
+    if payload.price is not None:
+        final_price_cents = int(payload.price * 100)
+    
+    # Simple uniqueness check & suffix if needed
+    base_code = j_code
+    counter = 1
+    while catalog_data.get_definition_by_code(db, j_code):
+        j_code = f"{base_code}-{counter}"
+        counter += 1
 
     definition = catalog_data.create_definition(
         db=db,
-        journey_code=payload.journey_code,
+        journey_code=j_code,
         title=payload.title,
         description=payload.description,
         total_days=payload.total_days,
-        price_cents=payload.price_cents,
+        price_cents=final_price_cents,
         currency=payload.currency,
         created_by=current_user.id,
         is_admin_created=True,
@@ -120,25 +124,27 @@ def admin_bulk_create_liberations(
 ):
     results = []
     for item in payload.definitions:
-        if len(item.days) != item.total_days:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail=f"[{item.journey_code}] days length ({len(item.days)}) must equal total_days ({item.total_days}).",
-            )
-        existing = catalog_data.get_definition_by_code(db, item.journey_code)
-        if existing:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail=f"A liberation with code '{item.journey_code}' already exists.",
-            )
+        # 1. Generate unique journey_code from title
+        j_code = generate_slug(item.title)
+        
+        # 2. Sync price/price_cents
+        final_price_cents = item.price_cents
+        if item.price is not None:
+            final_price_cents = int(item.price * 100)
+
+        base_code = j_code
+        counter = 1
+        while catalog_data.get_definition_by_code(db, j_code):
+            j_code = f"{base_code}-{counter}"
+            counter += 1
 
         definition = catalog_data.create_definition(
             db=db,
-            journey_code=item.journey_code,
+            journey_code=j_code,
             title=item.title,
             description=item.description,
             total_days=item.total_days,
-            price_cents=item.price_cents,
+            price_cents=final_price_cents,
             currency=item.currency,
             created_by=current_user.id,
             is_admin_created=True,
@@ -228,16 +234,14 @@ def admin_review_liberation(
         )
         return success_response("Liberation rejected", status.HTTP_200_OK, result)
 
-
-# ── Admin: deactivate ──────────────────────────────────────────────────────
-
 @router.post(
-    "/admin/liberation/{definition_id}/deactivate",
+    "/admin/liberation/{definition_id}/set-active",
     response_model=ApiResponse[LiberationReviewResponse],
-    summary="Admin: deactivate a liberation (remove from storefront)",
+    summary="Admin: set liberation active/inactive status",
 )
-def admin_deactivate_liberation(
+def admin_set_liberation_active(
     definition_id: str,
+    payload: SetLiberationActiveRequest,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_admin_user),
 ):
@@ -245,13 +249,17 @@ def admin_deactivate_liberation(
     if not definition:
         raise HTTPException(status_code=404, detail="Liberation definition not found.")
 
-    catalog_data.deactivate_definition(db, definition)
+    definition.is_active = payload.is_active
+    db.commit()
+    db.refresh(definition)
+
+    status_str = "activated" if payload.is_active else "deactivated"
     result = LiberationReviewResponse(
-        message="Liberation deactivated.",
+        message=f"Liberation {status_str}.",
         definition_id=definition.id,
-        status="deactivated",
+        status=status_str,
     )
-    return success_response("Liberation deactivated", status.HTTP_200_OK, result)
+    return success_response(f"Liberation {status_str}", status.HTTP_200_OK, result)
 
 
 @router.patch(
@@ -272,7 +280,12 @@ def admin_update_liberation(
     # 1. Update basic fields
     if payload.title is not None: definition.title = payload.title
     if payload.description is not None: definition.description = payload.description
-    if payload.price_cents is not None: definition.price_cents = payload.price_cents
+    
+    if payload.price is not None:
+        definition.price_cents = int(payload.price * 100)
+    elif payload.price_cents is not None:
+        definition.price_cents = payload.price_cents
+
     if payload.currency is not None: definition.currency = payload.currency
     if payload.cover_image_url is not None: definition.cover_image_url = payload.cover_image_url
     if payload.is_active is not None: definition.is_active = payload.is_active
@@ -281,24 +294,28 @@ def admin_update_liberation(
     if payload.setup_instructions is not None: definition.setup_instructions = payload.setup_instructions
 
     # 2. Update day themes if provided
-    if payload.days is not None:
-        if len(payload.days) != definition.total_days:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail=f"days length ({len(payload.days)}) must equal total_days ({definition.total_days}).",
-            )
-        
-        # Delete old days and insert new ones
+    if payload.days:
         from app.model.liberation import LiberationDayDefinition
-        db.query(LiberationDayDefinition).filter(LiberationDayDefinition.definition_id == definition.id).delete()
-        for i, day_def_input in enumerate(payload.days):
-            db.add(LiberationDayDefinition(
-                definition_id=definition.id,
-                day_number=i+1,
-                day_theme=day_def_input.title,
-                exercise_text=day_def_input.exercise_text,
-                why_text=day_def_input.why_text
-            ))
+        
+        for day_input in payload.days:
+            # Update specific day or insert if missing
+            existing_day = db.query(LiberationDayDefinition).filter(
+                LiberationDayDefinition.definition_id == definition.id,
+                LiberationDayDefinition.day_number == day_input.day
+            ).first()
+
+            if existing_day:
+                existing_day.day_theme = day_input.title
+                existing_day.exercise_text = day_input.exercise_text
+                existing_day.why_text = day_input.why_text
+            else:
+                db.add(LiberationDayDefinition(
+                    definition_id=definition.id,
+                    day_number=day_input.day,
+                    day_theme=day_input.title,
+                    exercise_text=day_input.exercise_text,
+                    why_text=day_input.why_text
+                ))
 
     db.commit()
     db.refresh(definition)

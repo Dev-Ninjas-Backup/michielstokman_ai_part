@@ -116,6 +116,22 @@ class LiberationFeedCard(BaseModel):
     what_to_expect: list[str] = []
     setup_instructions: list[str] = []
     is_enrolled: bool = False
+    has_access: bool = False
     current_day: Optional[int] = None
     journey_status: Optional[str] = None  # "active" | "completed" | None
     journey_id: Optional[UUID] = None
+
+
+class PurchasedJourneyItem(BaseModel):
+    journey_code: str
+    title: str
+    description: Optional[str] = None
+    cover_image_url: Optional[str] = None
+    total_days: int
+    is_enrolled: bool
+    current_day: Optional[int] = None
+    status: str  # "active" | "purchased" | "completed"
+
+class PurchasedJourneysResponse(BaseModel):
+    journeys: list[PurchasedJourneyItem]
+    total: int
