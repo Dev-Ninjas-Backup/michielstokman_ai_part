@@ -68,6 +68,14 @@ class BillingService:
                 interval_count=1,
                 currency=journey.currency
             )
+        else:
+            # Sync plan price/name with the journey's current values
+            if plan.price_cents != journey.price_cents or plan.name != journey.title:
+                plan.price_cents = journey.price_cents
+                plan.name = journey.title
+                plan.currency = journey.currency
+                db.commit()
+                db.refresh(plan)
         return plan
 
     @staticmethod
@@ -264,13 +272,25 @@ class BillingService:
             if payment:
                 payment = update_payment_status(db, payment, PaymentStatus.succeeded)
                 
-                if getattr(data, "mode", None) == "subscription":
-                    subscription_id = getattr(data, "subscription", None)
+                checkout_mode = getattr(data, "mode", None) or data.get("mode", None)
+                if checkout_mode == "subscription":
+                    subscription_id = getattr(data, "subscription", None) or data.get("subscription", None)
                     subscription = upsert_active_subscription(
                         db,
                         user_id=payment.user_id,
                         plan=payment.plan,
                         provider_subscription_id=subscription_id,
+                    )
+                    attach_payment_to_subscription(db, payment, subscription)
+                    subscription_status = subscription.status.value
+                else:
+                    # One-time payment (e.g. lifetime journey purchase)
+                    # Still create a subscription record so the user is tracked as "purchased"
+                    subscription = upsert_active_subscription(
+                        db,
+                        user_id=payment.user_id,
+                        plan=payment.plan,
+                        provider_subscription_id=f"onetime_{provider_payment_id}",
                     )
                     attach_payment_to_subscription(db, payment, subscription)
                     subscription_status = subscription.status.value
