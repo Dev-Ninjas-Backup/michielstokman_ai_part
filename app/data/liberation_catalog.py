@@ -33,12 +33,13 @@ def get_definition_by_id(db: Session, definition_id: UUID) -> Optional[Liberatio
 
 
 def list_approved_definitions(db: Session, limit: int = 50, offset: int = 0) -> list[LiberationDefinition]:
-    """Return all active & approved definitions (the public storefront)."""
+    """Return all active & approved admin-created definitions (the public storefront)."""
     return (
         db.query(LiberationDefinition)
         .filter(
             LiberationDefinition.moderation_status == DefinitionStatus.approved,
             LiberationDefinition.is_active.is_(True),
+            LiberationDefinition.is_admin_created.is_(True),
         )
         .order_by(LiberationDefinition.created_at.desc())
         .offset(offset)
