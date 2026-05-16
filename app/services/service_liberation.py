@@ -334,11 +334,9 @@ class LiberationService:
     # ── Discovery feed helper ───────────────────────────────────────────────
 
     @staticmethod
-    def get_feed_card(db: Session, user_id: UUID, journey_code: Optional[str] = None) -> dict:
+    def get_feed_card(db: Session, user_id: UUID, journey_code: str) -> dict:
         """
-        Build the premium journey card for the discovery grid.
-        - If journey_code provided: Returns card for that specific journey.
-        - If NOT provided: Returns most recent active journey or latest featured.
+        Build the premium journey card for a specific journey.
         """
         from app.model.liberation import LiberationDefinition, DefinitionStatus
 
@@ -346,18 +344,15 @@ class LiberationService:
 
         if not journey:
             # Look for the definition to show as a teaser
-            query = db.query(LiberationDefinition).filter(
+            definition = db.query(LiberationDefinition).filter(
+                LiberationDefinition.journey_code == journey_code,
                 LiberationDefinition.moderation_status == DefinitionStatus.approved,
                 LiberationDefinition.is_active == True,
                 LiberationDefinition.is_admin_created == True
-            )
-            if journey_code:
-                query = query.filter(LiberationDefinition.journey_code == journey_code)
-            
-            definition = query.order_by(LiberationDefinition.created_at.desc()).first()
+            ).first()
 
             if not definition:
-                # No approved journey in catalog to show as teaser
+                # No such journey exists in catalog
                 return None
 
             return {

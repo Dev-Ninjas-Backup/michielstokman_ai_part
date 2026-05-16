@@ -193,14 +193,14 @@ def get_day_detail(
     tags=["Liberation Journey"],
 )
 def get_feed_card(
-    journey_code: Optional[str] = Query(None, description="Optional journey code to get a specific card"),
+    journey_code: str = Query(..., description="The specific journey code to get a card for"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """
-    Returns the premium journey card to inject into the story discovery grid.
-    - If journey_code is provided: returns card for that specific journey.
-    - If NOT provided: returns most recent active or latest featured journey.
+    Returns the premium journey card for a specific journey.
+    - If user is enrolled: returns progress card.
+    - If user is NOT enrolled: returns teaser card.
     """
     result = LiberationService.get_feed_card(db, current_user.id, journey_code)
     return success_response("Liberation feed card fetched", status.HTTP_200_OK, result)
