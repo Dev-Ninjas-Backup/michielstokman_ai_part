@@ -5,7 +5,8 @@ Dedicated REST endpoints for the 7-Day Premium Liberation Journey.
 Every endpoint is gated behind JWT auth + premium subscription check.
 The story type is hardcoded to 'Transformation' — the frontend never chooses.
 """
-from fastapi import APIRouter, Depends, status
+from typing import Optional
+from fastapi import APIRouter, Depends, status, Query
 from sqlalchemy.orm import Session
 
 from app.core.db import get_db
@@ -192,13 +193,14 @@ def get_day_detail(
     tags=["Liberation Journey"],
 )
 def get_feed_card(
+    journey_code: Optional[str] = Query(None, description="Optional journey code to get a specific card"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """
     Returns the premium journey card to inject into the story discovery grid.
-    - If user is NOT enrolled: shows price + 'Begin Your Liberation' CTA.
-    - If user IS enrolled: shows current progress + 'Continue' CTA.
+    - If journey_code is provided: returns card for that specific journey.
+    - If NOT provided: returns most recent active or latest featured journey.
     """
-    result = LiberationService.get_feed_card(db, current_user.id)
+    result = LiberationService.get_feed_card(db, current_user.id, journey_code)
     return success_response("Liberation feed card fetched", status.HTTP_200_OK, result)

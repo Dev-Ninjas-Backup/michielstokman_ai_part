@@ -334,22 +334,27 @@ class LiberationService:
     # ── Discovery feed helper ───────────────────────────────────────────────
 
     @staticmethod
-    def get_feed_card(db: Session, user_id: UUID) -> dict:
+    def get_feed_card(db: Session, user_id: UUID, journey_code: Optional[str] = None) -> dict:
         """
         Build the premium journey card for the discovery grid.
-        - Not enrolled → teaser with price from catalog
-        - Enrolled → progress card with current day
+        - If journey_code provided: Returns card for that specific journey.
+        - If NOT provided: Returns most recent active journey or latest featured.
         """
         from app.model.liberation import LiberationDefinition, DefinitionStatus
 
-        journey = lib_data.get_any_journey_for_user(db, user_id)
+        journey = lib_data.get_any_journey_for_user(db, user_id, journey_code)
 
         if not journey:
-            # Look for the most recent approved catalog definition to show as a teaser
-            definition = db.query(LiberationDefinition).filter(
+            # Look for the definition to show as a teaser
+            query = db.query(LiberationDefinition).filter(
                 LiberationDefinition.moderation_status == DefinitionStatus.approved,
-                LiberationDefinition.is_active == True
-            ).order_by(LiberationDefinition.created_at.desc()).first()
+                LiberationDefinition.is_active == True,
+                LiberationDefinition.is_admin_created == True
+            )
+            if journey_code:
+                query = query.filter(LiberationDefinition.journey_code == journey_code)
+            
+            definition = query.order_by(LiberationDefinition.created_at.desc()).first()
 
             if not definition:
                 # No approved journey in catalog to show as teaser
@@ -423,10 +428,11 @@ class LiberationService:
         from app.model.liberation import LiberationDefinition, DefinitionStatus, UserJourney
         from app.utils.messages import LIBERATION_CONTINUE_DESC
 
-        # 1. Get all active catalog definitions
+        # 1. Get all active catalog definitions (Admin-created only)
         definitions = db.query(LiberationDefinition).filter(
             LiberationDefinition.moderation_status == DefinitionStatus.approved,
-            LiberationDefinition.is_active == True
+            LiberationDefinition.is_active == True,
+            LiberationDefinition.is_admin_created == True
         ).order_by(LiberationDefinition.created_at.desc()).all()
 
         # 2. Get all of the user's enrolled journeys
