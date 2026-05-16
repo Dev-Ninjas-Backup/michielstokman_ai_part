@@ -100,6 +100,7 @@ class LiberationDefinitionResponse(BaseModel):
     rating: Optional[float] = None
     what_to_expect: list[str] = []
     setup_instructions: list[str] = []
+    has_access: bool = False
     days: list[DayThemeItem] = []
 
     class Config:
