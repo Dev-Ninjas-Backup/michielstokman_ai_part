@@ -21,7 +21,6 @@ from app.schemas.schema_liberation import (
     JourneyStatusResponse,
     StepDetail,
     LiberationFeedCard,
-    EnrollJourneyRequest,
     PurchasedJourneysResponse,
 )
 from app.services.service_liberation import LiberationService
@@ -39,12 +38,11 @@ router = APIRouter()
 )
 def enroll_journey(
     journey_code: str,
-    payload: EnrollJourneyRequest,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """
-    Creates a new N-day journey for the authenticated user.
+    Creates a new 7-day journey for the authenticated user.
     Requires an active premium subscription (verified inside the service).
     If the user already has an active journey for that code, returns its current status.
     """
@@ -52,8 +50,6 @@ def enroll_journey(
         db=db,
         user_id=current_user.id,
         journey_code=journey_code,
-        total_days=payload.total_days,
-        reminder_preference=payload.reminder_preference,
     )
     return success_response("Journey enrolled successfully", status.HTTP_200_OK, result)
 

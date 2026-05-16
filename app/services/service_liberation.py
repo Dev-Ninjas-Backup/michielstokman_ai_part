@@ -46,7 +46,7 @@ class LiberationService:
     # ── Enroll ──────────────────────────────────────────────────────────────
 
     @staticmethod
-    def enroll(db: Session, user_id: UUID, journey_code: str, total_days: int, reminder_preference: Optional[str] = None) -> dict:
+    def enroll(db: Session, user_id: UUID, journey_code: str, total_days: int = 7, reminder_preference: Optional[str] = None) -> dict:
         """
         Create a new journey for the user after payment verification.
         Pulls day themes from the catalog definition when available.
