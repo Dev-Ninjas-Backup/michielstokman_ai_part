@@ -48,13 +48,13 @@ app.include_router(routes_profile.router, prefix="/v1", tags=["Profile"])
 # User dashboard routes
 app.include_router(routes_user_dashboard.router, prefix="/v1", tags=["User Dashboard"])
 app.include_router(routes_feedback.router, prefix="/v1", tags=["Feedback"])
-app.include_router(routes_liberation.router, prefix="/v1", tags=["Liberation Journey"])
-app.include_router(routes_liberation_catalog.router, prefix="/v1", tags=["Liberation Catalog"])
+app.include_router(routes_liberation.router, prefix="/v1")
+app.include_router(routes_liberation_catalog.router, prefix="/v1")
 
 # Admin routes
 app.include_router(route_admin_dashboard.router, prefix="/v1", tags=["Admin"])
 app.include_router(route_moderation.router, prefix="/v1", tags=["Admin - Moderation"])
-app.include_router(route_liberation_admin.router, prefix="/v1", tags=["Admin - Liberation"])
+app.include_router(route_liberation_admin.router, prefix="/v1")
 app.include_router(route_admin_chat.router, prefix="/v1", tags=["Admin - Metrics Chat"])
 app.include_router(route_photo_management.router, prefix="/v1", tags=["Admin - Photo Management"])
 app.include_router(route_voice_review.router, prefix="/v1", tags=["Admin - Voice Review"])
