@@ -136,6 +136,8 @@ def get_latest_subscription_for_user(db: Session, user_id: UUID) -> UserSubscrip
 
 def check_user_has_plan_code(db: Session, user_id: UUID, plan_code: str) -> bool:
     """Check if the user has an active pseudo-subscription / purchase for a specific plan code."""
+    if not user_id:
+        return False
     res = (
         db.query(UserSubscription)
         .join(SubscriptionPlan, UserSubscription.plan_id == SubscriptionPlan.id)
@@ -155,7 +157,19 @@ def upsert_active_subscription(
     plan: SubscriptionPlan,
     provider_subscription_id: str,
 ) -> UserSubscription:
-    subscription = get_latest_subscription_for_user(db, user_id)
+    if plan.code.startswith("journey_"):
+        # For individual premium journeys, check if the user already has a subscription specifically for this plan
+        subscription = (
+            db.query(UserSubscription)
+            .filter(
+                UserSubscription.user_id == user_id,
+                UserSubscription.plan_id == plan.id
+            )
+            .first()
+        )
+    else:
+        # For standard plans, get the overall latest subscription
+        subscription = get_latest_subscription_for_user(db, user_id)
 
     now = datetime.now(timezone.utc)
     interval_unit = getattr(plan, "interval_unit")

@@ -10,7 +10,7 @@ from sqlalchemy.sql import func
 
 from app.core.db import get_db
 from app.core.responses import ApiResponse, success_response
-from app.api.deps import get_current_user
+from app.api.deps import get_current_user, get_current_user_optional
 from app.model.user import User
 from app.model.story import ModerationStatus
 from app.model.feedback import StoryFeedback
@@ -42,7 +42,7 @@ router = APIRouter()
 def get_discovery_feed(
     story_type: Optional[List[str]] = Query(None, description="Filter by 'confession', 'meditation', or 'transformation' (can provide multiple)"),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: Optional[User] = Depends(get_current_user_optional),
 ):
     """
     Returns the main story grid for the discovery page.
@@ -119,7 +119,7 @@ def get_discovery_feed(
 
     # 6. Inject the Liberation Journey cards (if not filtering or if specifically looking for journeys)
     if not requested_types or "transformation" in requested_types:
-        lib_cards = LiberationService.get_all_feed_cards(db, current_user.id)
+        lib_cards = LiberationService.get_all_feed_cards(db, current_user.id if current_user else None)
         
         for lib_card in lib_cards:
             # Fallback for Journey card image if definition doesn't have one

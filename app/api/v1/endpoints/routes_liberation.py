@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.core.db import get_db
 from app.core.responses import ApiResponse, success_response
-from app.api.deps import get_current_user
+from app.api.deps import get_current_user, get_current_user_optional
 from app.model.user import User
 from app.schemas.schema_liberation import (
     DayCheckinRequest,
@@ -26,6 +26,7 @@ from app.schemas.schema_liberation import (
 from app.services.service_liberation import LiberationService
 
 router = APIRouter()
+
 
 
 # ── Enroll in the journey (called after Stripe payment succeeds) ────────────
@@ -191,12 +192,12 @@ def get_day_detail(
 def get_feed_card(
     journey_code: str = Query(..., description="The specific journey code to get a card for"),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: Optional[User] = Depends(get_current_user_optional),
 ):
     """
     Returns the premium journey card for a specific journey.
     - If user is enrolled: returns progress card.
     - If user is NOT enrolled: returns teaser card.
     """
-    result = LiberationService.get_feed_card(db, current_user.id, journey_code)
+    result = LiberationService.get_feed_card(db, current_user.id if current_user else None, journey_code)
     return success_response("Liberation feed card fetched", status.HTTP_200_OK, result)

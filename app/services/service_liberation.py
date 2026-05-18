@@ -431,7 +431,10 @@ class LiberationService:
         ).order_by(LiberationDefinition.created_at.desc()).all()
 
         # 2. Get all of the user's enrolled journeys
-        enrolled_journeys = db.query(UserJourney).filter(UserJourney.user_id == user_id).all()
+        if user_id:
+            enrolled_journeys = db.query(UserJourney).filter(UserJourney.user_id == user_id).all()
+        else:
+            enrolled_journeys = []
         enrollment_map = {j.journey_code: j for j in enrolled_journeys}
 
         cards = []
