@@ -28,10 +28,11 @@ def get_voice_review_stories(
 
     if story_type_filter:
         val = story_type_filter.lower()
-        if val in ("story", "confession", "confessions"):
-            query = query.filter(Story.story_type == StoryType.confession)
-        elif val in ("meditation", "meditations"):
-            query = query.filter(Story.story_type == StoryType.meditation)
+        if val != "all":
+            if val in ("story", "stories", "confession", "confessions"):
+                query = query.filter(Story.story_type == StoryType.confession)
+            elif val in ("meditation", "meditations"):
+                query = query.filter(Story.story_type == StoryType.meditation)
 
     if search:
         search_term = f"%{search}%"
