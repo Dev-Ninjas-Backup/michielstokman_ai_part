@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 from app.data import liberation as lib_data
 from app.data import liberation_catalog as catalog_data
 from app.data.billing import check_user_has_plan_code
+from app.utils.media import format_media_url
 from app.model.liberation import (
     JourneyStatus,
     StepStatus,
@@ -360,7 +361,7 @@ class LiberationService:
                 "journey_code": definition.journey_code,
                 "title": definition.title,
                 "description": definition.description or f"A {definition.total_days}-day path to transformation.",
-                "cover_image_url": definition.cover_image_url,
+                "cover_image_url": format_media_url(definition.cover_image_url),
                 "price_display": definition.price_cents // 100,
                 "price_cents": definition.price_cents,
                 "total_days": definition.total_days,
@@ -400,7 +401,7 @@ class LiberationService:
             "journey_code": journey.journey_code,
             "title": title,
             "description": description,
-            "cover_image_url": cover_image_url,
+            "cover_image_url": format_media_url(cover_image_url),
             "price_display": price_display,
             "price_cents": price_cents,
             "total_days": journey.total_days,
@@ -464,7 +465,7 @@ class LiberationService:
                 "journey_code": d.journey_code,
                 "title": title,
                 "description": description,
-                "cover_image_url": d.cover_image_url,
+                "cover_image_url": format_media_url(d.cover_image_url),
                 "price_display": d.price_cents // 100,
                 "price_cents": d.price_cents,
                 "total_days": d.total_days,

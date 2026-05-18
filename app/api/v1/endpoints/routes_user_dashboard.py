@@ -27,6 +27,7 @@ import app.data.credit as credit_data
 from app.schemas.schema_user_dashboard import DiscoveryFeedResponse, StoryFeedItem
 from app.services.service_liberation import LiberationService
 from app.model.story import GenerationStatus
+from app.utils.media import format_media_url
 
 router = APIRouter()
 
@@ -109,8 +110,8 @@ def get_discovery_feed(
             title=s.title or STORY_UNTITLED,
             description=(s.story_text[:120] + "...") if s.story_text else None,
             story_type=s_type,
-            cover_image_url=s.cover_image_url or fallback_images.get(s_type),
-            audio_path=s.audio_path,
+            cover_image_url=format_media_url(s.cover_image_url or fallback_images.get(s_type)),
+            audio_path=format_media_url(s.audio_path),
             rating=round(s.pulse_score / 2.0, 1) if (s.pulse_score and s.pulse_score > 0) else None,
             listened_count=s.views_count or 0,
             author_name=author_display,
@@ -317,8 +318,8 @@ def get_story_detail(
         title=story.title or STORY_UNTITLED,
         story_type=s_type,
         story_text=story.story_text,
-        audio_path=story.audio_path,
-        cover_image_url=cover_image_url,
+        audio_path=format_media_url(story.audio_path),
+        cover_image_url=format_media_url(cover_image_url),
         author_name=author_name,
         voice_name=story.voice_name,
         track_id=story.track_id,
