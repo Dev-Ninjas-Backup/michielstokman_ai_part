@@ -7,7 +7,7 @@ from datetime import datetime
 from typing import Optional
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 # ── Day theme (used inside requests and responses) ──────────────────────────
@@ -23,6 +23,18 @@ class DayThemeItem(BaseModel):
     day_theme: str
     exercise_text: Optional[str] = None
     why_text: Optional[str] = None
+
+    @field_validator("day_theme", "exercise_text", "why_text", mode="before")
+    @classmethod
+    def clean_html(cls, v):
+        if isinstance(v, str):
+            import re
+            v = re.sub(r'<br\s*/?>', '\n', v)
+            v = re.sub(r'</p>\s*<p>', '\n\n', v)
+            v = re.sub(r'<[^>]+>', '', v)
+            v = re.sub(r'\n{3,}', '\n\n', v)
+            return v.strip()
+        return v
 
     class Config:
         from_attributes = True

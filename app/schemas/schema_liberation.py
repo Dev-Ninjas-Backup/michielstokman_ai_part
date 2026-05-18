@@ -7,7 +7,7 @@ from datetime import datetime
 from typing import Optional
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 # ── Step detail (used inside responses) ─────────────────────────────────────
@@ -17,6 +17,18 @@ class StepSummary(BaseModel):
     day_theme: str
     status: str  # "locked" | "available" | "completed"
     completed_at: Optional[datetime] = None
+
+    @field_validator("day_theme", mode="before")
+    @classmethod
+    def clean_html(cls, v):
+        if isinstance(v, str):
+            import re
+            v = re.sub(r'<br\s*/?>', '\n', v)
+            v = re.sub(r'</p>\s*<p>', '\n\n', v)
+            v = re.sub(r'<[^>]+>', '', v)
+            v = re.sub(r'\n{3,}', '\n\n', v)
+            return v.strip()
+        return v
 
     class Config:
         from_attributes = True
@@ -34,6 +46,18 @@ class StepDetail(BaseModel):
     reflection_opened: Optional[str] = None
     reflection_takeaway: Optional[str] = None
     completed_at: Optional[datetime] = None
+
+    @field_validator("day_theme", "ai_greeting", "ai_exercise_text", "ai_why_text", mode="before")
+    @classmethod
+    def clean_html(cls, v):
+        if isinstance(v, str):
+            import re
+            v = re.sub(r'<br\s*/?>', '\n', v)
+            v = re.sub(r'</p>\s*<p>', '\n\n', v)
+            v = re.sub(r'<[^>]+>', '', v)
+            v = re.sub(r'\n{3,}', '\n\n', v)
+            return v.strip()
+        return v
 
     class Config:
         from_attributes = True
@@ -82,6 +106,18 @@ class DayGenerateResponse(BaseModel):
     ai_greeting: str
     ai_exercise_text: str
     ai_why_text: str
+
+    @field_validator("day_theme", "ai_greeting", "ai_exercise_text", "ai_why_text", mode="before")
+    @classmethod
+    def clean_html(cls, v):
+        if isinstance(v, str):
+            import re
+            v = re.sub(r'<br\s*/?>', '\n', v)
+            v = re.sub(r'</p>\s*<p>', '\n\n', v)
+            v = re.sub(r'<[^>]+>', '', v)
+            v = re.sub(r'\n{3,}', '\n\n', v)
+            return v.strip()
+        return v
 
 
 class DayCompleteResponse(BaseModel):

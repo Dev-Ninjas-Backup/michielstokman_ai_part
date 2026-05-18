@@ -2,6 +2,10 @@ import sys
 import os
 from pathlib import Path
 
+# Force stdout to use utf-8 to prevent emoji encoding errors on Windows terminals
+if sys.platform.startswith("win"):
+    sys.stdout.reconfigure(encoding="utf-8")
+
 # Add project root to sys.path
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
