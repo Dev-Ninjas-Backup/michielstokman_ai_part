@@ -29,14 +29,19 @@ app.add_middleware(
 register_exception_handlers(app)
 
 # ---------------------------------------------------------------------------
-# Static files — Audio storage
-# ⚠️  S3 MIGRATION NOTE: When S3 is ready, remove this mount and serve audio
-#     directly from S3 URLs. The audio_path column in the stories table will
+# Static files — Audio and Image storage
+# ⚠️  S3 MIGRATION NOTE: When S3 is ready, remove these mounts and serve files
+#     directly from S3 URLs. The path columns in the tables will
 #     then hold the full S3 URL instead of the local relative path.
 # ---------------------------------------------------------------------------
 AUDIO_DIR = "media/audio"
 os.makedirs(AUDIO_DIR, exist_ok=True)
 app.mount("/media/audio", StaticFiles(directory=AUDIO_DIR), name="audio")
+
+IMAGE_DIR = "media/images"
+os.makedirs(IMAGE_DIR, exist_ok=True)
+app.mount("/media/images", StaticFiles(directory=IMAGE_DIR), name="images")
+
 
 app.include_router(hello.router, prefix="/v1")
 app.include_router(routes_ai.router, prefix="/v1", tags=["AI"])

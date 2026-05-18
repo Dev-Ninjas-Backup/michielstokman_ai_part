@@ -12,7 +12,7 @@ from app.model.cover_image import CoverImageType
 
 class CoverImageResponse(BaseModel):
     id: str
-    story_type: CoverImageType
+    story_type: str
     image_url: str
     is_active: bool
     uploaded_by: Optional[str] = None
