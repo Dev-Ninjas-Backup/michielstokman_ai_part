@@ -22,11 +22,15 @@ from app.schemas.schema_voice_review import (
 router = APIRouter()
 
 
+import math
+from app.schemas.schema_system import PaginationMeta
+
 @router.get("/admin/voice-review", response_model=ApiResponse[VoiceReviewResponse])
 def get_voice_review_list(
     search: Optional[str] = None,
     limit: int = 20,
     offset: int = 0,
+    page: Optional[int] = None,
     current_user: User = Depends(get_current_admin_user),
     db: Session = Depends(get_db),
 ):
@@ -34,6 +38,11 @@ def get_voice_review_list(
     Fetch a list of stories that have audio generated for Voice Review.
     Allows searching by title or type.
     """
+    if page is not None and page > 0:
+        offset = (page - 1) * limit
+    else:
+        page = (offset // limit) + 1 if limit > 0 else 1
+
     stories, total = voice_data.get_voice_review_stories(
         db, limit=limit, offset=offset, search=search
     )
@@ -66,8 +75,20 @@ def get_voice_review_list(
             )
         )
 
-    result = VoiceReviewResponse(items=items, total=total)
+    total_pages = math.ceil(total / limit) if limit > 0 else 1
+    if total_pages == 0:
+        total_pages = 1
+
+    pagination_meta = PaginationMeta(
+        total=total,
+        page=page,
+        limit=limit,
+        totalPages=total_pages
+    )
+
+    result = VoiceReviewResponse(items=items, total=total, meta=pagination_meta)
     return success_response("Voice review list fetched", status.HTTP_200_OK, result)
+
 
 
 @router.post("/admin/voice-review/{story_id}/regenerate", response_model=ApiResponse[VoiceRegenerateResponse])

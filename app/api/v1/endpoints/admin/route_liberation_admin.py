@@ -166,6 +166,9 @@ def admin_bulk_create_liberations(
 
 # ── Admin: review queue & full list ─────────────────────────────────────────
 
+import math
+from app.schemas.schema_system import PaginationMeta
+
 @router.get(
     "/admin/liberation",
     response_model=ApiResponse[LiberationCatalogListResponse],
@@ -175,13 +178,31 @@ def admin_bulk_create_liberations(
 def admin_list_all(
     limit: int = 50,
     offset: int = 0,
+    page: int | None = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_admin_user),
 ):
+    if page is not None and page > 0:
+        offset = (page - 1) * limit
+    else:
+        page = (offset // limit) + 1 if limit > 0 else 1
+
     definitions = catalog_data.list_all_definitions(db, limit=limit, offset=offset)
     total = catalog_data.count_all_definitions(db)
     items = [_definition_to_response(d) for d in definitions]
-    result = LiberationCatalogListResponse(definitions=items, total=total)
+    
+    total_pages = math.ceil(total / limit) if limit > 0 else 1
+    if total_pages == 0:
+        total_pages = 1
+
+    pagination_meta = PaginationMeta(
+        total=total,
+        page=page,
+        limit=limit,
+        totalPages=total_pages
+    )
+
+    result = LiberationCatalogListResponse(definitions=items, total=total, meta=pagination_meta)
     return success_response("All liberations fetched", status.HTTP_200_OK, result)
 
 
@@ -195,14 +216,33 @@ def admin_list_all(
 def admin_list_pending(
     limit: int = 50,
     offset: int = 0,
+    page: int | None = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_admin_user),
 ):
+    if page is not None and page > 0:
+        offset = (page - 1) * limit
+    else:
+        page = (offset // limit) + 1 if limit > 0 else 1
+
     definitions = catalog_data.list_pending_definitions(db, limit=limit, offset=offset)
     total = catalog_data.count_pending_definitions(db)
     items = [_definition_to_response(d) for d in definitions]
-    result = LiberationCatalogListResponse(definitions=items, total=total)
+    
+    total_pages = math.ceil(total / limit) if limit > 0 else 1
+    if total_pages == 0:
+        total_pages = 1
+
+    pagination_meta = PaginationMeta(
+        total=total,
+        page=page,
+        limit=limit,
+        totalPages=total_pages
+    )
+
+    result = LiberationCatalogListResponse(definitions=items, total=total, meta=pagination_meta)
     return success_response("Pending liberations fetched", status.HTTP_200_OK, result)
+
 
 
 # ── Admin: get single journey detail ────────────────────────────────────────

@@ -37,6 +37,9 @@ class StoryListItemResponse(BaseModel):
     cover_image_url: str | None
 
 
+from app.schemas.schema_system import PaginationMeta
+
+
 class ModerationQueueResponse(BaseModel):
     stories: list[StoryListItemResponse]
     all: int
@@ -44,6 +47,8 @@ class ModerationQueueResponse(BaseModel):
     flagged: int
     approved: int
     rejected: int
+    meta: PaginationMeta
+
 
 
 class UpdateStoryRequest(BaseModel):

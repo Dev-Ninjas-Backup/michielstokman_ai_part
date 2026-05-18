@@ -119,9 +119,14 @@ class LiberationDefinitionResponse(BaseModel):
         from_attributes = True
 
 
+from app.schemas.schema_system import PaginationMeta
+
+
 class LiberationCatalogListResponse(BaseModel):
     definitions: list[LiberationDefinitionResponse]
     total: int
+    meta: PaginationMeta
+
 
 
 class LiberationReviewResponse(BaseModel):

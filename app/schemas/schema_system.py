@@ -82,3 +82,11 @@ class AdminFigmaDashboardResponse(BaseModel):
     weekly_trends: list[WeeklyTrend]
     top_resonance_content: list[TopResonanceContent]
     latest_activity: list[LatestActivity]
+
+
+class PaginationMeta(BaseModel):
+    total: int
+    page: int
+    limit: int
+    totalPages: int
+

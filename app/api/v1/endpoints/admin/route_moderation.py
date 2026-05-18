@@ -25,6 +25,9 @@ router = APIRouter()
 # Endpoints
 # ============================================================================
 
+import math
+from app.schemas.schema_system import PaginationMeta
+
 @router.get("/admin/moderation/queue", response_model=ApiResponse[ModerationQueueResponse])
 def get_moderation_queue(
     moderation_status: Optional[str] = None,
@@ -33,11 +36,17 @@ def get_moderation_queue(
     db: Session = Depends(get_db),
     limit: int = 20,
     offset: int = 0,
+    page: Optional[int] = None,
 ):
     """
     Fetch list of stories for moderation queue, with optional status filter and search.
     Only accessible to admin users.
     """
+    if page is not None and page > 0:
+        offset = (page - 1) * limit
+    else:
+        page = (offset // limit) + 1 if limit > 0 else 1
+
     stories = story_data.get_moderation_stories(
         db, 
         limit=limit, 
@@ -89,6 +98,24 @@ def get_moderation_queue(
         # Get total matching the current filter + search combination for pagination
         all_count = sum(clean_stats.values())
         
+        # Count only the items matching the current filters for our pagination metadata
+        total_filtered = story_data.count_moderation_stories(
+            db,
+            status_filter=moderation_status,
+            search=search
+        )
+
+        total_pages = math.ceil(total_filtered / limit) if limit > 0 else 1
+        if total_pages == 0:
+            total_pages = 1
+
+        pagination_meta = PaginationMeta(
+            total=total_filtered,
+            page=page,
+            limit=limit,
+            totalPages=total_pages
+        )
+
         result = ModerationQueueResponse(
             stories=story_items,
             all=all_count,
@@ -96,11 +123,13 @@ def get_moderation_queue(
             flagged=clean_stats.get("flagged", 0),
             approved=clean_stats.get("approved", 0),
             rejected=clean_stats.get("rejected", 0),
+            meta=pagination_meta,
         )
         return success_response("Moderation queue fetched", status.HTTP_200_OK, result)
     except Exception as e:
         logger.error(f"Moderation queue error: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Moderation queue error: {str(e)}")
+
 
 
 @router.get("/admin/moderation/story/{story_id}", response_model=ApiResponse[StoryDetailResponse])

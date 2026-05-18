@@ -98,9 +98,14 @@ class AdminOrderListItem(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+from app.schemas.schema_system import PaginationMeta
+
+
 class AdminOrderHistoryResponse(BaseModel):
     orders: list[AdminOrderListItem]
     total_filtered: int
+    meta: PaginationMeta
+
 
 
 class AdminBillingStatsResponse(BaseModel):

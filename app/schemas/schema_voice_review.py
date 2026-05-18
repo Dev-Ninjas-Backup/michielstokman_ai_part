@@ -16,9 +16,14 @@ class VoiceReviewItem(BaseModel):
     audio_path: Optional[str] = None
 
 
+from app.schemas.schema_system import PaginationMeta
+
+
 class VoiceReviewResponse(BaseModel):
     items: list[VoiceReviewItem]
     total: int
+    meta: PaginationMeta
+
 
 
 class VoiceRegenerateResponse(BaseModel):
