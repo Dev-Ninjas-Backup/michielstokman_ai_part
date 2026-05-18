@@ -27,6 +27,7 @@ from app.schemas.schema_system import PaginationMeta
 
 @router.get("/admin/voice-review", response_model=ApiResponse[VoiceReviewResponse])
 def get_voice_review_list(
+    story_type: Optional[str] = None,
     search: Optional[str] = None,
     limit: int = 20,
     offset: int = 0,
@@ -36,7 +37,7 @@ def get_voice_review_list(
 ):
     """
     Fetch a list of stories that have audio generated for Voice Review.
-    Allows searching by title or type.
+    Allows searching by title or type, and filtering by story_type.
     """
     if page is not None and page > 0:
         offset = (page - 1) * limit
@@ -44,7 +45,7 @@ def get_voice_review_list(
         page = (offset // limit) + 1 if limit > 0 else 1
 
     stories, total = voice_data.get_voice_review_stories(
-        db, limit=limit, offset=offset, search=search
+        db, limit=limit, offset=offset, search=search, story_type_filter=story_type
     )
 
     items = []
@@ -75,6 +76,12 @@ def get_voice_review_list(
             )
         )
 
+    # Get tab counts
+    stats = voice_data.get_voice_review_stats(db)
+    all_count = sum(stats.values())
+    stories_count = stats.get("confession", 0)
+    meditations_count = stats.get("meditation", 0)
+
     total_pages = math.ceil(total / limit) if limit > 0 else 1
     if total_pages == 0:
         total_pages = 1
@@ -86,7 +93,14 @@ def get_voice_review_list(
         totalPages=total_pages
     )
 
-    result = VoiceReviewResponse(items=items, total=total, meta=pagination_meta)
+    result = VoiceReviewResponse(
+        items=items,
+        total=total,
+        all=all_count,
+        stories=stories_count,
+        meditations=meditations_count,
+        meta=pagination_meta
+    )
     return success_response("Voice review list fetched", status.HTTP_200_OK, result)
 
 

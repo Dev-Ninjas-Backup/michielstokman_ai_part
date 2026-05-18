@@ -22,6 +22,9 @@ from app.schemas.schema_system import PaginationMeta
 class VoiceReviewResponse(BaseModel):
     items: list[VoiceReviewItem]
     total: int
+    all: int
+    stories: int
+    meditations: int
     meta: PaginationMeta
 
 
