@@ -127,6 +127,8 @@ def get_discovery_feed(
             if not lib_card.get("cover_image_url"):
                 lib_card["cover_image_url"] = fallback_images.get("transformation")
                 
+            lib_card["cover_image_url"] = format_media_url(lib_card.get("cover_image_url"))
+                
             # Inject at position 3, then 4, 5 etc, or at the end if not enough items
             if len(items) >= 3:
                 items.insert(2, lib_card)
