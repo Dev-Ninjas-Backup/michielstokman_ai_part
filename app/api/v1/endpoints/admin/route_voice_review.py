@@ -25,13 +25,21 @@ router = APIRouter()
 import math
 from app.schemas.schema_system import PaginationMeta
 
+from enum import Enum
+from fastapi import Query
+
+class VoiceReviewFilterEnum(str, Enum):
+    all = "All"
+    stories = "Stories"
+    meditations = "Meditations"
+
 @router.get("/admin/voice-review", response_model=ApiResponse[VoiceReviewResponse])
 def get_voice_review_list(
-    story_type: Optional[str] = None,
+    story_type: Optional[VoiceReviewFilterEnum] = Query(None, description="Filter by: All, Stories, Meditations"),
     search: Optional[str] = None,
-    limit: int = 20,
-    offset: int = 0,
-    page: Optional[int] = None,
+    limit: int = Query(20, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    page: Optional[int] = Query(None, ge=1),
     current_user: User = Depends(get_current_admin_user),
     db: Session = Depends(get_db),
 ):
