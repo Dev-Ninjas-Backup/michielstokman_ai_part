@@ -6,8 +6,15 @@ Pydantic models for the Photo Management (cover image) endpoints.
 from datetime import datetime
 from typing import Optional
 from pydantic import BaseModel
+from enum import Enum
 
 from app.model.cover_image import CoverImageType
+
+
+class APICoverImageType(str, Enum):
+    confession = "confession"
+    meditation = "meditation"
+    journey = "journey"
 
 
 class CoverImageResponse(BaseModel):
@@ -30,5 +37,6 @@ class CoverImageListResponse(BaseModel):
 
 
 class CoverImageUpdateRequest(BaseModel):
-    story_type: Optional[CoverImageType] = None
+    story_type: Optional[APICoverImageType] = None
     is_active: Optional[bool] = None
+

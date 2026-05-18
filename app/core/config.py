@@ -60,6 +60,7 @@ class Settings:
 
         # App Frontend / External
         self.FRONTEND_URL: str = os.getenv("FRONTEND_URL", "http://localhost:3000").rstrip("/")
+        self.BACKEND_URL: str = os.getenv("BACKEND_URL", "http://34.255.26.146:8000").rstrip("/")
         
         # Security: Allowed CORS origins (comma-separated string in .env)
         self.ALLOWED_ORIGINS: list[str] = os.getenv("ALLOWED_ORIGINS", "*").split(",")

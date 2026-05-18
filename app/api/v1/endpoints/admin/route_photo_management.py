@@ -27,6 +27,7 @@ from app.schemas.schema_cover_image import (
     CoverImageListResponse,
     CoverImageResponse,
     CoverImageUpdateRequest,
+    APICoverImageType,
 )
 import app.data.cover_image as cover_image_data
 from app.utils.s3 import delete_s3_object, upload_image_to_s3
@@ -37,6 +38,8 @@ router = APIRouter()
 ALLOWED_CONTENT_TYPES = {"image/jpeg", "image/png", "image/webp", "image/gif"}
 MAX_IMAGE_SIZE_BYTES = 10 * 1024 * 1024  # 10 MB
 
+
+from app.utils.media import format_media_url
 
 def _serialize(cover) -> dict:
     """Convert a CoverImage ORM row to a dict for the response."""
@@ -52,7 +55,7 @@ def _serialize(cover) -> dict:
     return {
         "id": str(cover.id),
         "story_type": display_type,
-        "image_url": cover.image_url,
+        "image_url": format_media_url(cover.image_url),
         "is_active": cover.is_active,
         "uploaded_by": str(cover.uploaded_by) if cover.uploaded_by else None,
         "created_at": cover.created_at,
@@ -66,7 +69,7 @@ def _serialize(cover) -> dict:
 
 @router.post("/admin/photos", response_model=ApiResponse[CoverImageResponse])
 async def upload_cover_image(
-    story_type: CoverImageType = Form(..., description="Story type: confession | meditation | transformation"),
+    story_type: APICoverImageType = Form(..., description="Story type: confession | meditation | journey"),
     file: UploadFile = File(..., description="Image file (JPEG, PNG, WEBP, GIF — max 10 MB)"),
     current_user: User = Depends(get_current_admin_user),
     db: Session = Depends(get_db),
@@ -101,9 +104,11 @@ async def upload_cover_image(
             detail="S3 upload failed. Ensure AWS credentials are configured correctly.",
         )
 
+    db_story_type = CoverImageType.transformation if story_type == APICoverImageType.journey else CoverImageType(story_type.value)
+
     cover = cover_image_data.create_cover_image(
         db=db,
-        story_type=story_type,
+        story_type=db_story_type,
         image_url=image_url,
         s3_key=s3_key,
         uploaded_by=str(current_user.id),
@@ -117,7 +122,7 @@ async def upload_cover_image(
 
 @router.get("/admin/photos", response_model=ApiResponse[CoverImageListResponse])
 def list_cover_images(
-    story_type: CoverImageType | None = Query(None, description="Filter by story type"),
+    story_type: APICoverImageType | None = Query(None, description="Filter by story type"),
     search: str | None = Query(None, description="Search by type"),
     active_only: bool = Query(False, description="Return only active images"),
     limit: int = Query(20, ge=1, le=100),
@@ -126,10 +131,19 @@ def list_cover_images(
     db: Session = Depends(get_db),
 ):
     """List all cover images with optional filtering by story type and active status."""
+    db_story_type = None
+    if story_type:
+        db_story_type = CoverImageType.transformation if story_type == APICoverImageType.journey else CoverImageType(story_type.value)
+
+    db_search = search
+    if search:
+        if search.lower() == "journey":
+            db_search = "transformation"
+
     items, total = cover_image_data.list_cover_images(
         db=db,
-        story_type=story_type,
-        search=search,
+        story_type=db_story_type,
+        search=db_search,
         active_only=active_only,
         limit=limit,
         offset=offset,
@@ -170,7 +184,7 @@ def get_cover_image(
 @router.patch("/admin/photos/{cover_id}", response_model=ApiResponse[CoverImageResponse])
 async def update_cover_image(
     cover_id: str,
-    story_type: CoverImageType | None = Form(None),
+    story_type: APICoverImageType | None = Form(None),
     is_active: bool | None = Form(None),
     file: UploadFile | None = File(None, description="Optional new image to replace the existing one"),
     current_user: User = Depends(get_current_admin_user),
@@ -211,10 +225,14 @@ async def update_cover_image(
         # Delete the old S3 object
         delete_s3_object(cover.s3_key)
 
+    db_story_type = None
+    if story_type is not None:
+        db_story_type = CoverImageType.transformation if story_type == APICoverImageType.journey else CoverImageType(story_type.value)
+
     cover = cover_image_data.update_cover_image(
         db=db,
         cover=cover,
-        story_type=story_type,
+        story_type=db_story_type,
         image_url=new_image_url,
         s3_key=new_s3_key,
         is_active=is_active,

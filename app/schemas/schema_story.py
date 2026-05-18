@@ -2,8 +2,9 @@
 app/schemas/schema_story.py
 Pydantic models for story-related endpoints (moderation + user-facing detail).
 """
-from pydantic import BaseModel, UUID4
+from pydantic import BaseModel, UUID4, field_validator
 from typing import Optional, List
+from app.utils.media import format_media_url
 
 
 # ---------------------------------------------------------------------------
@@ -26,6 +27,11 @@ class StoryDetailResponse(BaseModel):
     life_phase: str | None
     tags: list[str] | None
 
+    @field_validator("audio_path", mode="after")
+    @classmethod
+    def format_media(cls, v):
+        return format_media_url(v)
+
 
 class StoryListItemResponse(BaseModel):
     id: UUID4
@@ -35,6 +41,11 @@ class StoryListItemResponse(BaseModel):
     created_at: str
     moderation_status: str
     cover_image_url: str | None
+
+    @field_validator("cover_image_url", mode="after")
+    @classmethod
+    def format_media(cls, v):
+        return format_media_url(v)
 
 
 from app.schemas.schema_system import PaginationMeta
@@ -103,3 +114,8 @@ class StoryDetailUserResponse(BaseModel):
     avg_resonance: Optional[float] = None
     total_reflections: int = 0
     top_tags: List[str] = []
+
+    @field_validator("audio_path", "cover_image_url", mode="after")
+    @classmethod
+    def format_media(cls, v):
+        return format_media_url(v)

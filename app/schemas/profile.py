@@ -1,5 +1,5 @@
 from typing import Optional
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, field_validator
 from uuid import UUID
 
 class UserProfileBase(BaseModel):
@@ -40,5 +40,11 @@ class UserProfileResponse(UserProfileBase):
     daily_credits: Optional[str] = "3/3 Remaining"
     reflections_count: int = 0
     avg_resonance: float = 0.0
+
+    @field_validator("profile_image_url", mode="after")
+    @classmethod
+    def format_media(cls, v):
+        from app.utils.media import format_media_url
+        return format_media_url(v)
 
     model_config = ConfigDict(from_attributes=True)
