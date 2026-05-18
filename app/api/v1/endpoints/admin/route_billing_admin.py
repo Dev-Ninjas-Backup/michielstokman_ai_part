@@ -5,14 +5,36 @@ from app.api.deps import get_current_admin_user
 from app.core.db import get_db
 from app.core.responses import ApiResponse, success_response
 from app.data import billing as billing_data
-from app.schemas.schema_billing import AdminOrderHistoryResponse, AdminOrderListItem
+from app.schemas.schema_billing import AdminOrderHistoryResponse, AdminOrderListItem, AdminBillingStatsResponse
 
 router = APIRouter()
 
 @router.get(
+    "/admin/orders/stats",
+    response_model=ApiResponse[AdminBillingStatsResponse],
+    summary="Admin: get complete order summary and revenue aggregates",
+)
+def admin_get_billing_stats(
+    db: Session = Depends(get_db),
+    admin_user = Depends(get_current_admin_user),
+):
+    """
+    Returns total revenue cents, total revenue in standard currency, and total order count.
+    """
+    total_revenue, total_orders = billing_data.get_admin_order_stats(db)
+    
+    data = AdminBillingStatsResponse(
+        total_revenue_cents=total_revenue,
+        total_revenue=total_revenue / 100.0,
+        total_orders=total_orders
+    )
+    return success_response("Billing statistics fetched successfully", 200, data)
+
+
+@router.get(
     "/admin/orders",
     response_model=ApiResponse[AdminOrderHistoryResponse],
-    summary="Admin: get complete order history and revenue stats",
+    summary="Admin: get complete order history list",
 )
 def admin_get_order_history(
     search: str | None = Query(None, description="Search by journey/plan name"),
@@ -23,13 +45,9 @@ def admin_get_order_history(
     admin_user = Depends(get_current_admin_user),
 ):
     """
-    Returns total revenue, total order count, and a paginated list of successful orders.
-    Aligned with the Figma 'Order History' dashboard.
+    Returns a paginated list of successful orders aligned with the Figma 'Order History' dashboard.
     """
-    # 1. Get summary stats
-    total_revenue, total_orders = billing_data.get_admin_order_stats(db)
-    
-    # 2. Get filtered list
+    # Get filtered list
     results, total_filtered = billing_data.list_admin_orders(
         db, 
         search=search, 
@@ -38,7 +56,7 @@ def admin_get_order_history(
         offset=offset
     )
     
-    # 3. Map to response
+    # Map to response
     orders = [
         AdminOrderListItem(
             id=r.id,
@@ -53,9 +71,6 @@ def admin_get_order_history(
     ]
     
     data = AdminOrderHistoryResponse(
-        total_revenue_cents=total_revenue,
-        total_revenue=total_revenue / 100.0,
-        total_orders=total_orders,
         orders=orders,
         total_filtered=total_filtered
     )

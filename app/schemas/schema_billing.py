@@ -99,8 +99,11 @@ class AdminOrderListItem(BaseModel):
 
 
 class AdminOrderHistoryResponse(BaseModel):
+    orders: list[AdminOrderListItem]
+    total_filtered: int
+
+
+class AdminBillingStatsResponse(BaseModel):
     total_revenue_cents: int
     total_revenue: float
     total_orders: int
-    orders: list[AdminOrderListItem]
-    total_filtered: int
