@@ -24,6 +24,15 @@ from app.schemas.schema_liberation import (
     PurchasedJourneysResponse,
 )
 from app.services.service_liberation import LiberationService
+from app.utils.messages import (
+    JOURNEY_ENROLLED_SUCCESS,
+    JOURNEY_STATUS_SUCCESS,
+    PURCHASED_JOURNEYS_SUCCESS,
+    EXERCISE_GENERATED_SUCCESS,
+    DAY_COMPLETED_SUCCESS,
+    DAY_DETAIL_SUCCESS,
+    FEED_CARD_SUCCESS,
+)
 
 router = APIRouter()
 
@@ -52,7 +61,7 @@ def enroll_journey(
         user_id=current_user.id,
         journey_code=journey_code,
     )
-    return success_response("Journey enrolled successfully", status.HTTP_200_OK, result)
+    return success_response(JOURNEY_ENROLLED_SUCCESS, status.HTTP_200_OK, result)
 
 
 # ── Journey status dashboard (Screen 9: the 7-day progress list) ───────────
@@ -73,7 +82,7 @@ def get_journey_status(
     Used to render the progress dashboard for a specific journey.
     """
     result = LiberationService.get_status(db, current_user.id, journey_code)
-    return success_response("Journey status fetched", status.HTTP_200_OK, result)
+    return success_response(JOURNEY_STATUS_SUCCESS, status.HTTP_200_OK, result)
 
 
 # ── My Purchased Journeys (Library) ─────────────────────────────────────────
@@ -94,7 +103,7 @@ def get_my_journeys(
     Perfect for a 'My Library' or 'Purchased Content' screen.
     """
     result = LiberationService.get_purchased_journeys(db, current_user.id)
-    return success_response("Purchased journeys fetched", status.HTTP_200_OK, result)
+    return success_response(PURCHASED_JOURNEYS_SUCCESS, status.HTTP_200_OK, result)
 
 # ── Generate daily exercise (Screen 4 → 5: check-in → AI exercise) ────────
 
@@ -123,7 +132,7 @@ def generate_day(
         day=day,
         morning_feeling=payload.morning_feeling,
     )
-    return success_response("Daily exercise generated", status.HTTP_200_OK, result)
+    return success_response(EXERCISE_GENERATED_SUCCESS, status.HTTP_200_OK, result)
 
 
 # ── Complete a day (Screen 7: post-exercise reflection) ─────────────────────
@@ -155,7 +164,7 @@ def complete_day(
         what_opened=payload.what_opened,
         key_takeaway=payload.key_takeaway,
     )
-    return success_response("Day completed successfully", status.HTTP_200_OK, result)
+    return success_response(DAY_COMPLETED_SUCCESS, status.HTTP_200_OK, result)
 
 
 # ── Get a specific day's detail (for playback / review) ────────────────────
@@ -178,7 +187,7 @@ def get_day_detail(
     Useful for revisiting completed days.
     """
     result = LiberationService.get_day_detail(db, current_user.id, journey_code, day)
-    return success_response("Day detail fetched", status.HTTP_200_OK, result)
+    return success_response(DAY_DETAIL_SUCCESS, status.HTTP_200_OK, result)
 
 
 # ── Discovery feed card ────────────────────────────────────────────────────
@@ -200,4 +209,4 @@ def get_feed_card(
     - If user is NOT enrolled: returns teaser card.
     """
     result = LiberationService.get_feed_card(db, current_user.id if current_user else None, journey_code)
-    return success_response("Liberation feed card fetched", status.HTTP_200_OK, result)
+    return success_response(FEED_CARD_SUCCESS, status.HTTP_200_OK, result)

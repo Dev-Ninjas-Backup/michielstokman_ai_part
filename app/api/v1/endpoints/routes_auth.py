@@ -11,6 +11,16 @@ from app.services.service_profile import get_current_user_profile
 from app.api.deps import get_current_user
 from app.model.user import User
 from app.schemas.profile import UserProfileResponse
+from app.utils.messages import (
+    LOGIN_SUCCESSFUL,
+    SIGNUP_SUCCESSFUL,
+    LOGOUT_SUCCESSFUL,
+    PASSWORD_RESET_SUCCESS,
+    PASSWORD_UPDATE_SUCCESS,
+    TOKEN_REFRESH_SUCCESSFUL,
+    PROFILE_FETCHED_SUCCESS,
+    FORGOT_PASSWORD_SUCCESS,
+)
 
 router = APIRouter()
 
@@ -25,7 +35,7 @@ def signup(user_in: UserCreate, db: Session = Depends(get_db)):
     return {
         "status": status.HTTP_201_CREATED,
         "success": True,
-        "message": "Signup successful",
+        "message": SIGNUP_SUCCESSFUL,
         "data": token_payload,
         "access_token": token_payload.get("access_token"),
         "token_type": "bearer"
@@ -85,7 +95,7 @@ async def login(request: Request, db: Session = Depends(get_db)):
     return {
         "status": status.HTTP_200_OK,
         "success": True,
-        "message": "Login successful",
+        "message": LOGIN_SUCCESSFUL,
         "data": token_payload,
         "access_token": token_payload.get("access_token"),
         "token_type": "bearer"
@@ -99,7 +109,7 @@ def social_login(payload: SocialLoginRequest, db: Session = Depends(get_db)):
     Pass 'provider' ("firebase") and their 'id_token' from Firebase Auth.
     """
     token_payload = authenticate_social_user(db, provider=payload.provider, token=payload.token)
-    return success_response("Login successful", status.HTTP_200_OK, token_payload)
+    return success_response(LOGIN_SUCCESSFUL, status.HTTP_200_OK, token_payload)
 
 
 @router.post("/signout", response_model=ApiResponse[None])
@@ -120,7 +130,7 @@ def signout(authorization: str = Header(...), db: Session = Depends(get_db)):
 
     user_id = verify_token(token, db)
     result = signout_user(db, user_id)
-    return success_response(result.get("message", "Successfully signed out"), status.HTTP_200_OK)
+    return success_response(LOGOUT_SUCCESSFUL, status.HTTP_200_OK)
 
 
 @router.get("/auth/profile", response_model=ApiResponse[UserProfileResponse])
@@ -132,7 +142,7 @@ def get_auth_profile(
     Alias for /me/profile used by the frontend.
     """
     profile = get_current_user_profile(db, user_id=str(current_user.id))
-    return success_response("Profile fetched successfully", status.HTTP_200_OK, profile)
+    return success_response(PROFILE_FETCHED_SUCCESS, status.HTTP_200_OK, profile)
 
 
 @router.post("/auth/refresh")
@@ -151,7 +161,7 @@ def refresh_token(db: Session = Depends(get_db), current_user: User = Depends(ge
     return {
         "status": status.HTTP_200_OK,
         "success": True,
-        "message": "Token refreshed successfully",
+        "message": TOKEN_REFRESH_SUCCESSFUL,
         "data": {"access_token": access_token, "token_type": "bearer"},
         "access_token": access_token,
         "token_type": "bearer"
@@ -160,14 +170,14 @@ def refresh_token(db: Session = Depends(get_db), current_user: User = Depends(ge
 
 @router.post("/auth/forgot-password")
 def forgot_password():
-    return success_response("If email exists, reset link sent", status.HTTP_200_OK)
+    return success_response(FORGOT_PASSWORD_SUCCESS, status.HTTP_200_OK)
 
 
 @router.post("/auth/reset-password")
 def reset_password():
-    return success_response("Password reset successful", status.HTTP_200_OK)
+    return success_response(PASSWORD_RESET_SUCCESS, status.HTTP_200_OK)
 
 
 @router.post("/auth/update-password")
 def update_password():
-    return success_response("Password updated successfully", status.HTTP_200_OK)
+    return success_response(PASSWORD_UPDATE_SUCCESS, status.HTTP_200_OK)

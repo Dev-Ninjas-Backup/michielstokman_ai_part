@@ -7,6 +7,7 @@ from app.services.service_profile import process_profile_update, get_current_use
 from app.api.deps import get_current_user
 from app.model.user import User
 from app.utils.s3 import upload_image_to_s3, delete_s3_object
+from app.utils.messages import PROFILE_UPDATED_SUCCESS, PROFILE_FETCHED_SUCCESS, AVATAR_UPDATED_SUCCESS
 import logging
 
 logger = logging.getLogger(__name__)
@@ -27,7 +28,7 @@ def update_profile(
     Called when completing the 3-step onboarding flow.
     """
     profile = process_profile_update(db, user_id=str(current_user.id), profile_update=profile_data)
-    return success_response("Profile updated successfully", status.HTTP_200_OK, profile)
+    return success_response(PROFILE_UPDATED_SUCCESS, status.HTTP_200_OK, profile)
 
 
 @router.get("/me/profile", response_model=ApiResponse[UserProfileResponse])
@@ -39,7 +40,7 @@ def get_profile(
     Get the currently logged in user's profile.
     """
     profile = get_current_user_profile(db, user_id=str(current_user.id))
-    return success_response("Profile fetched successfully", status.HTTP_200_OK, profile)
+    return success_response(PROFILE_FETCHED_SUCCESS, status.HTTP_200_OK, profile)
 
 
 @router.put("/me/profile/avatar", response_model=ApiResponse[UserProfileResponse])
@@ -84,4 +85,4 @@ async def update_avatar(
     db.commit()
     db.refresh(profile)
 
-    return success_response("Avatar updated successfully", status.HTTP_200_OK, profile)
+    return success_response(AVATAR_UPDATED_SUCCESS, status.HTTP_200_OK, profile)
