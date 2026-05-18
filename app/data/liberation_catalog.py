@@ -60,19 +60,32 @@ def list_pending_definitions(db: Session, limit: int = 50, offset: int = 0) -> l
     )
 
 
-def list_all_definitions(db: Session, limit: int = 50, offset: int = 0) -> list[LiberationDefinition]:
-    """Return ALL definitions for the admin dashboard."""
+def list_all_definitions(db: Session, limit: int = 50, offset: int = 0, search: Optional[str] = None) -> list[LiberationDefinition]:
+    """Return ALL definitions for the admin dashboard, optionally filtered by search."""
+    query = db.query(LiberationDefinition)
+    if search:
+        search_pattern = f"%{search}%"
+        query = query.filter(
+            (LiberationDefinition.title.ilike(search_pattern)) |
+            (LiberationDefinition.journey_code.ilike(search_pattern))
+        )
     return (
-        db.query(LiberationDefinition)
-        .order_by(LiberationDefinition.created_at.desc())
+        query.order_by(LiberationDefinition.created_at.desc())
         .offset(offset)
         .limit(limit)
         .all()
     )
 
 
-def count_all_definitions(db: Session) -> int:
-    return db.query(LiberationDefinition).count()
+def count_all_definitions(db: Session, search: Optional[str] = None) -> int:
+    query = db.query(LiberationDefinition)
+    if search:
+        search_pattern = f"%{search}%"
+        query = query.filter(
+            (LiberationDefinition.title.ilike(search_pattern)) |
+            (LiberationDefinition.journey_code.ilike(search_pattern))
+        )
+    return query.count()
 
 
 def count_pending_definitions(db: Session) -> int:

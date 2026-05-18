@@ -179,6 +179,7 @@ def admin_list_all(
     limit: int = 50,
     offset: int = 0,
     page: int | None = None,
+    search: str | None = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_admin_user),
 ):
@@ -187,8 +188,8 @@ def admin_list_all(
     else:
         page = (offset // limit) + 1 if limit > 0 else 1
 
-    definitions = catalog_data.list_all_definitions(db, limit=limit, offset=offset)
-    total = catalog_data.count_all_definitions(db)
+    definitions = catalog_data.list_all_definitions(db, limit=limit, offset=offset, search=search)
+    total = catalog_data.count_all_definitions(db, search=search)
     items = [_definition_to_response(d) for d in definitions]
     
     total_pages = math.ceil(total / limit) if limit > 0 else 1

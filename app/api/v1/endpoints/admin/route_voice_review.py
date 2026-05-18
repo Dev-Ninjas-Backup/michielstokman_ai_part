@@ -18,6 +18,7 @@ from app.schemas.schema_voice_review import (
     VoiceReviewResponse,
     VoiceRegenerateResponse
 )
+from app.utils.media import format_media_url
 
 router = APIRouter()
 
@@ -80,7 +81,7 @@ def get_voice_review_list(
                 voice_name=story.voice_name,
                 audio_duration=duration_str,
                 created_at=story.created_at.strftime("%d %b %y"),  # format to "12 Jan 26"
-                audio_path=story.audio_path,
+                audio_path=format_media_url(story.audio_path),
             )
         )
 
@@ -130,8 +131,10 @@ def regenerate_voice(
     if not story.story_text:
         raise HTTPException(status_code=400, detail="Story has no text to generate audio from.")
 
+    from app.model.story import GenerationStatus
     import uuid
     new_job_id = str(uuid.uuid4())
+    story.generation_status = GenerationStatus.processing
     story.job_id = new_job_id
     db.commit()
 
@@ -149,7 +152,7 @@ def regenerate_voice(
             if not story_row:
                 return
 
-            audio_bytes = generate_voice_elevenlabs(text=text)
+            audio_bytes = generate_voice_elevenlabs(text=text, voice_id=story_row.voice_name)
             audio_path = save_audio(audio_bytes)
 
             story_data.complete_story(
