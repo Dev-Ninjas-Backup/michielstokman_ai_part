@@ -209,7 +209,7 @@ class UserJourneyStep(Base):
     ai_why_text = Column(Text, nullable=True)
 
     # ── Post-exercise reflection ──
-    energy_level_after = Column(Integer, nullable=True)
+    energy_level_after = Column(Float, nullable=True)
     reflection_opened = Column(Text, nullable=True)
     reflection_takeaway = Column(Text, nullable=True)
 

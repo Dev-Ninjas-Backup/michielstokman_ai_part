@@ -30,7 +30,7 @@ class StepDetail(BaseModel):
     ai_greeting: Optional[str] = None
     ai_exercise_text: Optional[str] = None
     ai_why_text: Optional[str] = None
-    energy_level_after: Optional[int] = None
+    energy_level_after: Optional[float] = None
     reflection_opened: Optional[str] = None
     reflection_takeaway: Optional[str] = None
     completed_at: Optional[datetime] = None
@@ -69,7 +69,7 @@ class DayCheckinRequest(BaseModel):
 
 class DayCompleteRequest(BaseModel):
     """Payload for the post-exercise reflection screen."""
-    energy_level: int = Field(default=5, ge=0, le=10, description="Energy level after exercise (0-10)")
+    energy_level: float = Field(default=5.0, ge=0.0, le=10.0, description="Energy level after exercise (0-10)")
     what_opened: str = Field(default="", max_length=5000, description="What opened up during the exercise")
     key_takeaway: str = Field(default="", max_length=5000, description="Key takeaway from the exercise")
 

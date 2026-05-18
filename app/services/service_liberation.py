@@ -253,7 +253,7 @@ class LiberationService:
     # ── Complete Day ────────────────────────────────────────────────────────
 
     @staticmethod
-    def complete_day(db: Session, user_id: UUID, journey_code: str, day: int, energy_level: int, what_opened: str, key_takeaway: str) -> dict:
+    def complete_day(db: Session, user_id: UUID, journey_code: str, day: int, energy_level: float, what_opened: str, key_takeaway: str) -> dict:
         """
         Save the user's post-exercise reflection, mark the day completed,
         and unlock the next day.

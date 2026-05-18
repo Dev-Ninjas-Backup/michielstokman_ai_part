@@ -125,7 +125,7 @@ def save_ai_content(
 def complete_step(
     db: Session,
     step: UserJourneyStep,
-    energy_level: int,
+    energy_level: float,
     opened: str,
     takeaway: str,
 ) -> UserJourneyStep:
