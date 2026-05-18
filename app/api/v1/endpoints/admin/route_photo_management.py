@@ -43,14 +43,18 @@ from app.utils.media import format_media_url
 
 def _serialize(cover) -> dict:
     """Convert a CoverImage ORM row to a dict for the response."""
-    # Map story_type to Figma display names
-    display_type = str(cover.story_type).replace("CoverImageType.", "").capitalize()
-    if display_type == "Confession":
-        display_type = "Confessions"
-    elif display_type == "Meditation":
-        display_type = "Meditation"  # stays Meditation
-    elif display_type == "Transformation":
-        display_type = "Journey"
+    # Map story_type to display names (lowercase, singular: confession, meditation, journey)
+    val = cover.story_type.value if hasattr(cover.story_type, "value") else str(cover.story_type)
+    val = val.lower().replace("coverimagetype.", "").strip()
+
+    if val in ("confession", "confessions"):
+        display_type = "confession"
+    elif val in ("meditation", "meditations"):
+        display_type = "meditation"
+    elif val in ("transformation", "journey"):
+        display_type = "journey"
+    else:
+        display_type = val
 
     return {
         "id": str(cover.id),
