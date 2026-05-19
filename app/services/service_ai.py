@@ -191,14 +191,6 @@ class AIService:
 
             title, story_text, audio_path = AIService.generate_and_voice_story(request)
 
-            story_data.complete_story(
-                db=db,
-                story=story_row,
-                story_text=story_text,
-                title=title,
-                audio_path=audio_path,
-            )
-            
             # Simple duration estimation (150 wpm) and default voice lookup
             from app.core.config import settings
             from app.data import cover_image as cover_data
@@ -206,7 +198,16 @@ class AIService:
 
             story_row.voice_name = settings.ELEVENLABS_VOICE_ID
             word_count = len(story_text.split()) if story_text else 0
-            story_row.audio_duration_seconds = int((word_count / 150) * 60)
+            duration_secs = int((word_count / 150) * 60)
+
+            story_data.complete_story(
+                db=db,
+                story=story_row,
+                story_text=story_text,
+                title=title,
+                audio_path=audio_path,
+                audio_duration_seconds=duration_secs,
+            )
 
             # Auto-assign cover image from admin uploads if not already set
             if not story_row.cover_image_url:

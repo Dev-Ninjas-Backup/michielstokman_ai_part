@@ -81,7 +81,7 @@ def get_voice_review_list(
                 voice_name=story.voice_name,
                 audio_duration=duration_str,
                 created_at=story.created_at.strftime("%d %b %y"),  # format to "12 Jan 26"
-                updated_at=story.updated_at.strftime("%d %b %y") if story.updated_at else story.created_at.strftime("%d %b %y"),
+                updated_at=story.updated_at.isoformat() if story.updated_at else story.created_at.isoformat(),
                 audio_path=format_media_url(story.audio_path),
             )
         )
@@ -156,9 +156,16 @@ def regenerate_voice(
             audio_bytes = generate_voice_elevenlabs(text=text, voice_id=story_row.voice_name)
             audio_path = save_audio(audio_bytes)
 
-            # Estimate duration approx 150 words per minute
-            word_count = len(text.split())
-            duration_secs = int((word_count / 150) * 60)
+            # Calculate exact MP3 duration using our get_mp3_duration helper
+            from app.utils.media import get_mp3_duration
+            import math
+            exact_duration = get_mp3_duration(audio_bytes)
+            if exact_duration > 0.0:
+                duration_secs = int(math.ceil(exact_duration))
+            else:
+                # Estimate duration approx 150 words per minute as a fallback
+                word_count = len(text.split())
+                duration_secs = int((word_count / 150) * 60)
 
             story_data.complete_story(
                 db=bg_db,
