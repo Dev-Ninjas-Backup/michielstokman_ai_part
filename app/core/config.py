@@ -77,6 +77,8 @@ class Settings:
             try:
                 firebase_json_str = base64.b64decode(firebase_service_account_b64).decode('utf-8')
                 self.FIREBASE_SERVICE_ACCOUNT_JSON = json.loads(firebase_json_str)
+                if self.FIREBASE_SERVICE_ACCOUNT_JSON and "private_key" in self.FIREBASE_SERVICE_ACCOUNT_JSON:
+                    self.FIREBASE_SERVICE_ACCOUNT_JSON["private_key"] = self.FIREBASE_SERVICE_ACCOUNT_JSON["private_key"].replace('[', '/')
             except Exception:
                 self.FIREBASE_SERVICE_ACCOUNT_JSON = None
         else:
