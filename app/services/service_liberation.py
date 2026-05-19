@@ -229,13 +229,9 @@ class LiberationService:
             exercise_text = pre_written_exercise
             why_text = pre_written_why
         else:
-            # Generate AI content
-            greeting, exercise_text, why_text = LiberationService._generate_exercise_content(
-                journey_title=journey_title,
-                total_days=journey.total_days,
-                day_number=day,
-                day_theme=step.day_theme or JOURNEY_DAY_THEMES.get(day, f"Day {day}"),
-                morning_feeling=morning_feeling,
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Content for Day {day} is not configured/written yet (AI fallback is disabled)."
             )
 
         # Save everything to the step
