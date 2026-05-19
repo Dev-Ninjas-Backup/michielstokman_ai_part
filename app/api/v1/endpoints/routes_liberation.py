@@ -26,6 +26,7 @@ from app.schemas.schema_liberation import (
 from app.services.service_liberation import LiberationService
 from app.utils.messages import (
     JOURNEY_ENROLLED_SUCCESS,
+    JOURNEY_REPEATED_SUCCESS,
     JOURNEY_STATUS_SUCCESS,
     PURCHASED_JOURNEYS_SUCCESS,
     EXERCISE_GENERATED_SUCCESS,
@@ -62,6 +63,31 @@ def enroll_journey(
         journey_code=journey_code,
     )
     return success_response(JOURNEY_ENROLLED_SUCCESS, status.HTTP_200_OK, result)
+
+
+# ── Repeat/Restart the journey (called when user clicks Repeat Liberation) ─
+
+@router.post(
+    "/liberation/{journey_code}/repeat",
+    response_model=ApiResponse[JourneyStatusResponse],
+    summary="Restart/Repeat a completed Liberation Journey",
+    tags=["Liberation Journey"],
+)
+def repeat_journey(
+    journey_code: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Resets the status of the completed journey back to active and clears all day reflections.
+    Requires an active premium subscription.
+    """
+    result = LiberationService.repeat(
+        db=db,
+        user_id=current_user.id,
+        journey_code=journey_code,
+    )
+    return success_response(JOURNEY_REPEATED_SUCCESS, status.HTTP_200_OK, result)
 
 
 # ── Journey status dashboard (Screen 9: the 7-day progress list) ───────────

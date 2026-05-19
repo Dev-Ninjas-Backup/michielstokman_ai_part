@@ -79,6 +79,33 @@ class LiberationService:
         logger.info(f"[Liberation] User {user_id} enrolled in journey {journey.id}")
         return LiberationService._build_status_dict(journey)
 
+    # ── Repeat/Restart Journey ──────────────────────────────────────────────
+
+    @staticmethod
+    def repeat(db: Session, user_id: UUID, journey_code: str) -> dict:
+        """
+        Allows restarting a completed journey by resetting its status and all step data.
+        Verifies purchase first, then fetches the user's completed journey.
+        """
+        LiberationService._verify_purchase(db, user_id, journey_code)
+
+        journey = lib_data.get_any_journey_for_user(db, user_id, journey_code)
+        if not journey:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="No journey found to repeat.",
+            )
+
+        if journey.status != JourneyStatus.completed:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="You can only repeat a journey that has been fully completed.",
+            )
+
+        updated_journey = lib_data.reset_journey_and_steps(db, journey)
+        logger.info(f"[Liberation] User {user_id} repeated journey {updated_journey.id}")
+        return LiberationService._build_status_dict(updated_journey)
+
     # ── Journey Status ──────────────────────────────────────────────────────
 
     @staticmethod
