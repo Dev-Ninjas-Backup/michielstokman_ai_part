@@ -81,6 +81,7 @@ def get_voice_review_list(
                 voice_name=story.voice_name,
                 audio_duration=duration_str,
                 created_at=story.created_at.strftime("%d %b %y"),  # format to "12 Jan 26"
+                updated_at=story.updated_at.strftime("%d %b %y") if story.updated_at else story.created_at.strftime("%d %b %y"),
                 audio_path=format_media_url(story.audio_path),
             )
         )
@@ -155,20 +156,18 @@ def regenerate_voice(
             audio_bytes = generate_voice_elevenlabs(text=text, voice_id=story_row.voice_name)
             audio_path = save_audio(audio_bytes)
 
+            # Estimate duration approx 150 words per minute
+            word_count = len(text.split())
+            duration_secs = int((word_count / 150) * 60)
+
             story_data.complete_story(
                 db=bg_db,
                 story=story_row,
                 story_text=text,
                 title=story_row.title,
                 audio_path=audio_path,
+                audio_duration_seconds=duration_secs,
             )
-            # Estimate duration approx 150 words per minute
-            word_count = len(text.split())
-            duration_secs = int((word_count / 150) * 60)
-            
-            story_row.audio_duration_seconds = duration_secs
-            # Optionally update voice_name if we knew it, or leave as is
-            bg_db.commit()
 
             logger.info(f"[Regenerate Job {job_id_str}] Completed. Audio saved: {audio_path}")
         except Exception as e:
