@@ -312,3 +312,77 @@ def delete_story(
         story_id=story_id_to_return,
     )
     return success_response("Story deleted successfully", status.HTTP_200_OK, result)
+
+
+@router.delete("/admin/confession/{story_id}", response_model=ApiResponse[DeleteStoryResponse])
+def delete_confession(
+    story_id: str,
+    current_user: User = Depends(get_current_admin_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Permanently delete a confession story.
+    Only accessible to admin users.
+    """
+    story = story_data.get_story_by_id(db, story_id)
+    
+    if not story:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Confession not found"
+        )
+        
+    from app.model.story import StoryType
+    if story.story_type != StoryType.confession:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Story is not a confession"
+        )
+    
+    story_id_to_return = story.id
+    
+    # Delete the story
+    story_data.delete_story(db, story)
+    
+    result = DeleteStoryResponse(
+        message="Confession deleted successfully",
+        story_id=story_id_to_return,
+    )
+    return success_response("Confession deleted successfully", status.HTTP_200_OK, result)
+
+
+@router.delete("/admin/meditation/{story_id}", response_model=ApiResponse[DeleteStoryResponse])
+def delete_meditation(
+    story_id: str,
+    current_user: User = Depends(get_current_admin_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Permanently delete a meditation story.
+    Only accessible to admin users.
+    """
+    story = story_data.get_story_by_id(db, story_id)
+    
+    if not story:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Meditation not found"
+        )
+        
+    from app.model.story import StoryType
+    if story.story_type != StoryType.meditation:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Story is not a meditation"
+        )
+    
+    story_id_to_return = story.id
+    
+    # Delete the story
+    story_data.delete_story(db, story)
+    
+    result = DeleteStoryResponse(
+        message="Meditation deleted successfully",
+        story_id=story_id_to_return,
+    )
+    return success_response("Meditation deleted successfully", status.HTTP_200_OK, result)
