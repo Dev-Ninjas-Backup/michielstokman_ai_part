@@ -26,18 +26,6 @@ class DayThemeItem(BaseModel):
     why_text: Optional[str] = None
     image_url: Optional[str] = None
 
-    @field_validator("day_theme", "exercise_text", "why_text", mode="before")
-    @classmethod
-    def clean_html(cls, v):
-        if isinstance(v, str):
-            import re
-            v = re.sub(r'<br\s*/?>', '\n', v)
-            v = re.sub(r'</p>\s*<p>', '\n\n', v)
-            v = re.sub(r'<[^>]+>', '', v)
-            v = re.sub(r'\n{3,}', '\n\n', v)
-            return v.strip()
-        return v
-
     class Config:
         from_attributes = True
 
