@@ -19,6 +19,61 @@ app = FastAPI(
     version="1.0.1",
 )
 
+# ---------------------------------------------------------------------------
+# Customize OpenAPI Schema to support pasting arbitrary JWT / Bearer tokens directly
+# ---------------------------------------------------------------------------
+from fastapi.openapi.utils import get_openapi
+
+def custom_openapi():
+    if app.openapi_schema:
+        return app.openapi_schema
+    openapi_schema = get_openapi(
+        title=app.title,
+        version=app.version,
+        description=app.description,
+        routes=app.routes,
+    )
+    # Ensure security schemes structure is initialized
+    if "components" not in openapi_schema:
+        openapi_schema["components"] = {}
+    if "securitySchemes" not in openapi_schema["components"]:
+        openapi_schema["components"]["securitySchemes"] = {}
+        
+    # Standard OAuth2 Password flow scheme
+    openapi_schema["components"]["securitySchemes"]["OAuth2PasswordBearer"] = {
+        "type": "oauth2",
+        "flows": {
+            "password": {
+                "tokenUrl": "/v1/login",
+                "scopes": {}
+            }
+        }
+    }
+    
+    # New HTTP Bearer scheme allowing pasting standard JWT tokens directly
+    openapi_schema["components"]["securitySchemes"]["BearerAuth"] = {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Enter your Bearer token directly here (e.g. your guest access token)."
+    }
+    
+    # Apply both security requirements to any route that uses authorization
+    for route in openapi_schema["paths"].values():
+        for method in route.values():
+            if "security" in method:
+                # Add BearerAuth as an alternative to whatever OAuth2 scheme exists
+                if not any("BearerAuth" in req for req in method["security"]):
+                    method["security"].append({"BearerAuth": []})
+            else:
+                method["security"] = [{"OAuth2PasswordBearer": []}, {"BearerAuth": []}]
+                
+    app.openapi_schema = openapi_schema
+    return app.openapi_schema
+
+app.openapi = custom_openapi
+
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.ALLOWED_ORIGINS,
