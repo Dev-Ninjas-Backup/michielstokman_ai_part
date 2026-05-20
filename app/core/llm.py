@@ -38,7 +38,7 @@ ELEVENLABS_VOICES = {
     "Rachel": "21m00Tcm4TlvDq8ikWAM",      # Warm & Friendly (Female)
     "Antoni": "ErXwobaYiN019PkySvjV",      # Calm & Reassuring (Male)
     "Bella": "EXAVITQu4vr4xnSDxMaL",       # Soft & Meditative (Female)
-    "Adam": "pNInz6obpgq5paNs9W5D",        # Deep & Resonant Narration (Male)
+    "Adam": "pNInz6obpgDQGcFmaJgB",        # Dominant, Firm (Male)
     "Glinda": "z9fAnwCtxredmBiSV157",      # Warm & Emotional (Female)
     "Liam": "TX3da5IXgTnvGWJ25ANZ",        # Bright & Conversational (Male)
     "Charlotte": "XB0yd4OOqHR45ZJA2t78",   # Sincere & Gentle (Female)
