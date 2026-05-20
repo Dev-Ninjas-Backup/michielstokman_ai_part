@@ -11,6 +11,7 @@ from app.core.db import get_db
 from app.core.responses import ApiResponse, success_response
 from app.model.user import User
 from app.utils.slug import generate_slug
+from app.utils.media import format_media_url
 from app.data import liberation_catalog as catalog_data
 from app.data.billing import check_user_has_plan_code
 from app.schemas.schema_liberation_catalog import (
@@ -59,6 +60,8 @@ def list_catalog(
                 moderation_notes=d.moderation_notes,
                 is_active=d.is_active,
                 created_at=d.created_at,
+                cover_image_url=format_media_url(d.cover_image_url),
+                rating=d.rating,
                 what_to_expect=d.what_to_expect or [],
                 setup_instructions=d.setup_instructions or [],
                 has_access=check_user_has_plan_code(db, current_user.id, f"journey_{d.journey_code}"),
@@ -108,6 +111,8 @@ def get_catalog_item(
         moderation_notes=definition.moderation_notes,
         is_active=definition.is_active,
         created_at=definition.created_at,
+        cover_image_url=format_media_url(definition.cover_image_url),
+        rating=definition.rating,
         what_to_expect=definition.what_to_expect or [],
         setup_instructions=definition.setup_instructions or [],
         has_access=check_user_has_plan_code(db, current_user.id, f"journey_{definition.journey_code}"),
