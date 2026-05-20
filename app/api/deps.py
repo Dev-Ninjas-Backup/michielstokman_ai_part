@@ -27,6 +27,11 @@ def get_current_user(
                 detail="Could not validate credentials",
                 headers={"WWW-Authenticate": "Bearer"},
             )
+        if payload.get("is_guest"):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="This feature requires a registered account. Please sign up or log in.",
+            )
     except (jwt.PyJWTError, ValidationError):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
