@@ -46,7 +46,16 @@ try:
     signup_json = response.json()
     assert signup_json["success"] is True
     access_token = signup_json["access_token"]
-    print("Signup succeeded and token received.")
+    
+    # Verify user field is serialized properly instead of being an empty dictionary {}
+    user_data = signup_json["data"]["user"]
+    print(f"Signup user data payload: {user_data}")
+    assert user_data != {}, "User object in signup response is empty!"
+    assert user_data["email"] == test_email
+    assert "id" in user_data
+    assert "is_active" in user_data
+    
+    print("Signup succeeded, user payload verified, and token received.")
 
     # 2. Get profile using the token
     print("Sending get profile request...")

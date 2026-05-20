@@ -66,6 +66,11 @@ def signup(user_in: UserCreate, db: Session = Depends(get_db)):
     if user:
         process_profile_update(db, str(user.id), placeholder_profile)
 
+    # Serialize the SQLAlchemy User object so it doesn't become empty {}
+    from app.schemas.user import UserResponse
+    if user:
+        token_payload["user"] = UserResponse.model_validate(user).model_dump()
+
     return {
         "status": status.HTTP_201_CREATED,
         "success": True,
@@ -125,6 +130,12 @@ async def login(request: Request, db: Session = Depends(get_db)):
         )
 
     token_payload = authenticate_user(db, email=email, password=password)
+
+    # Serialize the SQLAlchemy User object so it doesn't become empty {}
+    from app.schemas.user import UserResponse
+    user = token_payload.get("user")
+    if user:
+        token_payload["user"] = UserResponse.model_validate(user).model_dump()
 
     return {
         "status": status.HTTP_200_OK,
