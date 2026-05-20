@@ -183,11 +183,18 @@ class LiberationService:
                     if step.status in (StepStatus.available, StepStatus.completed):
                         current_day = step.day_number
 
+            # Fallback for cover image if definition doesn't have one
+            cover_img = definition.cover_image_url
+            if not cover_img:
+                from app.data import cover_image as cover_data
+                from app.model.cover_image import CoverImageType
+                cover_img = cover_data.get_latest_active_image_url(db, CoverImageType.transformation)
+
             results.append({
                 "journey_code": code,
                 "title": definition.title,
                 "description": definition.description,
-                "cover_image_url": definition.cover_image_url,
+                "cover_image_url": format_media_url(cover_img),
                 "total_days": definition.total_days,
                 "is_enrolled": is_enrolled,
                 "current_day": current_day,
@@ -379,12 +386,19 @@ class LiberationService:
                 # No such journey exists in catalog
                 return None
 
+            # Fallback for cover image if definition doesn't have one
+            cover_img = definition.cover_image_url
+            if not cover_img:
+                from app.data import cover_image as cover_data
+                from app.model.cover_image import CoverImageType
+                cover_img = cover_data.get_latest_active_image_url(db, CoverImageType.transformation)
+
             return {
                 "card_type": "liberation_journey",
                 "journey_code": definition.journey_code,
                 "title": definition.title,
                 "description": definition.description or f"A {definition.total_days}-day path to transformation.",
-                "cover_image_url": format_media_url(definition.cover_image_url),
+                "cover_image_url": format_media_url(cover_img),
                 "price_display": definition.price_cents // 100,
                 "price_cents": definition.price_cents,
                 "total_days": definition.total_days,
@@ -412,6 +426,11 @@ class LiberationService:
             cover_image_url = journey.definition.cover_image_url
             price_display = journey.definition.price_cents // 100
             price_cents = journey.definition.price_cents
+
+        if not cover_image_url:
+            from app.data import cover_image as cover_data
+            from app.model.cover_image import CoverImageType
+            cover_image_url = cover_data.get_latest_active_image_url(db, CoverImageType.transformation)
 
         # Calculate current day (highest available or completed)
         current_day = 1
