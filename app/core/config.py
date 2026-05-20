@@ -57,6 +57,7 @@ class Settings:
         self.SECRET_KEY: str = os.getenv("SECRET_KEY", "dev_fallback_secret_key_change_in_prod")
         self.ALGORITHM: str = os.getenv("ALGORITHM", "HS256")
         self.ACCESS_TOKEN_EXPIRE_MINUTES: int = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "10080"))
+        self.GUEST_TOKEN_EXPIRE_MINUTES: int = int(os.getenv("GUEST_TOKEN_EXPIRE_MINUTES", "1440"))
 
         # App Frontend / External
         self.FRONTEND_URL: str = os.getenv("FRONTEND_URL", "http://localhost:3000").rstrip("/")

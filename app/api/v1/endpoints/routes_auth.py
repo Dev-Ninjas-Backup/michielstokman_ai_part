@@ -257,3 +257,53 @@ def reset_password():
 @router.post("/auth/update-password")
 def update_password():
     return success_response(PASSWORD_UPDATE_SUCCESS, status.HTTP_200_OK)
+
+
+# ---------------------------------------------------------------------------
+# Guest Login
+# ---------------------------------------------------------------------------
+
+@router.post(
+    "/guest-login",
+    status_code=status.HTTP_200_OK,
+    summary="Obtain a guest access token",
+    tags=["Auth"],
+)
+def guest_login(db: Session = Depends(get_db)):
+    """
+    Issue a temporary JWT for an anonymous guest user.
+
+    The guest can use this token to browse the discovery feed and read
+    **one full story per day**. All other endpoints (AI generation,
+    liberation journey, profile, etc.) require a registered account.
+    """
+    import uuid
+    from datetime import timedelta
+    from app.core.config import settings
+    from app.core.security import create_access_token
+    from app.model.guest_session import GuestSession
+
+    guest_id = uuid.uuid4()
+
+    # Persist the guest session so we can enforce daily limits
+    session = GuestSession(id=guest_id)
+    db.add(session)
+    db.commit()
+
+    # Create a JWT with the is_guest flag
+    access_token = create_access_token(
+        data={"sub": str(guest_id), "is_guest": True},
+        user_token_version=0,
+        expires_delta=timedelta(minutes=settings.GUEST_TOKEN_EXPIRE_MINUTES),
+    )
+
+    return success_response(
+        "Guest session created",
+        status.HTTP_200_OK,
+        {
+            "access_token": access_token,
+            "token_type": "bearer",
+            "guest_id": str(guest_id),
+            "expires_in_minutes": settings.GUEST_TOKEN_EXPIRE_MINUTES,
+        },
+    )

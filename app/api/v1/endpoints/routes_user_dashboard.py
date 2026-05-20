@@ -10,7 +10,7 @@ from sqlalchemy.sql import func
 
 from app.core.db import get_db
 from app.core.responses import ApiResponse, success_response
-from app.api.deps import get_current_user, get_current_user_optional
+from app.api.deps import get_current_user, get_current_user_optional, enforce_guest_story_limit
 from app.model.user import User
 from app.model.story import ModerationStatus
 from app.model.feedback import StoryFeedback
@@ -251,7 +251,7 @@ async def get_book_recommendations(
 def get_story_detail(
     story_id: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    auth_ctx: dict = Depends(enforce_guest_story_limit),
 ):
     """
     Returns full story details for the detail/player page.
@@ -259,6 +259,9 @@ def get_story_detail(
     Includes the story content, audio path, and aggregated feedback stats
     (average rating, average resonance score, total reflections, top tags).
     Only returns approved stories to regular users.
+
+    **Guests** can call this endpoint with a guest token but are limited
+    to one story per day.
     """
     story = story_data.get_story_by_id(db, story_id)
 
@@ -278,6 +281,16 @@ def get_story_detail(
     # Increment listened/views count
     story.views_count = (story.views_count or 0) + 1
     db.commit()
+
+    # Record guest access so the daily limit is enforced on subsequent calls
+    if auth_ctx["is_guest"]:
+        from datetime import date
+        from app.model.guest_session import GuestSession
+        session = db.query(GuestSession).filter_by(id=auth_ctx["guest_id"]).first()
+        if session:
+            session.last_story_date = date.today()
+            session.last_story_id = str(story.id)
+            db.commit()
 
     # --- Aggregate feedback stats from StoryFeedback table ---
     stats = (

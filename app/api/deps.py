@@ -113,3 +113,112 @@ def check_story_credit(
         )
     return current_user
 
+
+# ---------------------------------------------------------------------------
+# Guest-aware authentication helpers
+# ---------------------------------------------------------------------------
+
+def get_current_user_or_guest(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """
+    Decode the JWT and return a dict with either a real user or guest context.
+
+    Returns
+    -------
+    dict with keys:
+        user     – User instance or None
+        is_guest – bool
+        guest_id – str (UUID) if guest, else None
+    """
+    authorization: str = request.headers.get("Authorization")
+    if not authorization:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not authenticated",
+        )
+
+    try:
+        parts = authorization.split()
+        if len(parts) != 2 or parts[0].lower() != "bearer":
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid authorization header")
+        token = parts[1]
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token has expired")
+    except (jwt.PyJWTError, ValidationError):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Could not validate credentials")
+
+    # Guest tokens carry an `is_guest` claim
+    if payload.get("is_guest"):
+        guest_id = payload.get("sub")
+        if not guest_id:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid guest token")
+        return {"user": None, "is_guest": True, "guest_id": guest_id}
+
+    # Otherwise it's a normal user token
+    user_id = payload.get("sub")
+    if not user_id:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Could not validate credentials")
+    user = get_user_by_id(db, user_id=user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    if not user.is_active:
+        raise HTTPException(status_code=400, detail="Inactive user")
+    return {"user": user, "is_guest": False, "guest_id": None}
+
+
+def require_registered_user(
+    auth_ctx: dict = Depends(get_current_user_or_guest),
+) -> User:
+    """Dependency that ensures the caller is a registered (non-guest) user."""
+    if auth_ctx["is_guest"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="This feature requires a registered account. Please sign up or log in.",
+        )
+    return auth_ctx["user"]
+
+
+def enforce_guest_story_limit(
+    story_id: str,
+    db: Session = Depends(get_db),
+    auth_ctx: dict = Depends(get_current_user_or_guest),
+):
+    """
+    For guests: checks whether they have already read a story today.
+    If yes, raises 429. If no, allows through and returns the guest_id so
+    the route can record the access.
+
+    For registered users: passes through with no restrictions.
+
+    Returns
+    -------
+    dict with keys: user, is_guest, guest_id (same as auth_ctx, enriched)
+    """
+    if not auth_ctx["is_guest"]:
+        return auth_ctx  # registered users are unrestricted
+
+    from datetime import date
+    from app.model.guest_session import GuestSession
+
+    guest_id = auth_ctx["guest_id"]
+    session = db.query(GuestSession).filter_by(id=guest_id).first()
+
+    if not session:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid guest session. Please call /v1/guest-login first.",
+        )
+
+    today = date.today()
+    if session.last_story_date == today:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Guest limit reached — you can read one story per day. Sign up for unlimited access!",
+        )
+
+    return auth_ctx
+
+
