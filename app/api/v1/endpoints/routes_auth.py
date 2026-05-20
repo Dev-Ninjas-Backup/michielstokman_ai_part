@@ -32,16 +32,39 @@ def signup(user_in: UserCreate, db: Session = Depends(get_db)):
     Compatible with Swagger Authorize.
     """
     token_payload = register_new_user(db, user_in)
-    # After creating the user, also create a default profile with null values
+
+    # ── Create a placeholder profile with dummy values ──────────────
+    # This ensures every new user has a profile row from the start.
+    # The frontend profile-setup flow will overwrite these defaults.
     from app.services.service_profile import process_profile_update
     from app.schemas.profile import UserProfileUpdate
-    # Create an empty update schema (all fields optional, will be None)
-    empty_update = UserProfileUpdate()
-    # The new user ID is available in the token payload under 'user_id'
-    user_id = token_payload.get('user_id')
+
+    placeholder_profile = UserProfileUpdate(
+        true_name="",
+        age=0,
+        country="",
+        city="",
+        height="",
+        education="",
+        annual_income="",
+        gender="",
+        sexual_orientation="",
+        life_phase="",
+        bio="",
+        profile_image_url="",
+        slider_desire_relationship=0,
+        slider_life_purpose=0,
+        slider_career_money=0,
+        slider_true_self=0,
+        slider_sexuality_life_energy=0,
+        slider_fear_freedom=0,
+        slider_health_body=0,
+        slider_enlightenment=0,
+    )
+
+    user_id = token_payload.get("user_id")
     if user_id:
-        # Use the same DB session to insert a placeholder profile
-        process_profile_update(db, str(user_id), empty_update)
+        process_profile_update(db, str(user_id), placeholder_profile)
 
     return {
         "status": status.HTTP_201_CREATED,
