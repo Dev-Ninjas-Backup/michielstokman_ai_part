@@ -105,6 +105,15 @@ def get_discovery_feed(
         if not author_display and s.user:
             author_display = s.user.email
 
+        # Get actual average star rating from StoryFeedback
+        from app.model.feedback import StoryFeedback
+        rating_stats = (
+            db.query(func.avg(StoryFeedback.star_rating).label("avg_rating"))
+            .filter(StoryFeedback.story_id == s.id)
+            .first()
+        )
+        feed_rating = round(float(rating_stats.avg_rating), 1) if rating_stats.avg_rating else (round(s.pulse_score / 2.0, 1) if (s.pulse_score and s.pulse_score > 0) else None)
+
         items.append(StoryFeedItem(
             id=str(s.id),
             title=s.title or STORY_UNTITLED,
@@ -112,7 +121,7 @@ def get_discovery_feed(
             story_type=s_type,
             cover_image_url=format_media_url(s.cover_image_url or fallback_images.get(s_type)),
             audio_path=format_media_url(s.audio_path),
-            rating=round(s.pulse_score / 2.0, 1) if (s.pulse_score and s.pulse_score > 0) else None,
+            rating=feed_rating,
             listened_count=s.views_count or 0,
             author_name=author_display,
             is_explicit=False 
@@ -265,6 +274,10 @@ def get_story_detail(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Story not found.",
         )
+
+    # Increment listened/views count
+    story.views_count = (story.views_count or 0) + 1
+    db.commit()
 
     # --- Aggregate feedback stats from StoryFeedback table ---
     stats = (

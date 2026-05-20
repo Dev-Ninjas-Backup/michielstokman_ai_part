@@ -48,11 +48,11 @@ def get_figma_dashboard_stats(db: Session):
             
         all_journeys = journey_query.count()
         completed_journeys = journey_query.filter(UserJourney.status == JourneyStatus.completed).count()
-        completion_rate = (completed_journeys / all_journeys * 100.0) if all_journeys > 0 else 0.0
+        completion_rate = round((completed_journeys / all_journeys * 100.0), 2) if all_journeys > 0 else 0.0
         
         return {
             "views": int(story_stats.views or 0),
-            "pulse": float(story_stats.pulse or 0.0),
+            "pulse": round(float(story_stats.pulse or 0.0), 1),
             "shares": int(story_stats.shares or 0),
             "completion": completion_rate
         }
