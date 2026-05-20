@@ -153,7 +153,14 @@ def regenerate_voice(
             if not story_row:
                 return
 
-            audio_bytes = generate_voice_elevenlabs(text=text, voice_id=story_row.voice_name)
+            import random
+            from app.core.llm import ELEVENLABS_VOICES
+            
+            # Select a new random voice for regeneration
+            new_voice_name = random.choice(list(ELEVENLABS_VOICES.keys()))
+            story_row.voice_name = new_voice_name
+
+            audio_bytes = generate_voice_elevenlabs(text=text, voice_id=new_voice_name)
             audio_path = save_audio(audio_bytes)
 
             # Calculate exact MP3 duration using our get_mp3_duration helper
@@ -176,7 +183,7 @@ def regenerate_voice(
                 audio_duration_seconds=duration_secs,
             )
 
-            logger.info(f"[Regenerate Job {job_id_str}] Completed. Audio saved: {audio_path}")
+            logger.info(f"[Regenerate Job {job_id_str}] Completed with random voice '{new_voice_name}'. Audio saved: {audio_path}")
         except Exception as e:
             logger.error(f"[Regenerate Job {job_id_str}] FAILED: {e}", exc_info=True)
             # We explicitly DO NOT fail the story here.
