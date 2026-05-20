@@ -153,15 +153,23 @@ class AIService:
         return title, story_text
 
     @staticmethod
-    def generate_and_voice_story(request: StoryGenerateRequest) -> Tuple[Optional[str], str, str]:
+    def generate_and_voice_story(request: StoryGenerateRequest) -> Tuple[Optional[str], str, str, str]:
         """
         Generates a story with SuperGrok, then converts it to audio via
-        ElevenLabs and saves it locally. Returns (title, story_text, audio_path).
+        ElevenLabs using a randomly selected high-quality premium voice, 
+        and saves it locally. Returns (title, story_text, audio_path, voice_name).
         """
+        import random
+        from app.core.llm import ELEVENLABS_VOICES
+
         title, story_text = AIService.generate_story(request)
-        audio_bytes = generate_voice_elevenlabs(text=story_text)
+        
+        # Pick a random voice from our premium set
+        voice_name = random.choice(list(ELEVENLABS_VOICES.keys()))
+        
+        audio_bytes = generate_voice_elevenlabs(text=story_text, voice_id=voice_name)
         audio_path = save_audio(audio_bytes)
-        return title, story_text, audio_path
+        return title, story_text, audio_path, voice_name
 
     # --- Background worker — story generation --------------------------------
 
@@ -189,7 +197,15 @@ class AIService:
                 StoryModel.id == story_db_id
             ).first()
 
-            title, story_text, audio_path = AIService.generate_and_voice_story(request)
+            title, story_text, audio_path, voice_name = AIService.generate_and_voice_story(request)
+
+            # Simple duration estimation (150 wpm) and default voice lookup
+            from app.data import cover_image as cover_data
+            from app.model.cover_image import CoverImageType
+
+            story_row.voice_name = voice_name
+            word_count = len(story_text.split()) if story_text else 0
+            duration_secs = int((word_count / 150) * 60)
 
             story_data.complete_story(
                 db=db,
@@ -197,16 +213,8 @@ class AIService:
                 story_text=story_text,
                 title=title,
                 audio_path=audio_path,
+                audio_duration_seconds=duration_secs,
             )
-            
-            # Simple duration estimation (150 wpm) and default voice lookup
-            from app.core.config import settings
-            from app.data import cover_image as cover_data
-            from app.model.cover_image import CoverImageType
-
-            story_row.voice_name = settings.ELEVENLABS_VOICE_ID
-            word_count = len(story_text.split()) if story_text else 0
-            story_row.audio_duration_seconds = int((word_count / 150) * 60)
 
             # Auto-assign cover image from admin uploads if not already set
             if not story_row.cover_image_url:
@@ -287,7 +295,10 @@ class AIService:
             )
 
             # 2. Call AIService.generate_and_voice_story(request)
-            title, story_text, audio_path = AIService.generate_and_voice_story(request)
+            title, story_text, audio_path, voice_name = AIService.generate_and_voice_story(request)
+
+            # Save the chosen voice name to the database row
+            story_row.voice_name = voice_name
 
             # 3. Call story_data.complete_story() to save text + audio_path
             story_data.complete_story(

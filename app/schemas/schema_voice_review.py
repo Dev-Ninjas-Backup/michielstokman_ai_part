@@ -13,6 +13,7 @@ class VoiceReviewItem(BaseModel):
     voice_name: Optional[str] = None
     audio_duration: Optional[str] = None
     created_at: str
+    updated_at: str
     audio_path: Optional[str] = None
 
 

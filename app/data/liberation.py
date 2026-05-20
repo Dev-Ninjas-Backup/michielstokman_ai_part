@@ -87,6 +87,24 @@ def mark_journey_completed(db: Session, journey: UserJourney) -> UserJourney:
     return journey
 
 
+def reset_journey_and_steps(db: Session, journey: UserJourney) -> UserJourney:
+    """Reset a completed journey back to active and clear all steps' progress data."""
+    journey.status = JourneyStatus.active
+    for step in journey.steps:
+        step.status = StepStatus.available if step.day_number == 1 else StepStatus.locked
+        step.morning_feeling = None
+        step.ai_greeting = None
+        step.ai_exercise_text = None
+        step.ai_why_text = None
+        step.energy_level_after = None
+        step.reflection_opened = None
+        step.reflection_takeaway = None
+        step.completed_at = None
+    db.commit()
+    db.refresh(journey)
+    return journey
+
+
 # ── Step CRUD ───────────────────────────────────────────────────────────────
 
 def get_step(db: Session, journey_id: UUID, day_number: int) -> Optional[UserJourneyStep]:

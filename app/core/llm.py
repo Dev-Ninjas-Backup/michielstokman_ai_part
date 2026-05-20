@@ -33,25 +33,32 @@ def get_story_llm(
     )
 
 
-# ---------------------------------------------------------------------------
-# TTS — ElevenLabs
-# ---------------------------------------------------------------------------
+# Curated list of high-quality premium pre-made ElevenLabs voices
+ELEVENLABS_VOICES = {
+    "Rachel": "21m00Tcm4TlvDq8ikWAM",      # Warm & Friendly (Female)
+    "Antoni": "ErXwobaYiN019PkySvjV",      # Calm & Reassuring (Male)
+    "Bella": "EXAVITQu4vr4xnSDxMaL",       # Soft & Meditative (Female)
+    "Adam": "pNInz6obpgDQGcFmaJgB",        # Dominant, Firm (Male)
+    "Glinda": "z9fAnwCtxredmBiSV157",      # Warm & Emotional (Female)
+    "Liam": "TX3da5IXgTnvGWJ25ANZ",        # Bright & Conversational (Male)
+    "Charlotte": "XB0yd4OOqHR45ZJA2t78",   # Sincere & Gentle (Female)
+    "George": "JBFvJZJe25aE5gtRx489",      # Soothing British (Male)
+}
 
 def generate_voice_elevenlabs(
     text: str,
     voice_id: str | None = None,
     model_id: str | None = None,
+    stability: float | None = None,
+    similarity_boost: float | None = None,
+    style: float | None = None,
 ) -> bytes:
     """
     Generates audio from text using ElevenLabs API.
     Returns the generated audio as raw MP3 bytes.
 
-    All voice parameters are loaded from settings (config.py / .env):
-        ELEVENLABS_VOICE_ID        → which voice to use
-        ELEVENLABS_MODEL_ID        → TTS model quality
-        ELEVENLABS_STABILITY       → warmth/consistency (0.0-1.0)
-        ELEVENLABS_SIMILARITY_BOOST → expressiveness (0.0-1.0)
-        ELEVENLABS_STYLE           → stylistic variation (0.0-1.0)
+    All voice parameters are loaded from settings (config.py / .env) by default.
+    If parameters are not provided, they are randomized slightly to provide unique variations.
 
     Requires ELEVENLABS_API_KEY in .env.
     """
@@ -59,8 +66,23 @@ def generate_voice_elevenlabs(
         # MOCK TTS: Return a tiny empty mp3 byte string so the job completes successfully during testing
         return b"ID3\x04\x00\x00\x00\x00\x00\x00"
 
-    resolved_voice_id = voice_id or settings.ELEVENLABS_VOICE_ID
+    # Resolve voice ID from name (e.g. "Rachel" -> "21m00Tcm4TlvDq8ikWAM")
+    resolved_voice_id = ELEVENLABS_VOICES.get(voice_id, voice_id) or settings.ELEVENLABS_VOICE_ID
     resolved_model_id = model_id or settings.ELEVENLABS_MODEL_ID
+
+    # Generate or resolve random variations for voice settings if not explicitly specified
+    import random
+    resolved_stability = stability
+    if resolved_stability is None:
+        resolved_stability = round(random.uniform(0.68, 0.82), 2)
+
+    resolved_similarity_boost = similarity_boost
+    if resolved_similarity_boost is None:
+        resolved_similarity_boost = round(random.uniform(0.72, 0.88), 2)
+
+    resolved_style = style
+    if resolved_style is None:
+        resolved_style = round(random.uniform(0.08, 0.26), 2)
 
     url = f"https://api.elevenlabs.io/v1/text-to-speech/{resolved_voice_id}"
 
@@ -74,9 +96,9 @@ def generate_voice_elevenlabs(
         "text": text,
         "model_id": resolved_model_id,
         "voice_settings": {
-            "stability": settings.ELEVENLABS_STABILITY,
-            "similarity_boost": settings.ELEVENLABS_SIMILARITY_BOOST,
-            "style": settings.ELEVENLABS_STYLE,
+            "stability": resolved_stability,
+            "similarity_boost": resolved_similarity_boost,
+            "style": resolved_style,
             "use_speaker_boost": True,
         },
     }

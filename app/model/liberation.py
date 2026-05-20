@@ -137,6 +137,7 @@ class LiberationDayDefinition(Base):
     day_theme = Column(String, nullable=False)      # "Awakening", "Grounding", etc.
     exercise_text = Column(Text, nullable=True)     # "What to do" (Pre-written by admin)
     why_text = Column(Text, nullable=True)          # "Why this exercise" (Pre-written by admin)
+    image_url = Column(String, nullable=True)       # Image path / S3 URL for this specific day
 
     # Relationships
     definition = relationship("LiberationDefinition", back_populates="day_definitions")

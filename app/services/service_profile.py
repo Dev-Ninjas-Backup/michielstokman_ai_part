@@ -9,6 +9,14 @@ from app.model.story import Story, GenerationStatus
 def process_profile_update(db: Session, user_id: str, profile_update: UserProfileUpdate):
     try:
         updated_profile = create_or_update_user_profile(db, user_id, profile_update)
+        
+        # Set user's profile setup status to True
+        from app.data.user import get_user_by_id
+        user = get_user_by_id(db, user_id)
+        if user and not user.is_profile_setup:
+            user.is_profile_setup = True
+            db.commit()
+            
         return updated_profile
     except Exception as e:
         raise HTTPException(
@@ -27,10 +35,10 @@ def get_current_user_profile(db: Session, user_id: str):
     # 1. Calculate Daily Credits status string
     premium = is_premium_user(db, user_id)
     if premium:
-        profile.daily_credits = "Premium — Unlimited"
+        profile.daily_credits = -1  # Unlimited
     else:
         credit = get_or_create_credit(db, user_id)
-        profile.daily_credits = f"{credit.daily_credits_remaining}/{credit.max_daily_credits} Remaining"
+        profile.daily_credits = credit.daily_credits_remaining
 
     # 2. Calculate Stats (Reflections & Avg Resonance)
     stats = db.query(

@@ -65,14 +65,17 @@ def get_or_create_credit(db: Session, user_id: str) -> UserCredit:
 
 def is_premium_user(db: Session, user_id: str) -> bool:
     """
-    Check if the user has any active subscription.
-    Premium users bypass all credit checks.
+    Check if the user has any active standard subscription.
+    Journey purchases do not count as a premium subscription.
     """
+    from app.model.billing import SubscriptionPlan
     active_sub = (
         db.query(UserSubscription)
+        .join(SubscriptionPlan, UserSubscription.plan_id == SubscriptionPlan.id)
         .filter(
             UserSubscription.user_id == user_id,
             UserSubscription.status == SubscriptionStatus.active,
+            ~SubscriptionPlan.code.like("journey_%"),
         )
         .first()
     )

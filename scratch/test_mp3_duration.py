@@ -1,28 +1,7 @@
-from app.core.config import settings
-
-def format_media_url(url: str | None) -> str | None:
-    """
-    Prepends the BACKEND_URL to local media paths (e.g., 'media/images/...').
-    Returns the full URL or the original URL if it's already absolute (e.g., S3 URL).
-    """
-    if not url:
-        return url
-    
-    if url.startswith("media/"):
-        return f"{settings.BACKEND_URL}/{url}"
-        
-    return url
-
-
 def get_mp3_duration(data: bytes) -> float:
-    """
-    Parses raw MP3 bytes and calculates the exact duration in seconds
-    by scanning the MP3 frame headers. If it's a mock MP3 or invalid, returns 0.0.
-    """
     try:
         size = len(data)
         i = 0
-        # Skip ID3v2 tag if present
         if data.startswith(b"ID3") and size >= 10:
             tag_size = (
                 (data[6] & 0x7F) << 21
@@ -35,7 +14,6 @@ def get_mp3_duration(data: bytes) -> float:
                 return 0.0
 
         total_duration = 0.0
-        # Scan MP3 frames
         while i < size - 4:
             if data[i] == 0xFF and (data[i + 1] & 0xE0) == 0xE0:
                 header = data[i:i+4]
@@ -51,7 +29,7 @@ def get_mp3_duration(data: bytes) -> float:
                     continue
 
                 layer = (header[1] & 0x06) >> 1
-                if layer != 1:  # We only support Layer III (value 1)
+                if layer != 1:  # Layer III is 1 (0b01)
                     i += 1
                     continue
 
@@ -79,7 +57,7 @@ def get_mp3_duration(data: bytes) -> float:
                         samplerates = [11025, 12000, 8000, -1]
                     samples_per_frame = 576
 
-                bitrate = bitrates[bitrate_idx] * 1000  # Convert kbps to bps
+                bitrate = bitrates[bitrate_idx] * 1000
                 samplerate = samplerates[samplerate_idx]
 
                 if bitrate <= 0 or samplerate <= 0:
@@ -95,7 +73,9 @@ def get_mp3_duration(data: bytes) -> float:
                 i += frame_size
             else:
                 i += 1
-
         return total_duration
     except Exception:
         return 0.0
+
+# Mock test with empty ID3 tag
+print("Mock MP3 Duration:", get_mp3_duration(b"ID3\x04\x00\x00\x00\x00\x00\x00"))

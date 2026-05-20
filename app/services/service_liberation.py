@@ -29,6 +29,15 @@ from app.utils.prompts import (
 logger = logging.getLogger(__name__)
 
 
+def _resolve_day_image(journey, day_number: int) -> Optional[str]:
+    """Return the formatted absolute image URL for a specific day in a journey, or None."""
+    if journey.definition and journey.definition.day_definitions:
+        for d_def in journey.definition.day_definitions:
+            if d_def.day_number == day_number:
+                return format_media_url(d_def.image_url)
+    return None
+
+
 class LiberationService:
 
     # ── Purchase Gate ───────────────────────────────────────────────────────
@@ -78,6 +87,33 @@ class LiberationService:
         )
         logger.info(f"[Liberation] User {user_id} enrolled in journey {journey.id}")
         return LiberationService._build_status_dict(journey)
+
+    # ── Repeat/Restart Journey ──────────────────────────────────────────────
+
+    @staticmethod
+    def repeat(db: Session, user_id: UUID, journey_code: str) -> dict:
+        """
+        Allows restarting a completed journey by resetting its status and all step data.
+        Verifies purchase first, then fetches the user's completed journey.
+        """
+        LiberationService._verify_purchase(db, user_id, journey_code)
+
+        journey = lib_data.get_any_journey_for_user(db, user_id, journey_code)
+        if not journey:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="No journey found to repeat.",
+            )
+
+        if journey.status != JourneyStatus.completed:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="You can only repeat a journey that has been fully completed.",
+            )
+
+        updated_journey = lib_data.reset_journey_and_steps(db, journey)
+        logger.info(f"[Liberation] User {user_id} repeated journey {updated_journey.id}")
+        return LiberationService._build_status_dict(updated_journey)
 
     # ── Journey Status ──────────────────────────────────────────────────────
 
@@ -156,11 +192,18 @@ class LiberationService:
                     if step.status in (StepStatus.available, StepStatus.completed):
                         current_day = step.day_number
 
+            # Fallback for cover image if definition doesn't have one
+            cover_img = definition.cover_image_url
+            if not cover_img:
+                from app.data import cover_image as cover_data
+                from app.model.cover_image import CoverImageType
+                cover_img = cover_data.get_latest_active_image_url(db, CoverImageType.transformation)
+
             results.append({
                 "journey_code": code,
                 "title": definition.title,
                 "description": definition.description,
-                "cover_image_url": definition.cover_image_url,
+                "cover_image_url": format_media_url(cover_img),
                 "total_days": definition.total_days,
                 "is_enrolled": is_enrolled,
                 "current_day": current_day,
@@ -202,6 +245,7 @@ class LiberationService:
                 "ai_greeting": step.ai_greeting,
                 "ai_exercise_text": step.ai_exercise_text,
                 "ai_why_text": step.ai_why_text,
+                "image_url": _resolve_day_image(journey, day),
             }
 
         # Save morning feeling
@@ -229,13 +273,9 @@ class LiberationService:
             exercise_text = pre_written_exercise
             why_text = pre_written_why
         else:
-            # Generate AI content
-            greeting, exercise_text, why_text = LiberationService._generate_exercise_content(
-                journey_title=journey_title,
-                total_days=journey.total_days,
-                day_number=day,
-                day_theme=step.day_theme or JOURNEY_DAY_THEMES.get(day, f"Day {day}"),
-                morning_feeling=morning_feeling,
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Content for Day {day} is not configured/written yet (AI fallback is disabled)."
             )
 
         # Save everything to the step
@@ -249,6 +289,7 @@ class LiberationService:
             "ai_greeting": greeting,
             "ai_exercise_text": exercise_text,
             "ai_why_text": why_text,
+            "image_url": _resolve_day_image(journey, day),
         }
 
     # ── Complete Day ────────────────────────────────────────────────────────
@@ -326,6 +367,7 @@ class LiberationService:
             "ai_greeting": step.ai_greeting,
             "ai_exercise_text": step.ai_exercise_text,
             "ai_why_text": step.ai_why_text,
+            "image_url": _resolve_day_image(journey, day),
             "energy_level_after": step.energy_level_after,
             "reflection_opened": step.reflection_opened,
             "reflection_takeaway": step.reflection_takeaway,
@@ -356,12 +398,19 @@ class LiberationService:
                 # No such journey exists in catalog
                 return None
 
+            # Fallback for cover image if definition doesn't have one
+            cover_img = definition.cover_image_url
+            if not cover_img:
+                from app.data import cover_image as cover_data
+                from app.model.cover_image import CoverImageType
+                cover_img = cover_data.get_latest_active_image_url(db, CoverImageType.transformation)
+
             return {
                 "card_type": "liberation_journey",
                 "journey_code": definition.journey_code,
                 "title": definition.title,
                 "description": definition.description or f"A {definition.total_days}-day path to transformation.",
-                "cover_image_url": format_media_url(definition.cover_image_url),
+                "cover_image_url": format_media_url(cover_img),
                 "price_display": definition.price_cents // 100,
                 "price_cents": definition.price_cents,
                 "total_days": definition.total_days,
@@ -389,6 +438,11 @@ class LiberationService:
             cover_image_url = journey.definition.cover_image_url
             price_display = journey.definition.price_cents // 100
             price_cents = journey.definition.price_cents
+
+        if not cover_image_url:
+            from app.data import cover_image as cover_data
+            from app.model.cover_image import CoverImageType
+            cover_image_url = cover_data.get_latest_active_image_url(db, CoverImageType.transformation)
 
         # Calculate current day (highest available or completed)
         current_day = 1

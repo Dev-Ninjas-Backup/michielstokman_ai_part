@@ -72,6 +72,22 @@ def submit_story_feedback(
         )
         message = "Feedback submitted successfully."
 
+    # Recalculate average resonance (touch_score) and total reflections count for the story
+    from sqlalchemy import func
+    from app.model.feedback import StoryFeedback
+    feedback_stats = (
+        db.query(
+            func.avg(StoryFeedback.touch_score).label("avg_resonance"),
+            func.count(StoryFeedback.id).label("total_reflections"),
+        )
+        .filter(StoryFeedback.story_id == story_id)
+        .first()
+    )
+    if feedback_stats:
+        story.pulse_score = float(feedback_stats.avg_resonance) if feedback_stats.avg_resonance else 0.0
+        story.reflections_count = feedback_stats.total_reflections or 0
+        db.commit()
+
     result = StoryFeedbackResponse(
         id=str(feedback.id),
         story_id=str(feedback.story_id),

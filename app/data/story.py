@@ -54,12 +54,15 @@ def complete_story(
     story_text: str,
     title: Optional[str] = None,
     audio_path: Optional[str] = None,
+    audio_duration_seconds: Optional[int] = None,
 ) -> Story:
     """Updates a Story row with the generated text + audio and marks it completed."""
     story.title = title
     story.story_text = story_text
     story.audio_path = audio_path
     story.generation_status = GenerationStatus.completed
+    if audio_duration_seconds is not None:
+        story.audio_duration_seconds = audio_duration_seconds
     db.commit()
     db.refresh(story)
     return story

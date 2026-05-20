@@ -23,6 +23,7 @@ STORY_UNTITLED = "Untitled"
 
 # User-Facing API Response Messages (Humanized Success)
 JOURNEY_ENROLLED_SUCCESS = "You have successfully enrolled in the journey."
+JOURNEY_REPEATED_SUCCESS = "Your journey has been restarted successfully."
 JOURNEY_STATUS_SUCCESS = "Your progress has been synced successfully."
 PURCHASED_JOURNEYS_SUCCESS = "Your purchased journeys have been retrieved."
 EXERCISE_GENERATED_SUCCESS = "Your daily exercise guide is ready."

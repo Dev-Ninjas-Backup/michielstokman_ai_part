@@ -11,8 +11,11 @@ from app.core.db import get_db
 from app.core.responses import ApiResponse, success_response
 from app.model.user import User
 from app.utils.slug import generate_slug
+from app.utils.media import format_media_url
 from app.data import liberation_catalog as catalog_data
 from app.data.billing import check_user_has_plan_code
+from app.data.cover_image import get_latest_active_image_url
+from app.model.cover_image import CoverImageType
 from app.schemas.schema_liberation_catalog import (
     CreateLiberationRequest,
     LiberationDefinitionResponse,
@@ -42,8 +45,13 @@ def list_catalog(
     Used by the frontend to render the journey storefront cards.
     """
     definitions = catalog_data.list_approved_definitions(db, limit=limit, offset=offset)
+    
+    # Get latest active cover image for transformation to use as fallback
+    fallback_cover = get_latest_active_image_url(db, CoverImageType.transformation)
+    
     items = []
     for d in definitions:
+        cover_img = d.cover_image_url or fallback_cover
         items.append(
             LiberationDefinitionResponse(
                 id=d.id,
@@ -59,6 +67,8 @@ def list_catalog(
                 moderation_notes=d.moderation_notes,
                 is_active=d.is_active,
                 created_at=d.created_at,
+                cover_image_url=format_media_url(cover_img),
+                rating=d.rating,
                 what_to_expect=d.what_to_expect or [],
                 setup_instructions=d.setup_instructions or [],
                 has_access=check_user_has_plan_code(db, current_user.id, f"journey_{d.journey_code}"),
@@ -67,7 +77,8 @@ def list_catalog(
                         day_number=dd.day_number, 
                         day_theme=dd.day_theme,
                         exercise_text=dd.exercise_text,
-                        why_text=dd.why_text
+                        why_text=dd.why_text,
+                        image_url=format_media_url(dd.image_url),
                     )
                     for dd in d.day_definitions
                 ],
@@ -94,6 +105,10 @@ def get_catalog_item(
     if not definition:
         raise HTTPException(status_code=404, detail="Liberation journey not found.")
     
+    # Get latest active cover image for transformation to use as fallback
+    fallback_cover = get_latest_active_image_url(db, CoverImageType.transformation)
+    cover_img = definition.cover_image_url or fallback_cover
+    
     result = LiberationDefinitionResponse(
         id=definition.id,
         journey_code=definition.journey_code,
@@ -108,6 +123,8 @@ def get_catalog_item(
         moderation_notes=definition.moderation_notes,
         is_active=definition.is_active,
         created_at=definition.created_at,
+        cover_image_url=format_media_url(cover_img),
+        rating=definition.rating,
         what_to_expect=definition.what_to_expect or [],
         setup_instructions=definition.setup_instructions or [],
         has_access=check_user_has_plan_code(db, current_user.id, f"journey_{definition.journey_code}"),
@@ -116,7 +133,8 @@ def get_catalog_item(
                 day_number=dd.day_number, 
                 day_theme=dd.day_theme,
                 exercise_text=dd.exercise_text,
-                why_text=dd.why_text
+                why_text=dd.why_text,
+                image_url=format_media_url(dd.image_url),
             )
             for dd in definition.day_definitions
         ],

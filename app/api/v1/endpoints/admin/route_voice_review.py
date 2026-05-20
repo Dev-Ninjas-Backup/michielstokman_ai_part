@@ -18,6 +18,7 @@ from app.schemas.schema_voice_review import (
     VoiceReviewResponse,
     VoiceRegenerateResponse
 )
+from app.utils.media import format_media_url
 
 router = APIRouter()
 
@@ -80,7 +81,8 @@ def get_voice_review_list(
                 voice_name=story.voice_name,
                 audio_duration=duration_str,
                 created_at=story.created_at.strftime("%d %b %y"),  # format to "12 Jan 26"
-                audio_path=story.audio_path,
+                updated_at=story.updated_at.isoformat() if story.updated_at else story.created_at.isoformat(),
+                audio_path=format_media_url(story.audio_path),
             )
         )
 
@@ -130,8 +132,10 @@ def regenerate_voice(
     if not story.story_text:
         raise HTTPException(status_code=400, detail="Story has no text to generate audio from.")
 
+    from app.model.story import GenerationStatus
     import uuid
     new_job_id = str(uuid.uuid4())
+    story.generation_status = GenerationStatus.processing
     story.job_id = new_job_id
     db.commit()
 
@@ -149,8 +153,26 @@ def regenerate_voice(
             if not story_row:
                 return
 
-            audio_bytes = generate_voice_elevenlabs(text=text)
+            import random
+            from app.core.llm import ELEVENLABS_VOICES
+            
+            # Select a new random voice for regeneration
+            new_voice_name = random.choice(list(ELEVENLABS_VOICES.keys()))
+            story_row.voice_name = new_voice_name
+
+            audio_bytes = generate_voice_elevenlabs(text=text, voice_id=new_voice_name)
             audio_path = save_audio(audio_bytes)
+
+            # Calculate exact MP3 duration using our get_mp3_duration helper
+            from app.utils.media import get_mp3_duration
+            import math
+            exact_duration = get_mp3_duration(audio_bytes)
+            if exact_duration > 0.0:
+                duration_secs = int(math.ceil(exact_duration))
+            else:
+                # Estimate duration approx 150 words per minute as a fallback
+                word_count = len(text.split())
+                duration_secs = int((word_count / 150) * 60)
 
             story_data.complete_story(
                 db=bg_db,
@@ -158,16 +180,10 @@ def regenerate_voice(
                 story_text=text,
                 title=story_row.title,
                 audio_path=audio_path,
+                audio_duration_seconds=duration_secs,
             )
-            # Estimate duration approx 150 words per minute
-            word_count = len(text.split())
-            duration_secs = int((word_count / 150) * 60)
-            
-            story_row.audio_duration_seconds = duration_secs
-            # Optionally update voice_name if we knew it, or leave as is
-            bg_db.commit()
 
-            logger.info(f"[Regenerate Job {job_id_str}] Completed. Audio saved: {audio_path}")
+            logger.info(f"[Regenerate Job {job_id_str}] Completed with random voice '{new_voice_name}'. Audio saved: {audio_path}")
         except Exception as e:
             logger.error(f"[Regenerate Job {job_id_str}] FAILED: {e}", exc_info=True)
             # We explicitly DO NOT fail the story here.

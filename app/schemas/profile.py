@@ -37,7 +37,7 @@ class UserProfileResponse(UserProfileBase):
     user_id: UUID
     
     # Calculated stats for the Profile UI
-    daily_credits: Optional[str] = "3/3 Remaining"
+    daily_credits: int = 3
     reflections_count: int = 0
     avg_resonance: float = 0.0
 
