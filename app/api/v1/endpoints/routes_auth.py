@@ -62,9 +62,9 @@ def signup(user_in: UserCreate, db: Session = Depends(get_db)):
         slider_enlightenment=0,
     )
 
-    user_id = token_payload.get("user_id")
-    if user_id:
-        process_profile_update(db, str(user_id), placeholder_profile)
+    user = token_payload.get("user")
+    if user:
+        process_profile_update(db, str(user.id), placeholder_profile)
 
     return {
         "status": status.HTTP_201_CREATED,
@@ -143,6 +143,37 @@ def social_login(payload: SocialLoginRequest, db: Session = Depends(get_db)):
     Pass 'provider' ("firebase") and their 'id_token' from Firebase Auth.
     """
     token_payload = authenticate_social_user(db, provider=payload.provider, token=payload.token)
+    
+    # If this is a new social user, also create a placeholder profile
+    if token_payload.get("is_new_user"):
+        user = token_payload.get("user")
+        if user:
+            from app.services.service_profile import process_profile_update
+            from app.schemas.profile import UserProfileUpdate
+            placeholder_profile = UserProfileUpdate(
+                true_name="",
+                age=0,
+                country="",
+                city="",
+                height="",
+                education="",
+                annual_income="",
+                gender="",
+                sexual_orientation="",
+                life_phase="",
+                bio="",
+                profile_image_url="",
+                slider_desire_relationship=0,
+                slider_life_purpose=0,
+                slider_career_money=0,
+                slider_true_self=0,
+                slider_sexuality_life_energy=0,
+                slider_fear_freedom=0,
+                slider_health_body=0,
+                slider_enlightenment=0,
+            )
+            process_profile_update(db, str(user.id), placeholder_profile)
+
     return success_response(LOGIN_SUCCESSFUL, status.HTTP_200_OK, token_payload)
 
 
