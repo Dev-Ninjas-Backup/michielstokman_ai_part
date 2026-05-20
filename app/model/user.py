@@ -19,6 +19,7 @@ class User(Base):
     is_verified = Column(Boolean, default=False, nullable=False)
     is_admin = Column(Boolean, default=False, nullable=False)
     token_version = Column(Integer, default=1, nullable=False)
+    is_profile_setup = Column(Boolean, default=False, nullable=False)
     
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
     last_login = Column(DateTime, nullable=True)

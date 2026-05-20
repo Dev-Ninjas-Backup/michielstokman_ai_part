@@ -24,6 +24,7 @@ class UserResponse(UserBase):
     id: UUID4
     is_active: bool
     is_admin: bool
+    is_profile_setup: bool
     created_at: datetime
     last_login: Optional[datetime] = None
 

@@ -9,6 +9,14 @@ from app.model.story import Story, GenerationStatus
 def process_profile_update(db: Session, user_id: str, profile_update: UserProfileUpdate):
     try:
         updated_profile = create_or_update_user_profile(db, user_id, profile_update)
+        
+        # Set user's profile setup status to True
+        from app.data.user import get_user_by_id
+        user = get_user_by_id(db, user_id)
+        if user and not user.is_profile_setup:
+            user.is_profile_setup = True
+            db.commit()
+            
         return updated_profile
     except Exception as e:
         raise HTTPException(
