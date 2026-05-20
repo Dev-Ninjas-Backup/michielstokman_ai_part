@@ -46,6 +46,7 @@ class StepDetail(BaseModel):
     reflection_opened: Optional[str] = None
     reflection_takeaway: Optional[str] = None
     completed_at: Optional[datetime] = None
+    image_url: Optional[str] = None
 
     @field_validator("day_theme", "ai_greeting", "ai_exercise_text", "ai_why_text", mode="before")
     @classmethod
@@ -106,6 +107,7 @@ class DayGenerateResponse(BaseModel):
     ai_greeting: str
     ai_exercise_text: str
     ai_why_text: str
+    image_url: Optional[str] = None
 
     @field_validator("day_theme", "ai_greeting", "ai_exercise_text", "ai_why_text", mode="before")
     @classmethod

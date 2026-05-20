@@ -17,12 +17,14 @@ class DayDefinitionInput(BaseModel):
     title: str = Field(..., description="Corresponds to the day's theme/title")
     exercise_text: Optional[str] = Field(None, description="What to do")
     why_text: Optional[str] = Field(None, description="Why this exercise")
+    image_url: Optional[str] = Field(None, description="Image URL or local fallback path for this day")
 
 class DayThemeItem(BaseModel):
     day_number: int
     day_theme: str
     exercise_text: Optional[str] = None
     why_text: Optional[str] = None
+    image_url: Optional[str] = None
 
     @field_validator("day_theme", "exercise_text", "why_text", mode="before")
     @classmethod

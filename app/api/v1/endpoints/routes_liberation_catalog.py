@@ -77,7 +77,8 @@ def list_catalog(
                         day_number=dd.day_number, 
                         day_theme=dd.day_theme,
                         exercise_text=dd.exercise_text,
-                        why_text=dd.why_text
+                        why_text=dd.why_text,
+                        image_url=format_media_url(dd.image_url),
                     )
                     for dd in d.day_definitions
                 ],
@@ -132,7 +133,8 @@ def get_catalog_item(
                 day_number=dd.day_number, 
                 day_theme=dd.day_theme,
                 exercise_text=dd.exercise_text,
-                why_text=dd.why_text
+                why_text=dd.why_text,
+                image_url=format_media_url(dd.image_url),
             )
             for dd in definition.day_definitions
         ],

@@ -29,6 +29,15 @@ from app.utils.prompts import (
 logger = logging.getLogger(__name__)
 
 
+def _resolve_day_image(journey, day_number: int) -> Optional[str]:
+    """Return the formatted absolute image URL for a specific day in a journey, or None."""
+    if journey.definition and journey.definition.day_definitions:
+        for d_def in journey.definition.day_definitions:
+            if d_def.day_number == day_number:
+                return format_media_url(d_def.image_url)
+    return None
+
+
 class LiberationService:
 
     # ── Purchase Gate ───────────────────────────────────────────────────────
@@ -236,6 +245,7 @@ class LiberationService:
                 "ai_greeting": step.ai_greeting,
                 "ai_exercise_text": step.ai_exercise_text,
                 "ai_why_text": step.ai_why_text,
+                "image_url": _resolve_day_image(journey, day),
             }
 
         # Save morning feeling
@@ -279,6 +289,7 @@ class LiberationService:
             "ai_greeting": greeting,
             "ai_exercise_text": exercise_text,
             "ai_why_text": why_text,
+            "image_url": _resolve_day_image(journey, day),
         }
 
     # ── Complete Day ────────────────────────────────────────────────────────
@@ -356,6 +367,7 @@ class LiberationService:
             "ai_greeting": step.ai_greeting,
             "ai_exercise_text": step.ai_exercise_text,
             "ai_why_text": step.ai_why_text,
+            "image_url": _resolve_day_image(journey, day),
             "energy_level_after": step.energy_level_after,
             "reflection_opened": step.reflection_opened,
             "reflection_takeaway": step.reflection_takeaway,

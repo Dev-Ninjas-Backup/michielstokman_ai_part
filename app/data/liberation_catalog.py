@@ -143,6 +143,7 @@ def create_definition(
             day_theme=day_def_input.title,
             exercise_text=day_def_input.exercise_text,
             why_text=day_def_input.why_text,
+            image_url=day_def_input.image_url,
         )
         db.add(day_def)
 

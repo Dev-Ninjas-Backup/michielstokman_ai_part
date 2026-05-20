@@ -5,7 +5,7 @@ Admin endpoints for managing liberation definitions:
   - Bulk creation (auto-approved)
   - Review queue (approve / reject user submissions)
 """
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_admin_user
@@ -13,6 +13,8 @@ from app.core.db import get_db
 from app.core.responses import ApiResponse, success_response
 from app.model.user import User
 from app.utils.slug import generate_slug
+from app.utils.media import format_media_url
+from app.utils.s3 import upload_image_to_s3
 from app.data import liberation_catalog as catalog_data
 from app.schemas.schema_liberation_catalog import (
     CreateLiberationRequest,
@@ -55,7 +57,8 @@ def _definition_to_response(d) -> LiberationDefinitionResponse:
                 day_number=dd.day_number, 
                 day_theme=dd.day_theme,
                 exercise_text=dd.exercise_text,
-                why_text=dd.why_text
+                why_text=dd.why_text,
+                image_url=format_media_url(dd.image_url),
             )
             for dd in d.day_definitions
         ],
@@ -296,6 +299,7 @@ def admin_get_liberation_day(
         day_theme=day.day_theme,
         exercise_text=day.exercise_text,
         why_text=day.why_text,
+        image_url=format_media_url(day.image_url),
     )
     return success_response(f"Day {day_number} detail fetched", status.HTTP_200_OK, result)
 
@@ -410,16 +414,64 @@ def admin_update_liberation(
                 existing_day.day_theme = day_input.title
                 existing_day.exercise_text = day_input.exercise_text
                 existing_day.why_text = day_input.why_text
+                if day_input.image_url is not None:
+                    existing_day.image_url = day_input.image_url
             else:
                 db.add(LiberationDayDefinition(
                     definition_id=definition.id,
                     day_number=day_input.day,
                     day_theme=day_input.title,
                     exercise_text=day_input.exercise_text,
-                    why_text=day_input.why_text
+                    why_text=day_input.why_text,
+                    image_url=day_input.image_url,
                 ))
 
     db.commit()
     db.refresh(definition)
     
     return success_response("Liberation updated successfully", status.HTTP_200_OK, _definition_to_response(definition))
+
+
+# ── Admin: upload image for a liberation day ─────────────────────────────────
+
+@router.post(
+    "/admin/liberation/upload-image",
+    response_model=ApiResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Admin: upload an image for a liberation day",
+    tags=["Liberation Admin"],
+)
+async def admin_upload_liberation_image(
+    file: UploadFile = File(..., description="Image file (JPEG, PNG, WEBP — max 10 MB)"),
+    current_user: User = Depends(get_current_admin_user),
+):
+    """Upload an image to be used as a day-specific visual in a liberation journey.
+    Returns the image URL that should be saved as `image_url` on a day definition."""
+    ALLOWED_TYPES = {"image/jpeg", "image/png", "image/webp", "image/gif"}
+    if file.content_type not in ALLOWED_TYPES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Unsupported file type '{file.content_type}'. Allowed: JPEG, PNG, WEBP, GIF.",
+        )
+
+    image_bytes = await file.read()
+    if len(image_bytes) > 10 * 1024 * 1024:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail="Image file exceeds maximum size of 10 MB.",
+        )
+
+    ext = (file.filename or "image.jpg").rsplit(".", 1)[-1].lower()
+    image_url, s3_key = upload_image_to_s3(image_bytes, file_extension=ext)
+
+    if not image_url:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to upload image. Ensure storage is configured correctly.",
+        )
+
+    return success_response(
+        "Image uploaded successfully",
+        status.HTTP_201_CREATED,
+        {"image_url": format_media_url(image_url), "s3_key": s3_key},
+    )
