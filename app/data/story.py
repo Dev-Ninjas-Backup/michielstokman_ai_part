@@ -218,6 +218,44 @@ def update_story_details(db: Session, story: Story, title: Optional[str] = None,
     return story
 
 def delete_story(db: Session, story: Story) -> None:
-    """Permanently delete a story."""
+    """Permanently delete a story and its associated audio file from S3 or local disk."""
+    import logging
+    import os
+    logger = logging.getLogger(__name__)
+
+    audio_path: str | None = story.audio_path
+
+    # ── 1. Delete the DB row first so the story is gone even if file cleanup fails ──
     db.delete(story)
     db.commit()
+
+    # ── 2. Best-effort file cleanup ───────────────────────────────────────────────
+    if not audio_path:
+        return
+
+    try:
+        from app.core.config import settings
+
+        # If the audio_path is a relative local path (media/audio/…), try S3 first,
+        # then fall back to deleting from the local filesystem.
+        if settings.AWS_BUCKET_NAME and settings.AWS_ACCESS_KEY_ID:
+            import boto3
+            s3 = boto3.client(
+                "s3",
+                aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
+                aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
+                region_name=settings.AWS_REGION_NAME,
+            )
+            # Strip any leading slash so the key matches what was uploaded
+            s3_key = audio_path.lstrip("/")
+            s3.delete_object(Bucket=settings.AWS_BUCKET_NAME, Key=s3_key)
+            logger.info(f"Deleted audio from S3: s3://{settings.AWS_BUCKET_NAME}/{s3_key}")
+        else:
+            # Local filesystem fallback — audio_path is relative to the working dir
+            local_path = audio_path.lstrip("/")
+            if os.path.exists(local_path):
+                os.remove(local_path)
+                logger.info(f"Deleted local audio file: {local_path}")
+    except Exception as exc:
+        # Log but do NOT raise — story is already deleted from the DB
+        logger.warning(f"Could not delete audio file '{audio_path}': {exc}")
