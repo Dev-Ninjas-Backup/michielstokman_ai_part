@@ -220,7 +220,8 @@ def enforce_guest_story_limit(
         )
 
     today = date.today()
-    if session.last_story_date == today:
+    # Allow guest to re-access the same story they unlocked today without blocking them
+    if session.last_story_date == today and session.last_story_id != story_id:
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail="Guest limit reached — you can read one story per day. Sign up for unlimited access!",
