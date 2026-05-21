@@ -2,7 +2,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func, desc, select, Float
 from datetime import datetime, timedelta, timezone
 
-from app.model.story import Story
+from app.model.story import Story, GenerationStatus
 from app.model.user import User
 from app.model.liberation import UserJourney, JourneyStatus
 
@@ -27,7 +27,7 @@ def get_figma_dashboard_stats(db: Session):
     # --- Top Stats (Figma Row: Total Views, Avg Resonance, Completion Rate, Share Clicks) ---
     def get_metrics(start=None, end=None):
         # 1. Stories metrics
-        story_query = db.query(Story)
+        story_query = db.query(Story).filter(Story.generation_status == GenerationStatus.completed)
         if start:
             story_query = story_query.filter(Story.created_at >= start)
         if end:
@@ -98,6 +98,7 @@ def get_figma_dashboard_stats(db: Session):
     
     # --- Top Resonance Content ---
     top_content_query = db.query(Story).filter(
+        Story.generation_status == GenerationStatus.completed,
         Story.pulse_score.isnot(None),
         Story.title.isnot(None)
     ).order_by(desc(Story.pulse_score)).limit(5).all()
@@ -114,7 +115,9 @@ def get_figma_dashboard_stats(db: Session):
         
     # --- Latest Activity ---
     from app.utils.time_utils import format_relative_time
-    latest_stories = db.query(Story).join(User, Story.user_id == User.id).order_by(desc(Story.created_at)).limit(5).all()
+    latest_stories = db.query(Story).join(User, Story.user_id == User.id).filter(
+        Story.generation_status == GenerationStatus.completed
+    ).order_by(desc(Story.created_at)).limit(5).all()
     latest_activity = []
     for s in latest_stories:
         latest_activity.append({
