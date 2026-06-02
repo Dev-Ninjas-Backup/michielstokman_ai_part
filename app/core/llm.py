@@ -43,6 +43,7 @@ ELEVENLABS_VOICES = {
     "Liam": "TX3da5IXgTnvGWJ25ANZ",        # Bright & Conversational (Male)
     "Charlotte": "XB0yd4OOqHR45ZJA2t78",   # Sincere & Gentle (Female)
     "George": "JBFvJZJe25aE5gtRx489",      # Soothing British (Male)
+    "Sophia": "u8ADrbquiJqufR9XMtb8",      # Client Preferred Meditative Voice (Female)
 }
 
 def generate_voice_elevenlabs(

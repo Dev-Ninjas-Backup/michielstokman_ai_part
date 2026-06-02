@@ -8,6 +8,7 @@ Story.generation_status and Story.job_id — no separate in-memory store needed.
 """
 import uuid
 import logging
+import re
 from typing import Optional, Tuple
 
 logger = logging.getLogger(__name__)
@@ -117,7 +118,26 @@ class AIService:
     # --- Story Generation ---------------------------------------------------
 
     @staticmethod
-    def generate_story(request: StoryGenerateRequest) -> Tuple[Optional[str], str]:
+    def select_voice_by_gender(gender: Optional[str]) -> str:
+        """
+        Currates premium voice lists to match the narrator/user's gender.
+        """
+        import random
+        from app.core.llm import ELEVENLABS_VOICES
+
+        FEMALE_VOICES = ["Sophia"]
+        MALE_VOICES = ["Antoni", "Adam", "Liam", "George"]
+
+        gender_lower = (gender or "").lower()
+        if "female" in gender_lower or "woman" in gender_lower:
+            return random.choice(FEMALE_VOICES)
+        elif "male" in gender_lower or "man" in gender_lower:
+            return random.choice(MALE_VOICES)
+        else:
+            return random.choice(list(ELEVENLABS_VOICES.keys()))
+
+    @staticmethod
+    def generate_story(request: StoryGenerateRequest, gender: Optional[str] = None) -> Tuple[Optional[str], str]:
         """
         Generates a personalised Confession, Meditation, or Transformation
         using SuperGrok. Prompt templates live in app/utils/prompts.py.
@@ -125,7 +145,7 @@ class AIService:
         """
         llm = get_story_llm()
 
-        system_template = build_story_system_template(request.story_type)
+        system_template = build_story_system_template(request.story_type, gender=gender)
         user_context = build_user_context(request)
 
         chat_prompt = ChatPromptTemplate.from_messages([
@@ -153,19 +173,16 @@ class AIService:
         return title, story_text
 
     @staticmethod
-    def generate_and_voice_story(request: StoryGenerateRequest) -> Tuple[Optional[str], str, str, str]:
+    def generate_and_voice_story(request: StoryGenerateRequest, gender: Optional[str] = None) -> Tuple[Optional[str], str, str, str]:
         """
         Generates a story with SuperGrok, then converts it to audio via
-        ElevenLabs using a randomly selected high-quality premium voice, 
+        ElevenLabs using a gender-consistent premium voice, 
         and saves it locally. Returns (title, story_text, audio_path, voice_name).
         """
-        import random
-        from app.core.llm import ELEVENLABS_VOICES
-
-        title, story_text = AIService.generate_story(request)
+        title, story_text = AIService.generate_story(request, gender=gender)
         
-        # Pick a random voice from our premium set
-        voice_name = random.choice(list(ELEVENLABS_VOICES.keys()))
+        # Pick gender-consistent voice
+        voice_name = AIService.select_voice_by_gender(gender)
         
         audio_bytes = generate_voice_elevenlabs(text=story_text, voice_id=voice_name)
         audio_path = save_audio(audio_bytes)
@@ -190,6 +207,7 @@ class AIService:
         """
         from app.core.db import SessionLocal
         from app.model.story import Story as StoryModel
+        from app.model.profile import UserProfile
 
         db = SessionLocal()
         try:
@@ -197,7 +215,13 @@ class AIService:
                 StoryModel.id == story_db_id
             ).first()
 
-            title, story_text, audio_path, voice_name = AIService.generate_and_voice_story(request)
+            gender = None
+            if story_row and story_row.user_id:
+                profile_row = db.query(UserProfile).filter(UserProfile.user_id == story_row.user_id).first()
+                if profile_row:
+                    gender = profile_row.gender
+
+            title, story_text, audio_path, voice_name = AIService.generate_and_voice_story(request, gender=gender)
 
             # Simple duration estimation (150 wpm) and default voice lookup
             from app.data import cover_image as cover_data
@@ -207,10 +231,13 @@ class AIService:
             word_count = len(story_text.split()) if story_text else 0
             duration_secs = int((word_count / 150) * 60)
 
+            # Strip break tags before saving to DB
+            story_text_db = re.sub(r'<break\s+time="[^"]+"\s*/>', '', story_text)
+
             story_data.complete_story(
                 db=db,
                 story=story_row,
-                story_text=story_text,
+                story_text=story_text_db,
                 title=title,
                 audio_path=audio_path,
                 audio_duration_seconds=duration_secs,
@@ -300,11 +327,14 @@ class AIService:
             # Save the chosen voice name to the database row
             story_row.voice_name = voice_name
 
+            # Strip break tags before saving to DB
+            story_text_db = re.sub(r'<break\s+time="[^"]+"\s*/>', '', story_text)
+
             # 3. Call story_data.complete_story() to save text + audio_path
             story_data.complete_story(
                 db=db,
                 story=story_row,
-                story_text=story_text,
+                story_text=story_text_db,
                 title=title,
                 audio_path=audio_path,
             )
