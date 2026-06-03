@@ -6,6 +6,7 @@ from langchain_openai import ChatOpenAI
 from app.core.config import settings
 
 
+# ElevenLabs TTS & LLM Configuration for House of Juliette
 # ---------------------------------------------------------------------------
 # LLM — SuperGrok (xAI)
 # ---------------------------------------------------------------------------
