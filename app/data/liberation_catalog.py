@@ -116,6 +116,10 @@ def create_definition(
     Create a new liberation definition together with its day-theme rows.
     Admin-created definitions are auto-approved; user submissions start as pending.
     """
+    if rating is None:
+        import random
+        rating = round(random.uniform(4.4, 4.9), 1)
+
     definition = LiberationDefinition(
         journey_code=journey_code,
         title=title,
