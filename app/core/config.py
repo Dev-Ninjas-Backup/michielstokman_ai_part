@@ -23,7 +23,7 @@ class Settings:
         # Find other voice IDs at: https://elevenlabs.io/voice-library
         self.ELEVENLABS_VOICE_ID: str = os.getenv("ELEVENLABS_VOICE_ID", "21m00Tcm4TlvDq8ikWAM")
         # TTS model — eleven_turbo_v2_5 is recommended for speed and long-form (40k char limit)
-        self.ELEVENLABS_MODEL_ID: str = os.getenv("ELEVENLABS_MODEL_ID", "eleven_turbo_v2_5")
+        self.ELEVENLABS_MODEL_ID: str = os.getenv("ELEVENLABS_MODEL_ID", "eleven_multilingual_v2")
         # Voice stability (0.0-1.0): higher = more consistent, warmer delivery
         self.ELEVENLABS_STABILITY: float = float(os.getenv("ELEVENLABS_STABILITY", "0.65"))
         # Similarity boost (0.0-1.0): higher = more expressive, less robotic
