@@ -4,6 +4,7 @@ Raw database queries for the Story table.
 No business logic here — only DB read/write operations.
 """
 import uuid
+import random
 from typing import Optional
 from sqlalchemy.orm import Session
 
@@ -27,7 +28,13 @@ def create_story(
     """
     Inserts a new Story row in 'processing' state.
     Exactly one of user_id or admin_id should be provided.
+    Seeds with social proof metrics rather than starting at 0.
     """
+    views = random.randint(150, 450)
+    reflections = random.randint(50, 150)
+    shares = random.randint(20, 80)
+    pulse = round(random.uniform(88.0, 97.5), 1)
+
     story = Story(
         story_type=story_type,
         job_id=job_id,
@@ -41,6 +48,10 @@ def create_story(
         life_phase=life_phase,
         tags=tags,
         high_intensity=high_intensity,
+        views_count=views,
+        shares_count=shares,
+        reflections_count=reflections,
+        pulse_score=pulse,
     )
     db.add(story)
     db.commit()

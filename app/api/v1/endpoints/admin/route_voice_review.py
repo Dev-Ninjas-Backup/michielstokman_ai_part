@@ -156,8 +156,13 @@ def regenerate_voice(
             import random
             from app.core.llm import ELEVENLABS_VOICES
             
-            # Select a new random voice for regeneration
-            new_voice_name = random.choice(list(ELEVENLABS_VOICES.keys()))
+            # Select a new voice preserving the gender category of the narrator
+            FEMALE_VOICES = ["Sophia", "Bella", "Glinda", "Charlotte"]
+            if story_row.voice_name in FEMALE_VOICES:
+                new_voice_name = "Sophia"
+            else:
+                MALE_VOICES = ["Antoni", "Adam", "Liam", "George"]
+                new_voice_name = random.choice(MALE_VOICES)
             story_row.voice_name = new_voice_name
 
             audio_bytes = generate_voice_elevenlabs(text=text, voice_id=new_voice_name)

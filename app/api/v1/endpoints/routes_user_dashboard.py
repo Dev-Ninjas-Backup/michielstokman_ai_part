@@ -112,7 +112,7 @@ def get_discovery_feed(
             .filter(StoryFeedback.story_id == s.id)
             .first()
         )
-        feed_rating = round(float(rating_stats.avg_rating), 1) if rating_stats.avg_rating else (round(s.pulse_score / 2.0, 1) if (s.pulse_score and s.pulse_score > 0) else None)
+        feed_rating = round(float(rating_stats.avg_rating), 1) if rating_stats.avg_rating else (round(s.pulse_score / 20.0, 1) if (s.pulse_score and s.pulse_score > 0) else None)
 
         items.append(StoryFeedItem(
             id=str(s.id),

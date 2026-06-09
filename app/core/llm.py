@@ -6,6 +6,7 @@ from langchain_openai import ChatOpenAI
 from app.core.config import settings
 
 
+# ElevenLabs TTS & LLM Configuration for House of Juliette
 # ---------------------------------------------------------------------------
 # LLM — SuperGrok (xAI)
 # ---------------------------------------------------------------------------
@@ -43,6 +44,7 @@ ELEVENLABS_VOICES = {
     "Liam": "TX3da5IXgTnvGWJ25ANZ",        # Bright & Conversational (Male)
     "Charlotte": "XB0yd4OOqHR45ZJA2t78",   # Sincere & Gentle (Female)
     "George": "JBFvJZJe25aE5gtRx489",      # Soothing British (Male)
+    "Sophia": "u8ADrbquiJqufR9XMtb8",      # Client Preferred Meditative Voice (Female)
 }
 
 def generate_voice_elevenlabs(
@@ -71,18 +73,21 @@ def generate_voice_elevenlabs(
     resolved_model_id = model_id or settings.ELEVENLABS_MODEL_ID
 
     # Generate or resolve random variations for voice settings if not explicitly specified
+    # stability (0.35-0.45): lower stability makes the voice much more expressive, breathy, and emotional.
+    # similarity_boost (0.80-0.90): retains high clarity of the selected voice.
+    # style (0.35-0.55): higher style amplifies the unique character and emotional depth of the narration.
     import random
     resolved_stability = stability
     if resolved_stability is None:
-        resolved_stability = round(random.uniform(0.68, 0.82), 2)
+        resolved_stability = round(random.uniform(0.35, 0.45), 2)
 
     resolved_similarity_boost = similarity_boost
     if resolved_similarity_boost is None:
-        resolved_similarity_boost = round(random.uniform(0.72, 0.88), 2)
+        resolved_similarity_boost = round(random.uniform(0.80, 0.90), 2)
 
     resolved_style = style
     if resolved_style is None:
-        resolved_style = round(random.uniform(0.08, 0.26), 2)
+        resolved_style = round(random.uniform(0.35, 0.55), 2)
 
     url = f"https://api.elevenlabs.io/v1/text-to-speech/{resolved_voice_id}"
 

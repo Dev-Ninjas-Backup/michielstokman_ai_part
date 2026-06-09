@@ -11,6 +11,7 @@ Brand brief:
   experience. Content must feel 100% personal — never generic, never robotic.
   The user should think: "This was written for me."
 """
+from typing import Optional
 from app.schemas.schema_ai import StoryGenerateRequest, StoryType
 
 
@@ -120,16 +121,22 @@ STORY_TYPE_INSTRUCTIONS: dict[StoryType, str] = {
         "It should guide her from her current emotional state toward a place of stillness and self-compassion. "
         "Use sensory language: breath, warmth, light, weight. Never preachy. End with an invitation, not a command. "
         "Note: As a meditation, adapt the base rules (like 1st person 'I') to 2nd person ('you') where appropriate, "
-        "but keep the raw, sensory, and emotionally honest tone. No headers. Pure flowing prose."
+        "but keep the raw, sensory, and emotionally honest tone. No headers. Pure flowing prose.\n"
+        "PACING & SILENCE: To make the audio recording feel calm, spacious, and meditative, you MUST insert silent pauses. "
+        "Insert `<break time=\"2.0s\" />` at the end of every paragraph and `<break time=\"1.5s\" />` at the end of key grounding sentences/instructions. "
+        "Ensure there are natural moments of silence throughout."
     ),
     StoryType.transformation: (
         "Write a TRANSFORMATION story.\n"
         "Format: empowering forward movement — from pain to possibility, from stuck to free. "
-        "Third person ('she') so the woman can see herself from the outside and recognize her own courage. "
+        "Third person ('she') so the person can see themselves from the outside and recognize their own courage. "
         "Note: As a transformation story, adapt the base 1st person rule to 3rd person ('she'), "
         "honouring the hardship she has been through, revealing the quiet power that was always there waiting. "
         "Never toxic positivity. End with a single powerful, true sentence she will remember. "
-        "No headers. Pure flowing prose."
+        "No headers. Pure flowing prose.\n"
+        "PACING & SILENCE: To make the audio recording feel calm, natural, and spacious, you MUST insert silent pauses. "
+        "Insert `<break time=\"2.0s\" />` at the end of every paragraph and `<break time=\"1.5s\" />` at the end of major transitions or reflections. "
+        "Ensure there are natural moments of silence throughout."
     ),
 }
 
@@ -158,15 +165,37 @@ STORY_HUMAN_TEMPLATE = (
 )
 
 
-def build_story_system_template(story_type: StoryType) -> str:
+def build_story_system_template(story_type: StoryType, gender: Optional[str] = None) -> str:
     """
     Returns the full system prompt for a given story type,
     combining the base persona, type-specific instructions,
     and the user context injection slot.
+    Adjusts the persona dynamically based on the user's gender.
     """
     instruction = STORY_TYPE_INSTRUCTIONS[story_type]
+    base_persona = BASE_PERSONA
+
+    gender_lower = (gender or "").lower()
+    if "female" in gender_lower or "woman" in gender_lower:
+        perspective = "PERSPECTIVE: Write this content from the perspective of a wise, warm, deeply understanding woman. All pronouns, thoughts, and emotions must reflect a female narrator."
+    elif "male" in gender_lower or "man" in gender_lower:
+        perspective = "PERSPECTIVE: Write this content from the perspective of a wise, warm, deeply understanding man. All pronouns, thoughts, and emotions must reflect a male narrator."
+        # Adjust base persona for male perspective
+        base_persona = base_persona.replace(
+            "about her.",
+            "about him."
+        )
+        # Adjust Third Person pronouns in instructions if it is a male transformation
+        if story_type == StoryType.transformation:
+            instruction = instruction.replace("('she')", "('he')").replace("herself", "himself").replace("she has", "he has").replace("she will", "he will")
+        elif story_type == StoryType.meditation:
+            instruction = instruction.replace("guide her", "guide him").replace("her current", "his current")
+    else:
+        perspective = "PERSPECTIVE: Write this content from the perspective of a wise, warm, deeply understanding woman. All pronouns, thoughts, and emotions must reflect a female narrator."
+
     return (
-        f"{BASE_PERSONA}\n\n"
+        f"{perspective}\n\n"
+        f"{base_persona}\n\n"
         f"{instruction}\n\n"
         f"{USER_CONTEXT_INJECTION}"
     )
