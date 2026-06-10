@@ -91,14 +91,14 @@ def generate_voice_elevenlabs(
     # Strip markdown bold/italic tags so the TTS engine doesn't read them or glitch
     clean_text = text.replace("**", "").replace("*", "")
     
-    # 1. Paragraph breaks (double newlines) -> 1.2s pause
-    processed_text = re.sub(r'\n\s*\n', '\n\n<break time="1.2s" />\n\n', clean_text)
-    # 2. Line breaks (single newline) -> 0.8s pause
-    processed_text = re.sub(r'(?<!\n)\n(?!\n)', '\n<break time="0.8s" />\n', processed_text)
-    # 3. Ellipses (...) -> 1.0s pause
-    processed_text = re.sub(r'\.\.\.+', '... <break time="1.0s" />', processed_text)
-    # 4. Sentence endings (period, question mark, exclamation mark followed by space and Capital Letter) -> 0.6s pause
-    processed_text = re.sub(r'([.!?])\s+([A-Z])', r'\1 <break time="0.6s" /> \2', processed_text)
+    # 1. Paragraph breaks (double newlines) -> 2.0s pause
+    processed_text = re.sub(r'\n\s*\n', '\n\n<break time="2.0s" />\n\n', clean_text)
+    # 2. Line breaks (single newline) -> 1.2s pause
+    processed_text = re.sub(r'(?<!\n)\n(?!\n)', '\n<break time="1.2s" />\n', processed_text)
+    # 3. Ellipses (...) -> 1.5s pause
+    processed_text = re.sub(r'\.\.\.+', '... <break time="1.5s" />', processed_text)
+    # 4. Sentence endings (period, question mark, exclamation mark followed by space and Capital Letter) -> 1.0s pause
+    processed_text = re.sub(r'([.!?])\s+([A-Z])', r'\1 <break time="1.0s" /> \2', processed_text)
 
     url = f"https://api.elevenlabs.io/v1/text-to-speech/{resolved_voice_id}"
 
@@ -116,7 +116,7 @@ def generate_voice_elevenlabs(
             "similarity_boost": resolved_similarity_boost,
             "style": resolved_style,
             "use_speaker_boost": True,
-            "speed": 0.90,  # Slow down speech slightly to allow emotional resonance (a bit faster than 0.85)
+            "speed": 0.85,  # Slow down speech natively to allow emotional resonance
         },
     }
 
