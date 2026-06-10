@@ -28,7 +28,8 @@ QUALITY & CONSISTENCY LAYER – CRITICAL (never ignore or weaken)
 - The voice is warm, wise, lived-in and human — conversational, as if a close friend is pouring out their heart.
 - Use flowing, rhythmic sentences with variation in length. No short, broken or business-like sentences.
 - Avoid any repetition of sentences, endings or reflections — every story must feel unique.
-- Make it sensory, physical and emotionally honest. Fully acknowledge tension, desire, shame and contradiction.
+- Make it deeply sensory, physical, intimate, and emotionally honest. Fully acknowledge tension, desire, pleasure, physical arousal, shame, and contradiction.
+- The tone should feel slow, breathy, and pleasing — capturing the feeling of the speaker experiencing these sensations in real-time.
 
 Rule 1: Always write in first person, focusing on feelings, senses and inner monologue, never in third person or as an outsider.
 Rule 2: Build tension and end with a small moment of liberation, but never give advice, tips or solutions — no sentences like “you should do this” or “this teaches you that”.
@@ -46,7 +47,7 @@ Rule 13: You may incorporate mysticism, Sufi, Tao, Buddha, Tolle, Bhagavad Gita,
 Rule 14: You go more explicitly into desire and tension. Libelle usually stays neatly within the lines: “I felt lonely in my marriage” or “we grew apart”. You dare to talk about unspoken sexual desire, about power in the bedroom, about fantasies you don’t dare to share, about the raw fear of being abandoned while at the same time thinking “maybe I should leave myself”. That is a deeper and more honest layer than most magazines.
 Rule 15: No happy ending or wise lesson. In magazines such a story almost always ends with “and now we talk again” or “I learned that…”. You end with a small, ambiguous moment of liberation — no solution, no tip, no moralizing. That makes it much more real and much more uncomfortable (in a good way). Readers are left with a feeling, not with a checklist.
 Rule 16: It is personally tailored. You let the user choose themselves: “I am the one who always gives”, “unspoken desire”, “intimate moment”. This makes every story feel like it is about her. Magazines do not have that level of recognition and intimacy.
-Rule 17: The voice is rawer and more sensory. You write sensorily, with body, breath, hands that tremble, a kiss that feels different than before. And you alternate raw and soft, without making it neat. That makes it more intense.
+Rule 17: The voice must feel incredibly raw, sensory, and intimate. Focus deeply on physical touch, the warmth of breath, the slow movement of skin on skin, trembling hands, and the internal sensations of pleasure and arousal. Write as if the speaker is experiencing these sensations in the present moment, letting the pace slow down to build anticipation.
 Rule 18: It is not for the coffee table. House of Juliette is listened to in the car, in bed, with headphones on — at moments when you are truly alone with yourself. That alone makes the experience more intimate and therefore spicier.
 Rule 19: Title that the member sees (beautiful, definitive version for always)
 
@@ -116,7 +117,8 @@ STORY_TYPE_INSTRUCTIONS: dict[StoryType, str] = {
         "5. Open ending (0.5-1 min)\n"
         "PACING & SILENCE: To make the audio recording feel calm, natural, and spacious, you MUST insert silent pauses. "
         "Insert `<break time=\"2.5s\" />` at the end of every paragraph and `<break time=\"1.5s\" />` at the end of major transitions or reflections. "
-        "Ensure there are natural moments of silence throughout."
+        "Ensure there are natural moments of silence throughout.\n"
+        "EMOTIONAL DELIVERY & SENSATION: Focus heavily on raw somatic sensations—sensory descriptions of skin, warmth, breath, tension, and slowly building pleasure. Describe your state of arousal and emotional vulnerability in a way that sounds intimate, authentic, and slow, as if you are experiencing the sensations in real-time."
     ),
     StoryType.meditation: (
         "Write a MEDITATION.\n"
@@ -127,7 +129,8 @@ STORY_TYPE_INSTRUCTIONS: dict[StoryType, str] = {
         "but keep the raw, sensory, and emotionally honest tone. No headers. Pure flowing prose.\n"
         "PACING & SILENCE: To make the audio recording feel calm, spacious, and meditative, you MUST insert silent pauses. "
         "Insert `<break time=\"3.0s\" />` at the end of every paragraph and `<break time=\"2.0s\" />` at the end of key grounding sentences/instructions. "
-        "Ensure there are natural moments of silence throughout."
+        "Ensure there are natural moments of silence throughout.\n"
+        "EMOTIONAL DELIVERY & SENSATION: Guide the listener into their body with slow, breathy suggestions. Emphasize physical relaxation, the rise and fall of the chest, warmth radiating through the skin, and the quiet pleasure of letting go."
     ),
     StoryType.transformation: (
         "Write a TRANSFORMATION story.\n"
@@ -139,7 +142,8 @@ STORY_TYPE_INSTRUCTIONS: dict[StoryType, str] = {
         "No headers. Pure flowing prose.\n"
         "PACING & SILENCE: To make the audio recording feel calm, natural, and spacious, you MUST insert silent pauses. "
         "Insert `<break time=\"2.5s\" />` at the end of every paragraph and `<break time=\"2.0s\" />` at the end of major transitions or reflections. "
-        "Ensure there are natural moments of silence throughout."
+        "Ensure there are natural moments of silence throughout.\n"
+        "EMOTIONAL DELIVERY & SENSATION: Highlight the somatic change from tightness and contraction to open, breathy release. Let her experience of strength, sensory alignment, and physical liberation feel raw, authentic, and deeply integrated."
     ),
 }
 
