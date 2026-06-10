@@ -169,12 +169,12 @@ def regenerate_voice(
                 is_french = True
 
             # Select a new voice preserving the gender category of the narrator and language
-            FEMALE_VOICES = ["Sophia", "Charlotte", "Victoria"]
+            FEMALE_VOICES = ["Sophia", "Charlotte", "Victoria", "Anja", "Chapter1"]
             if story_row.voice_name in FEMALE_VOICES:
                 if is_french:
                     new_voice_name = "Victoria"
                 else:
-                    new_voice_name = random.choice(["Sophia", "Charlotte"])
+                    new_voice_name = random.choice(["Sophia", "Charlotte", "Anja", "Chapter1"])
             else:
                 new_voice_name = "Calen"
             story_row.voice_name = new_voice_name

@@ -40,6 +40,8 @@ ELEVENLABS_VOICES = {
     "Sophia": "u8ADrbquiJqufR9XMtb8",      # Client Preferred Meditative Voice (Female)
     "Calen": "S44KQ3oLFckbxgyKfold",       # Resonant, Magnetic (Male)
     "Victoria": "WeAAwKYcS06VmXw086yZ",    # Warm and Calm French (Female)
+    "Anja": "ytIo1w3M21piPjpR44FO",        # Cloned Female (Anja / Louise Porter)
+    "Chapter1": "DGU073R3uvEaw6TvrL1r",    # Cloned Female (Chapter 1)
 }
 
 def generate_voice_elevenlabs(

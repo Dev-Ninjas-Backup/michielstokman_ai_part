@@ -142,7 +142,7 @@ class AIService:
             FEMALE_VOICES = ["Victoria"]
             MALE_VOICES = ["Calen"]
         else:
-            FEMALE_VOICES = ["Sophia", "Charlotte"]
+            FEMALE_VOICES = ["Sophia", "Charlotte", "Anja", "Chapter1"]
             MALE_VOICES = ["Calen"]
 
         gender_lower = (gender or "").lower()
