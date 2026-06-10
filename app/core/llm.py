@@ -86,6 +86,17 @@ def generate_voice_elevenlabs(
     if resolved_style is None:
         resolved_style = round(random.uniform(0.60, 0.75), 2)
 
+    # Preprocess text to add breaks/pauses for a sensual, slow delivery
+    import re
+    # 1. Paragraph breaks (double newlines) -> 2.0s pause
+    processed_text = re.sub(r'\n\s*\n', '\n\n<break time="2.0s" />\n\n', text)
+    # 2. Line breaks (single newline) -> 1.2s pause
+    processed_text = re.sub(r'(?<!\n)\n(?!\n)', '\n<break time="1.2s" />\n', processed_text)
+    # 3. Ellipses (...) -> 1.5s pause
+    processed_text = re.sub(r'\.\.\.+', '... <break time="1.5s" />', processed_text)
+    # 4. Sentence endings (period, question mark, exclamation mark followed by space and Capital Letter) -> 1.0s pause
+    processed_text = re.sub(r'([.!?])\s+([A-Z])', r'\1 <break time="1.0s" /> \2', processed_text)
+
     url = f"https://api.elevenlabs.io/v1/text-to-speech/{resolved_voice_id}"
 
     headers = {
@@ -95,13 +106,14 @@ def generate_voice_elevenlabs(
     }
 
     data = {
-        "text": text,
+        "text": processed_text,
         "model_id": resolved_model_id,
         "voice_settings": {
             "stability": resolved_stability,
             "similarity_boost": resolved_similarity_boost,
             "style": resolved_style,
             "use_speaker_boost": True,
+            "speed": 0.85,  # Slow down speech natively to allow emotional resonance
         },
     }
 
