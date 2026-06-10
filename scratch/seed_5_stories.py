@@ -8,6 +8,12 @@ from sqlalchemy.orm import Session
 # Import backend modules
 from app.model.user import User
 from app.model.profile import UserProfile
+from app.model.billing import UserSubscription, SubscriptionPlan, PaymentTransaction
+from app.model.credit import UserCredit
+from app.model.feedback import StoryFeedback
+from app.model.guest_session import GuestSession
+from app.model.liberation import LiberationJourney, TransformationStep, UserStepProgress
+from app.model.cover_image import CoverImage
 from app.core.db import SessionLocal
 from app.model.story import Story, StoryType, GenerationStatus, ModerationStatus
 from app.core.llm import generate_voice_elevenlabs, save_audio
