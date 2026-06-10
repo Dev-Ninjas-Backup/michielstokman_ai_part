@@ -169,17 +169,14 @@ def regenerate_voice(
                 is_french = True
 
             # Select a new voice preserving the gender category of the narrator and language
-            FEMALE_VOICES = ["Sophia", "Bella", "Glinda", "Charlotte", "Victoria"]
+            FEMALE_VOICES = ["Sophia", "Charlotte", "Victoria"]
             if story_row.voice_name in FEMALE_VOICES:
                 if is_french:
                     new_voice_name = "Victoria"
                 else:
                     new_voice_name = random.choice(["Sophia", "Charlotte"])
             else:
-                if is_french:
-                    new_voice_name = "Antoni"  # Antoni has good French support
-                else:
-                    new_voice_name = random.choice(["Calen", "Antoni", "Adam"])
+                new_voice_name = "Calen"
             story_row.voice_name = new_voice_name
 
             audio_bytes = generate_voice_elevenlabs(text=text, voice_id=new_voice_name)

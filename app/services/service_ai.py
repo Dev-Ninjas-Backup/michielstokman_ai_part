@@ -140,10 +140,10 @@ class AIService:
 
         if is_french:
             FEMALE_VOICES = ["Victoria"]
-            MALE_VOICES = ["Calen", "Antoni"]
+            MALE_VOICES = ["Calen"]
         else:
             FEMALE_VOICES = ["Sophia", "Charlotte"]
-            MALE_VOICES = ["Calen", "Antoni", "Adam", "Liam", "George"]
+            MALE_VOICES = ["Calen"]
 
         gender_lower = (gender or "").lower()
         if "female" in gender_lower or "woman" in gender_lower:

@@ -36,14 +36,7 @@ def get_story_llm(
 
 # Curated list of high-quality premium pre-made ElevenLabs voices
 ELEVENLABS_VOICES = {
-    "Rachel": "21m00Tcm4TlvDq8ikWAM",      # Warm & Friendly (Female)
-    "Antoni": "ErXwobaYiN019PkySvjV",      # Calm & Reassuring (Male)
-    "Bella": "EXAVITQu4vr4xnSDxMaL",       # Soft & Meditative (Female)
-    "Adam": "pNInz6obpgDQGcFmaJgB",        # Dominant, Firm (Male)
-    "Glinda": "z9fAnwCtxredmBiSV157",      # Warm & Emotional (Female)
-    "Liam": "TX3da5IXgTnvGWJ25ANZ",        # Bright & Conversational (Male)
     "Charlotte": "aRlmTYIQo6Tlg5SlulGC",   # Client Preferred soft/gentle (Female)
-    "George": "JBFvJZJe25aE5gtRx489",      # Soothing British (Male)
     "Sophia": "u8ADrbquiJqufR9XMtb8",      # Client Preferred Meditative Voice (Female)
     "Calen": "S44KQ3oLFckbxgyKfold",       # Resonant, Magnetic (Male)
     "Victoria": "WeAAwKYcS06VmXw086yZ",    # Warm and Calm French (Female)
@@ -70,25 +63,19 @@ def generate_voice_elevenlabs(
         # MOCK TTS: Return a tiny empty mp3 byte string so the job completes successfully during testing
         return b"ID3\x04\x00\x00\x00\x00\x00\x00"
 
-    # Resolve voice ID from name (e.g. "Rachel" -> "21m00Tcm4TlvDq8ikWAM")
+    # Resolve voice ID from name (e.g. "Sophia" -> "u8ADrbquiJqufR9XMtb8")
     resolved_voice_id = ELEVENLABS_VOICES.get(voice_id, voice_id) or settings.ELEVENLABS_VOICE_ID
     resolved_model_id = model_id or settings.ELEVENLABS_MODEL_ID
 
     # Generate or resolve random variations for voice settings if not explicitly specified
-    # stability (0.50-0.60): slightly higher stability prevents the voice (especially Sophia in Dutch) 
+    # stability (0.55-0.65): slightly higher stability prevents the voice (especially Sophia in Dutch) 
     # from stumbling or being inconsistent, while keeping it expressive, warm, and emotional.
     # similarity_boost (0.80-0.90): retains high clarity of the selected voice.
     # style (0.35-0.55): higher style amplifies the unique character and emotional depth of the narration.
     import random
     resolved_stability = stability
     if resolved_stability is None:
-        # If the voice is Sophia, Charlotte, Victoria, or Calen, use a slightly higher stability to prevent multilingual stumbling
-        premium_voices = ["Sophia", "Charlotte", "Victoria", "Calen"]
-        premium_voice_ids = [ELEVENLABS_VOICES.get(v) for v in premium_voices]
-        if voice_id in premium_voices or resolved_voice_id in premium_voice_ids:
-            resolved_stability = round(random.uniform(0.55, 0.65), 2)
-        else:
-            resolved_stability = round(random.uniform(0.50, 0.60), 2)
+        resolved_stability = round(random.uniform(0.55, 0.65), 2)
 
     resolved_similarity_boost = similarity_boost
     if resolved_similarity_boost is None:

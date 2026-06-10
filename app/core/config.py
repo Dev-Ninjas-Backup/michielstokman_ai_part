@@ -19,9 +19,9 @@ class Settings:
         self.LLM_TEMPERATURE_RESONANCE: float = float(os.getenv("LLM_TEMPERATURE_RESONANCE", "0.7"))
 
         # --- ElevenLabs TTS settings ---
-        # Voice ID — Rachel by default (warm, professional female voice)
+        # Voice ID — Sophia by default (client preferred female voice)
         # Find other voice IDs at: https://elevenlabs.io/voice-library
-        self.ELEVENLABS_VOICE_ID: str = os.getenv("ELEVENLABS_VOICE_ID", "21m00Tcm4TlvDq8ikWAM")
+        self.ELEVENLABS_VOICE_ID: str = os.getenv("ELEVENLABS_VOICE_ID", "u8ADrbquiJqufR9XMtb8")
         # TTS model — eleven_turbo_v2_5 is recommended for speed and long-form (40k char limit)
         self.ELEVENLABS_MODEL_ID: str = os.getenv("ELEVENLABS_MODEL_ID", "eleven_multilingual_v2")
         # Voice stability (0.0-1.0): higher = more consistent, warmer delivery
