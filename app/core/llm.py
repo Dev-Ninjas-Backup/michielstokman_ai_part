@@ -68,22 +68,21 @@ def generate_voice_elevenlabs(
     resolved_model_id = model_id or settings.ELEVENLABS_MODEL_ID
 
     # Generate or resolve random variations for voice settings if not explicitly specified
-    # stability (0.55-0.65): slightly higher stability prevents the voice (especially Sophia in Dutch) 
-    # from stumbling or being inconsistent, while keeping it expressive, warm, and emotional.
-    # similarity_boost (0.80-0.90): retains high clarity of the selected voice.
-    # style (0.35-0.55): higher style amplifies the unique character and emotional depth of the narration.
+    # stability (0.40-0.50): lower stability allows for rich emotional variation, whispery tones, and breathiness.
+    # similarity_boost (0.75-0.85): retains voice clarity without sounding robotic.
+    # style (0.60-0.75): higher style amplifies the unique character, warmth, and intimate depth of the narration.
     import random
     resolved_stability = stability
     if resolved_stability is None:
-        resolved_stability = round(random.uniform(0.55, 0.65), 2)
+        resolved_stability = round(random.uniform(0.40, 0.50), 2)
 
     resolved_similarity_boost = similarity_boost
     if resolved_similarity_boost is None:
-        resolved_similarity_boost = round(random.uniform(0.80, 0.90), 2)
+        resolved_similarity_boost = round(random.uniform(0.75, 0.85), 2)
 
     resolved_style = style
     if resolved_style is None:
-        resolved_style = round(random.uniform(0.35, 0.55), 2)
+        resolved_style = round(random.uniform(0.60, 0.75), 2)
 
     url = f"https://api.elevenlabs.io/v1/text-to-speech/{resolved_voice_id}"
 
