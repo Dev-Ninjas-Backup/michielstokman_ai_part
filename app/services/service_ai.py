@@ -118,15 +118,28 @@ class AIService:
     # --- Story Generation ---------------------------------------------------
 
     @staticmethod
-    def select_voice_by_gender(gender: Optional[str]) -> str:
+    def select_voice_by_gender(gender: Optional[str], text: Optional[str] = None) -> str:
         """
-        Currates premium voice lists to match the narrator/user's gender.
+        Currates premium voice lists to match the narrator/user's gender and story language.
         """
         import random
+        import re
         from app.core.llm import ELEVENLABS_VOICES
 
-        FEMALE_VOICES = ["Sophia"]
-        MALE_VOICES = ["Antoni", "Adam", "Liam", "George"]
+        # Simple French detection
+        is_french = False
+        if text:
+            french_indicators = [r'\bje\b', r'\bvous\b', r'\bavec\b', r'\bpour\b', r'\bdans\b', r'\bmais\b', r'\bune\b', r'\bqui\b', r'\bque\b']
+            matches = sum(1 for pattern in french_indicators if re.search(pattern, text, re.IGNORECASE))
+            if matches >= 3:
+                is_french = True
+
+        if is_french:
+            FEMALE_VOICES = ["Victoria"]
+            MALE_VOICES = ["Calen", "Antoni"]
+        else:
+            FEMALE_VOICES = ["Sophia", "Charlotte"]
+            MALE_VOICES = ["Calen", "Antoni", "Adam", "Liam", "George"]
 
         gender_lower = (gender or "").lower()
         if "female" in gender_lower or "woman" in gender_lower:
@@ -134,7 +147,8 @@ class AIService:
         elif "male" in gender_lower or "man" in gender_lower:
             return random.choice(MALE_VOICES)
         else:
-            return random.choice(list(ELEVENLABS_VOICES.keys()))
+            all_options = FEMALE_VOICES + MALE_VOICES
+            return random.choice(all_options)
 
     @staticmethod
     def generate_story(request: StoryGenerateRequest, gender: Optional[str] = None) -> Tuple[Optional[str], str]:
@@ -182,7 +196,7 @@ class AIService:
         title, story_text = AIService.generate_story(request, gender=gender)
         
         # Pick gender-consistent voice
-        voice_name = AIService.select_voice_by_gender(gender)
+        voice_name = AIService.select_voice_by_gender(gender, text=story_text)
         
         audio_bytes = generate_voice_elevenlabs(text=story_text, voice_id=voice_name)
         audio_path = save_audio(audio_bytes)

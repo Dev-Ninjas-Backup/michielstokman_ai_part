@@ -42,9 +42,11 @@ ELEVENLABS_VOICES = {
     "Adam": "pNInz6obpgDQGcFmaJgB",        # Dominant, Firm (Male)
     "Glinda": "z9fAnwCtxredmBiSV157",      # Warm & Emotional (Female)
     "Liam": "TX3da5IXgTnvGWJ25ANZ",        # Bright & Conversational (Male)
-    "Charlotte": "XB0yd4OOqHR45ZJA2t78",   # Sincere & Gentle (Female)
+    "Charlotte": "aRlmTYIQo6Tlg5SlulGC",   # Client Preferred soft/gentle (Female)
     "George": "JBFvJZJe25aE5gtRx489",      # Soothing British (Male)
     "Sophia": "u8ADrbquiJqufR9XMtb8",      # Client Preferred Meditative Voice (Female)
+    "Calen": "S44KQ3oLFckbxgyKfold",       # Resonant, Magnetic (Male)
+    "Victoria": "WeAAwKYcS06VmXw086yZ",    # Warm and Calm French (Female)
 }
 
 def generate_voice_elevenlabs(
@@ -80,8 +82,10 @@ def generate_voice_elevenlabs(
     import random
     resolved_stability = stability
     if resolved_stability is None:
-        # If the voice is Sophia, use a slightly higher stability to prevent multilingual stumbling
-        if voice_id == "Sophia" or resolved_voice_id == ELEVENLABS_VOICES.get("Sophia"):
+        # If the voice is Sophia, Charlotte, Victoria, or Calen, use a slightly higher stability to prevent multilingual stumbling
+        premium_voices = ["Sophia", "Charlotte", "Victoria", "Calen"]
+        premium_voice_ids = [ELEVENLABS_VOICES.get(v) for v in premium_voices]
+        if voice_id in premium_voices or resolved_voice_id in premium_voice_ids:
             resolved_stability = round(random.uniform(0.55, 0.65), 2)
         else:
             resolved_stability = round(random.uniform(0.50, 0.60), 2)
