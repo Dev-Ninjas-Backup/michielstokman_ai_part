@@ -6,6 +6,8 @@ from pathlib import Path
 from sqlalchemy.orm import Session
 
 # Import backend modules
+from app.model.user import User
+from app.model.profile import UserProfile
 from app.core.db import SessionLocal
 from app.model.story import Story, StoryType, GenerationStatus, ModerationStatus
 from app.core.llm import generate_voice_elevenlabs, save_audio
