@@ -129,7 +129,11 @@ class AIService:
         # Simple French detection
         is_french = False
         if text:
-            french_indicators = [r'\bje\b', r'\bvous\b', r'\bavec\b', r'\bpour\b', r'\bdans\b', r'\bmais\b', r'\bune\b', r'\bqui\b', r'\bque\b']
+            french_indicators = [
+                r'\bje\b', r'\bvous\b', r'\bavec\b', r'\bpour\b', r'\bdans\b', 
+                r'\bmais\b', r'\bune\b', r'\bqui\b', r'\bque\b', r'\best\b', 
+                r'\bde\b', r'\ble\b', r'\bla\b', r'\bet\b', r'\bun\b', r'\bdu\b'
+            ]
             matches = sum(1 for pattern in french_indicators if re.search(pattern, text, re.IGNORECASE))
             if matches >= 3:
                 is_french = True
