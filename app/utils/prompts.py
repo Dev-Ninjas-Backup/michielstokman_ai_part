@@ -114,6 +114,9 @@ STORY_TYPE_INSTRUCTIONS: dict[StoryType, str] = {
         "3. Core Moment / Conflict → 3a. False relief / Apparent movement (1-2 min) → 3b. The real blow / Deeper confrontation (2-3 min)\n"
         "4. Process & Reflection (1-3 min)\n"
         "5. Open ending (0.5-1 min)\n"
+        "PACING & SILENCE: To make the audio recording feel calm, natural, and spacious, you MUST insert silent pauses. "
+        "Insert `<break time=\"2.5s\" />` at the end of every paragraph and `<break time=\"1.5s\" />` at the end of major transitions or reflections. "
+        "Ensure there are natural moments of silence throughout."
     ),
     StoryType.meditation: (
         "Write a MEDITATION.\n"
@@ -123,7 +126,7 @@ STORY_TYPE_INSTRUCTIONS: dict[StoryType, str] = {
         "Note: As a meditation, adapt the base rules (like 1st person 'I') to 2nd person ('you') where appropriate, "
         "but keep the raw, sensory, and emotionally honest tone. No headers. Pure flowing prose.\n"
         "PACING & SILENCE: To make the audio recording feel calm, spacious, and meditative, you MUST insert silent pauses. "
-        "Insert `<break time=\"2.0s\" />` at the end of every paragraph and `<break time=\"1.5s\" />` at the end of key grounding sentences/instructions. "
+        "Insert `<break time=\"3.0s\" />` at the end of every paragraph and `<break time=\"2.0s\" />` at the end of key grounding sentences/instructions. "
         "Ensure there are natural moments of silence throughout."
     ),
     StoryType.transformation: (
@@ -135,7 +138,7 @@ STORY_TYPE_INSTRUCTIONS: dict[StoryType, str] = {
         "Never toxic positivity. End with a single powerful, true sentence she will remember. "
         "No headers. Pure flowing prose.\n"
         "PACING & SILENCE: To make the audio recording feel calm, natural, and spacious, you MUST insert silent pauses. "
-        "Insert `<break time=\"2.0s\" />` at the end of every paragraph and `<break time=\"1.5s\" />` at the end of major transitions or reflections. "
+        "Insert `<break time=\"2.5s\" />` at the end of every paragraph and `<break time=\"2.0s\" />` at the end of major transitions or reflections. "
         "Ensure there are natural moments of silence throughout."
     ),
 }
