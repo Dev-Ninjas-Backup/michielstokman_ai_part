@@ -31,14 +31,15 @@ print("\n[2/2] Testing Story Generation (Confession)...")
 try:
     story_req = StoryGenerateRequest(
         story_type=StoryType.confession,
-        topic="I feel overwhelmed by the expectations people have of me.",
-        duration=3,
-        parameters={"focus": "Letting go of perfectionism"}
+        story_input="I feel overwhelmed by the expectations people have of me.",
+        title="Letting go of perfectionism",
+        first_name="Sophia"
     )
     # We call generate_story directly to bypass the database job/worker logic for this test
-    title, story_text = AIService.generate_story(story_req)
+    title, story_text, image_prompt = AIService.generate_story(story_req)
     print("[SUCCESS]")
     print(f"Generated Title: {title}")
+    print(f"Generated Image Prompt: {image_prompt}")
     print(f"Generated Story:\n{story_text[:500]}...\n[truncated for length]")
 except Exception as e:
     print(f"[FAILED]: {e}")

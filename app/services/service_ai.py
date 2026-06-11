@@ -155,7 +155,7 @@ class AIService:
             return random.choice(all_options)
 
     @staticmethod
-    def generate_story(request: StoryGenerateRequest, gender: Optional[str] = None) -> Tuple[Optional[str], str]:
+    def generate_story(request: StoryGenerateRequest, gender: Optional[str] = None) -> Tuple[Optional[str], str, Optional[str]]:
         """
         Generates a personalised Confession, Meditation, or Transformation
         using SuperGrok. Prompt templates live in app/utils/prompts.py.
@@ -180,31 +180,41 @@ class AIService:
         content = response.content.strip()
         
         title = None
+        image_prompt = None
         story_text = content
+        
         if "TITLE:" in content and "STORY:" in content:
-            parts = content.split("STORY:", 1)
-            title_part = parts[0].replace("TITLE:", "").strip()
-            if title_part:
-                title = title_part
-            story_text = parts[1].strip()
+            if "IMAGE_PROMPT:" in content:
+                parts_story = content.split("STORY:", 1)
+                story_text = parts_story[1].strip()
+                
+                title_and_prompt = parts_story[0]
+                parts_prompt = title_and_prompt.split("IMAGE_PROMPT:", 1)
+                
+                title = parts_prompt[0].replace("TITLE:", "").strip()
+                image_prompt = parts_prompt[1].strip()
+            else:
+                parts = content.split("STORY:", 1)
+                title = parts[0].replace("TITLE:", "").strip()
+                story_text = parts[1].strip()
             
-        return title, story_text
+        return title, story_text, image_prompt
 
     @staticmethod
-    def generate_and_voice_story(request: StoryGenerateRequest, gender: Optional[str] = None) -> Tuple[Optional[str], str, str, str]:
+    def generate_and_voice_story(request: StoryGenerateRequest, gender: Optional[str] = None) -> Tuple[Optional[str], str, str, str, Optional[str]]:
         """
         Generates a story with SuperGrok, then converts it to audio via
         ElevenLabs using a gender-consistent premium voice, 
-        and saves it locally. Returns (title, story_text, audio_path, voice_name).
+        and saves it locally. Returns (title, story_text, audio_path, voice_name, image_prompt).
         """
-        title, story_text = AIService.generate_story(request, gender=gender)
+        title, story_text, image_prompt = AIService.generate_story(request, gender=gender)
         
         # Pick gender-consistent voice
         voice_name = AIService.select_voice_by_gender(gender, text=story_text)
         
         audio_bytes = generate_voice_elevenlabs(text=story_text, voice_id=voice_name)
         audio_path = save_audio(audio_bytes)
-        return title, story_text, audio_path, voice_name
+        return title, story_text, audio_path, voice_name, image_prompt
 
     # --- Background worker — story generation --------------------------------
 
@@ -239,7 +249,7 @@ class AIService:
                 if profile_row:
                     gender = profile_row.gender
 
-            title, story_text, audio_path, voice_name = AIService.generate_and_voice_story(request, gender=gender)
+            title, story_text, audio_path, voice_name, image_prompt = AIService.generate_and_voice_story(request, gender=gender)
 
             # Simple duration estimation (150 wpm) and default voice lookup
             from app.data import cover_image as cover_data
@@ -260,6 +270,23 @@ class AIService:
                 audio_path=audio_path,
                 audio_duration_seconds=duration_secs,
             )
+
+            # Try generating AI Cover image if configured and prompt exists
+            if settings.OPENAI_API_KEY and image_prompt:
+                from app.utils.image_generator import generate_ai_cover_image
+                author_display = story_row.first_name or "Anonymous"
+                logger.info(f"Triggering AI cover generation for story {story_row.id}...")
+                cover_url, cover_key = generate_ai_cover_image(
+                    title=title or "Untitled",
+                    story_type=story_row.story_type.value,
+                    author_name=author_display,
+                    image_prompt=image_prompt
+                )
+                if cover_url:
+                    story_row.cover_image_url = cover_url
+                    logger.info(f"AI cover generation succeeded: {cover_url}")
+                else:
+                    logger.warning("AI cover generation returned None. Falling back to default covers.")
 
             # Auto-assign cover image from admin uploads if not already set
             if not story_row.cover_image_url:
@@ -333,14 +360,13 @@ class AIService:
             
             request = StoryGenerateRequest(
                 story_type=StoryType(story_type),
-                topic=topic,
-                specific_trigger=topic, # Use topic as the specific trigger for the prompt
-                duration=5,
-                parameters={}
+                title=f"Story about {topic}",
+                first_name="Anonymous",
+                story_input=topic,
             )
 
             # 2. Call AIService.generate_and_voice_story(request)
-            title, story_text, audio_path, voice_name = AIService.generate_and_voice_story(request)
+            title, story_text, audio_path, voice_name, image_prompt = AIService.generate_and_voice_story(request)
 
             # Save the chosen voice name to the database row
             story_row.voice_name = voice_name
@@ -357,6 +383,23 @@ class AIService:
                 audio_path=audio_path,
             )
             
+            # Try generating AI Cover image if configured and prompt exists
+            if settings.OPENAI_API_KEY and image_prompt:
+                from app.utils.image_generator import generate_ai_cover_image
+                author_display = story_row.first_name or "Anonymous"
+                logger.info(f"Triggering AI cover generation for bulk story {story_row.id}...")
+                cover_url, cover_key = generate_ai_cover_image(
+                    title=title or "Untitled",
+                    story_type=story_row.story_type.value,
+                    author_name=author_display,
+                    image_prompt=image_prompt
+                )
+                if cover_url:
+                    story_row.cover_image_url = cover_url
+                    logger.info(f"AI cover generation succeeded: {cover_url}")
+                else:
+                    logger.warning("AI cover generation returned None. Falling back to default covers.")
+
             # Auto-assign cover image from admin uploads if not already set
             from app.data import cover_image as cover_data
             from app.model.cover_image import CoverImageType

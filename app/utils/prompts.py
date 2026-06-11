@@ -167,6 +167,7 @@ STORY_HUMAN_TEMPLATE = (
     "Make it so personal, raw and true that the reader thinks: “This could have been written by me.”\n\n"
     "IMPORTANT: You MUST format your response exactly like this:\n"
     "TITLE: [Your beautiful title here]\n"
+    "IMAGE_PROMPT: [Write a highly descriptive DALL-E 3 image prompt based on the story. The style must be an abstract, sensual, watercolor painting style under warm golden sunlight, with soft paint textures, reflecting the emotional tone of the story. Do not include any text, letters, or words in the image. Keep it under 100 words.]\n"
     "STORY:\n"
     "[The full text of the story here]"
 )
