@@ -30,6 +30,7 @@ from app.core.llm import (
     generate_voice_elevenlabs,
     save_audio,
 )
+from app.core.config import settings
 import app.data.story as story_data
 from app.utils.prompts import (
     RESONANCE_SYSTEM_TEMPLATE,
@@ -201,20 +202,20 @@ class AIService:
         return title, story_text, image_prompt
 
     @staticmethod
-    def generate_and_voice_story(request: StoryGenerateRequest, gender: Optional[str] = None) -> Tuple[Optional[str], str, str, str, Optional[str]]:
+    def generate_and_voice_story(request: StoryGenerateRequest, gender: Optional[str] = None) -> Tuple[Optional[str], str, str, str, Optional[str], Optional[list]]:
         """
         Generates a story with SuperGrok, then converts it to audio via
         ElevenLabs using a gender-consistent premium voice, 
-        and saves it locally. Returns (title, story_text, audio_path, voice_name, image_prompt).
+        and saves it locally. Returns (title, story_text, audio_path, voice_name, image_prompt, alignment).
         """
         title, story_text, image_prompt = AIService.generate_story(request, gender=gender)
         
         # Pick gender-consistent voice
         voice_name = AIService.select_voice_by_gender(gender, text=story_text)
         
-        audio_bytes = generate_voice_elevenlabs(text=story_text, voice_id=voice_name)
+        audio_bytes, alignment = generate_voice_elevenlabs(text=story_text, voice_id=voice_name, return_timestamps=True)
         audio_path = save_audio(audio_bytes)
-        return title, story_text, audio_path, voice_name, image_prompt
+        return title, story_text, audio_path, voice_name, image_prompt, alignment
 
     # --- Background worker — story generation --------------------------------
 
@@ -249,7 +250,7 @@ class AIService:
                 if profile_row:
                     gender = profile_row.gender
 
-            title, story_text, audio_path, voice_name, image_prompt = AIService.generate_and_voice_story(request, gender=gender)
+            title, story_text, audio_path, voice_name, image_prompt, alignment = AIService.generate_and_voice_story(request, gender=gender)
 
             # Simple duration estimation (150 wpm) and default voice lookup
             from app.data import cover_image as cover_data
@@ -269,6 +270,7 @@ class AIService:
                 title=title,
                 audio_path=audio_path,
                 audio_duration_seconds=duration_secs,
+                alignment=alignment,
             )
 
             # Try generating AI Cover image if configured and prompt exists
@@ -366,7 +368,7 @@ class AIService:
             )
 
             # 2. Call AIService.generate_and_voice_story(request)
-            title, story_text, audio_path, voice_name, image_prompt = AIService.generate_and_voice_story(request)
+            title, story_text, audio_path, voice_name, image_prompt, alignment = AIService.generate_and_voice_story(request)
 
             # Save the chosen voice name to the database row
             story_row.voice_name = voice_name
@@ -381,6 +383,7 @@ class AIService:
                 story_text=story_text_db,
                 title=title,
                 audio_path=audio_path,
+                alignment=alignment,
             )
             
             # Try generating AI Cover image if configured and prompt exists

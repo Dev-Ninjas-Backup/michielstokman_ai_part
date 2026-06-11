@@ -179,8 +179,9 @@ def regenerate_voice(
                 new_voice_name = "Calen"
             story_row.voice_name = new_voice_name
 
-            audio_bytes = generate_voice_elevenlabs(text=text, voice_id=new_voice_name)
+            audio_bytes, alignment = generate_voice_elevenlabs(text=text, voice_id=new_voice_name, return_timestamps=True)
             audio_path = save_audio(audio_bytes)
+            story_row.alignment = alignment
 
             # Calculate exact MP3 duration using our get_mp3_duration helper
             from app.utils.media import get_mp3_duration

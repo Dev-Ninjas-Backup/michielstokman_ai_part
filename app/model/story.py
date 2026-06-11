@@ -40,6 +40,7 @@ class Story(Base):
     audio_path = Column(String, nullable=True)
     voice_name = Column(String, nullable=True)
     audio_duration_seconds = Column(Integer, nullable=True)
+    alignment = Column(JSONB, nullable=True)
 
     # Cover image — full S3 URL assigned by admin via Photo Management
     # e.g. "https://bucket.s3.region.amazonaws.com/images/abc123.jpg"

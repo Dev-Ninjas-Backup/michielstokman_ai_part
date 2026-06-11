@@ -3,7 +3,7 @@ app/schemas/schema_story.py
 Pydantic models for story-related endpoints (moderation + user-facing detail).
 """
 from pydantic import BaseModel, UUID4, field_validator
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 from app.utils.media import format_media_url
 
 
@@ -107,6 +107,7 @@ class StoryDetailUserResponse(BaseModel):
     is_explicit: bool = False
     listened_count: int = 0
     audio_duration_seconds: Optional[int] = None
+    alignment: Optional[List[Dict[str, Any]]] = None
     created_at: str
 
     # Aggregated feedback stats (from StoryFeedback table)
