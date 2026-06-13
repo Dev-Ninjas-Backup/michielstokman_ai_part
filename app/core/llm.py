@@ -189,7 +189,7 @@ def generate_voice_elevenlabs(
             "similarity_boost": resolved_similarity_boost,
             "style": resolved_style,
             "use_speaker_boost": True,
-            "speed": 0.85,  # Slow down speech natively to allow emotional resonance
+            "speed": 0.9,  # Slow down speech natively to allow emotional resonance
         },
     }
 
