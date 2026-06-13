@@ -44,27 +44,6 @@ ELEVENLABS_VOICES = {
     "Chapter1": "DGU073R3uvEaw6TvrL1r",    # Cloned Female (Chapter 1)
 }
 
-# Custom speed settings per voice to keep pacing consistent.
-# Cloned voices (Anja, Chapter1) speak slower natively, so we speed them up slightly.
-ELEVENLABS_VOICE_SPEEDS = {
-    "Sophia": 0.90,
-    "u8ADrbquiJqufR9XMtb8": 0.90,
-    
-    "Charlotte": 0.90,
-    "aRlmTYIQo6Tlg5SlulGC": 0.90,
-    
-    "Calen": 0.90,
-    "S44KQ3oLFckbxgyKfold": 0.90,
-    
-    "Victoria": 0.90,
-    "WeAAwKYcS06VmXw086yZ": 0.90,
-    
-    "Anja": 0.96,
-    "ytIo1w3M21piPjpR44FO": 0.96,
-    
-    "Chapter1": 0.96,
-    "DGU073R3uvEaw6TvrL1r": 0.96,
-}
 def parse_alignment_to_words(alignment: dict) -> list[dict]:
     """
     Parses character-level alignments from ElevenLabs response into word-level alignments.
@@ -173,7 +152,6 @@ def generate_voice_elevenlabs(
     # Resolve voice ID from name (e.g. "Sophia" -> "u8ADrbquiJqufR9XMtb8")
     resolved_voice_id = ELEVENLABS_VOICES.get(voice_id, voice_id) or settings.ELEVENLABS_VOICE_ID
     resolved_model_id = model_id or settings.ELEVENLABS_MODEL_ID
-    resolved_speed = ELEVENLABS_VOICE_SPEEDS.get(voice_id, 0.90)
 
     # Generate or resolve random variations for voice settings if not explicitly specified
     import random
@@ -212,7 +190,7 @@ def generate_voice_elevenlabs(
             "similarity_boost": resolved_similarity_boost,
             "style": resolved_style,
             "use_speaker_boost": True,
-            "speed": resolved_speed,  # Slow down speech natively to allow emotional resonance
+            "speed": 0.9,  # Slow down speech natively to allow emotional resonance
         },
     }
 
