@@ -355,6 +355,7 @@ def get_story_detail(
         is_explicit=False, # Defaulting to false as per previous discovery feed logic
         listened_count=story.views_count or 0,
         audio_duration_seconds=story.audio_duration_seconds,
+        alignment=story.alignment,
         created_at=story.created_at.isoformat(),
         avg_rating=avg_rating,
         avg_resonance=avg_resonance,
