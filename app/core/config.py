@@ -9,6 +9,7 @@ class Settings:
         self.XAI_API_KEY: str | None = os.getenv("XAI_API_KEY")
         self.ELEVENLABS_API_KEY: str | None = os.getenv("ELEVENLABS_API_KEY")
         self.OPENAI_API_KEY: str | None = os.getenv("OPENAI_API_KEY")
+        self.OPENAI_IMAGE_MODEL: str = os.getenv("OPENAI_IMAGE_MODEL", "dall-e-3")
 
         # --- SuperGrok (xAI) or Alternative LLM settings ---
         self.LLM_BASE_URL: str = os.getenv("LLM_BASE_URL", "https://api.x.ai/v1")

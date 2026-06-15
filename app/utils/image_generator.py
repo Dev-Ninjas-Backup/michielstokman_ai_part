@@ -73,8 +73,8 @@ def compose_cover_image(
     img = Image.open(io.BytesIO(raw_image_bytes)).convert("RGBA")
     w, h = img.size
     
-    # 1. Draw top gradient (top 35% of the image)
-    draw_top_gradient(img, int(h * 0.35), max_opacity=0.75)
+    # 1. Draw top gradient (disabled as requested)
+    # draw_top_gradient(img, int(h * 0.35), max_opacity=0.75)
     
     draw = ImageDraw.Draw(img, "RGBA")
     
@@ -163,7 +163,7 @@ def generate_ai_cover_image(
     else:
         subtitle = f"A journey by {cleaned_author}"
         
-    logger.info(f"Generating DALL-E 3 background for '{cleaned_title}'. Prompt: {image_prompt}")
+    logger.info(f"Generating OpenAI background for '{cleaned_title}' using model {settings.OPENAI_IMAGE_MODEL}. Prompt: {image_prompt}")
     
     try:
         url = "https://api.openai.com/v1/images/generations"
@@ -171,23 +171,32 @@ def generate_ai_cover_image(
             "Authorization": f"Bearer {settings.OPENAI_API_KEY}",
             "Content-Type": "application/json"
         }
+        
+        model = settings.OPENAI_IMAGE_MODEL or "dall-e-3"
+        size = "1024x1792" if model.startswith("dall-e") else "1024x1536"
+        
         payload = {
-            "model": "dall-e-3",
+            "model": model,
             "prompt": image_prompt,
             "n": 1,
-            "size": "1024x1792"
+            "size": size
         }
         
-        resp = requests.post(url, json=payload, headers=headers, timeout=60)
+        resp = requests.post(url, json=payload, headers=headers, timeout=180)
         resp.raise_for_status()
         data = resp.json()
         
-        generated_url = data["data"][0]["url"]
-        
-        # Download the raw generated image
-        img_resp = requests.get(generated_url, timeout=30)
-        img_resp.raise_for_status()
-        raw_bytes = img_resp.content
+        image_data = data["data"][0]
+        if "b64_json" in image_data:
+            import base64
+            logger.info("De-serializing base64 image data from OpenAI response.")
+            raw_bytes = base64.b64decode(image_data["b64_json"])
+        else:
+            generated_url = image_data["url"]
+            logger.info(f"Downloading generated image from: {generated_url}")
+            img_resp = requests.get(generated_url, timeout=30)
+            img_resp.raise_for_status()
+            raw_bytes = img_resp.content
         
         # Apply Pillow overlay
         composed_bytes = compose_cover_image(raw_bytes, cleaned_title, subtitle)
