@@ -179,7 +179,12 @@ def regenerate_voice(
                 new_voice_name = "Calen"
             story_row.voice_name = new_voice_name
 
-            audio_bytes, alignment = generate_voice_elevenlabs(text=text, voice_id=new_voice_name, return_timestamps=True)
+            audio_bytes, alignment = generate_voice_elevenlabs(
+                text=text, 
+                voice_id=new_voice_name, 
+                return_timestamps=True,
+                story_type=story_row.story_type
+            )
             audio_path = save_audio(audio_bytes)
             story_row.alignment = alignment
 

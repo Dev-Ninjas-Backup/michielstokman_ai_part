@@ -213,7 +213,12 @@ class AIService:
         # Pick gender-consistent voice
         voice_name = AIService.select_voice_by_gender(gender, text=story_text)
         
-        audio_bytes, alignment = generate_voice_elevenlabs(text=story_text, voice_id=voice_name, return_timestamps=True)
+        audio_bytes, alignment = generate_voice_elevenlabs(
+            text=story_text, 
+            voice_id=voice_name, 
+            return_timestamps=True,
+            story_type=request.story_type
+        )
         audio_path = save_audio(audio_bytes)
         return title, story_text, audio_path, voice_name, image_prompt, alignment
 

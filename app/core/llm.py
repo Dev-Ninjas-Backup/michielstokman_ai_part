@@ -44,6 +44,35 @@ ELEVENLABS_VOICES = {
     "Chapter1": "DGU073R3uvEaw6TvrL1r",    # Cloned Female (Chapter 1)
 }
 
+# Curated, optimized settings for pre-made voices to prevent stumbling
+# and optimize quality specifically for confessions vs meditations.
+VOICE_OPTIMIZATION = {
+    "Sophia": {
+        "confession": {"stability": 0.55, "similarity_boost": 0.85, "style": 0.65, "speed": 0.88},
+        "meditation": {"stability": 0.62, "similarity_boost": 0.85, "style": 0.50, "speed": 0.82},
+    },
+    "Chapter1": {
+        "confession": {"stability": 0.55, "similarity_boost": 0.85, "style": 0.60, "speed": 0.88},
+        "meditation": {"stability": 0.65, "similarity_boost": 0.85, "style": 0.50, "speed": 0.80},
+    },
+    "Calen": {
+        "confession": {"stability": 0.58, "similarity_boost": 0.85, "style": 0.45, "speed": 0.88},
+        "meditation": {"stability": 0.65, "similarity_boost": 0.85, "style": 0.40, "speed": 0.80},
+    },
+    "Charlotte": {
+        "confession": {"stability": 0.55, "similarity_boost": 0.85, "style": 0.65, "speed": 0.88},
+        "meditation": {"stability": 0.65, "similarity_boost": 0.85, "style": 0.50, "speed": 0.80},
+    },
+    "Victoria": {
+        "confession": {"stability": 0.55, "similarity_boost": 0.85, "style": 0.60, "speed": 0.88},
+        "meditation": {"stability": 0.65, "similarity_boost": 0.85, "style": 0.50, "speed": 0.80},
+    },
+    "Anja": {
+        "confession": {"stability": 0.55, "similarity_boost": 0.85, "style": 0.60, "speed": 0.88},
+        "meditation": {"stability": 0.65, "similarity_boost": 0.85, "style": 0.50, "speed": 0.80},
+    }
+}
+
 def parse_alignment_to_words(alignment: dict) -> list[dict]:
     """
     Parses character-level alignments from ElevenLabs response into word-level alignments.
@@ -108,13 +137,14 @@ def generate_voice_elevenlabs(
     similarity_boost: float | None = None,
     style: float | None = None,
     return_timestamps: bool = False,
+    story_type: str | None = None,
 ) -> bytes | tuple[bytes, list[dict]]:
     """
     Generates audio from text using ElevenLabs API.
     Returns the generated audio as raw MP3 bytes (or a tuple of bytes and word alignment JSON if return_timestamps is True).
 
     All voice parameters are loaded from settings (config.py / .env) by default.
-    If parameters are not provided, they are randomized slightly to provide unique variations.
+    If parameters are not provided, they are resolved to curated, optimized settings.
 
     Requires ELEVENLABS_API_KEY in .env.
     """
@@ -153,19 +183,52 @@ def generate_voice_elevenlabs(
     resolved_voice_id = ELEVENLABS_VOICES.get(voice_id, voice_id) or settings.ELEVENLABS_VOICE_ID
     resolved_model_id = model_id or settings.ELEVENLABS_MODEL_ID
 
-    # Generate or resolve random variations for voice settings if not explicitly specified
-    import random
+    # Normalize story type to determine if it is a meditation
+    is_meditation = False
+    if story_type:
+        st_str = str(story_type).lower()
+        if "meditation" in st_str:
+            is_meditation = True
+    else:
+        # Fallback: Infer meditation based on double newline break duration (3.0s is meditation)
+        if '<break time="3.0s"' in text or '<break time="3s"' in text:
+            is_meditation = True
+
+    # Resolve friendly voice name for optimizations lookup
+    friendly_name = None
+    if voice_id:
+        for name, vid in ELEVENLABS_VOICES.items():
+            if vid == voice_id or name.lower() == voice_id.lower():
+                friendly_name = name
+                break
+
+    opt_key = "meditation" if is_meditation else "confession"
+
+    # Resolve optimized voice settings
     resolved_stability = stability
     if resolved_stability is None:
-        resolved_stability = round(random.uniform(0.40, 0.50), 2)
+        if friendly_name and friendly_name in VOICE_OPTIMIZATION:
+            resolved_stability = VOICE_OPTIMIZATION[friendly_name][opt_key]["stability"]
+        else:
+            resolved_stability = 0.65 if is_meditation else 0.55
 
     resolved_similarity_boost = similarity_boost
     if resolved_similarity_boost is None:
-        resolved_similarity_boost = round(random.uniform(0.75, 0.85), 2)
+        if friendly_name and friendly_name in VOICE_OPTIMIZATION:
+            resolved_similarity_boost = VOICE_OPTIMIZATION[friendly_name][opt_key]["similarity_boost"]
+        else:
+            resolved_similarity_boost = 0.85
 
     resolved_style = style
     if resolved_style is None:
-        resolved_style = round(random.uniform(0.60, 0.75), 2)
+        if friendly_name and friendly_name in VOICE_OPTIMIZATION:
+            resolved_style = VOICE_OPTIMIZATION[friendly_name][opt_key]["style"]
+        else:
+            resolved_style = 0.45 if is_meditation else 0.55
+
+    resolved_speed = 0.80 if is_meditation else 0.88
+    if friendly_name and friendly_name in VOICE_OPTIMIZATION:
+        resolved_speed = VOICE_OPTIMIZATION[friendly_name][opt_key]["speed"]
 
     if return_timestamps:
         url = f"https://api.elevenlabs.io/v1/text-to-speech/{resolved_voice_id}/with-timestamps"
@@ -190,7 +253,7 @@ def generate_voice_elevenlabs(
             "similarity_boost": resolved_similarity_boost,
             "style": resolved_style,
             "use_speaker_boost": True,
-            "speed": 0.9,  # Slow down speech natively to allow emotional resonance
+            "speed": resolved_speed,
         },
     }
 
