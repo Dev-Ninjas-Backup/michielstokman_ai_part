@@ -30,6 +30,7 @@ QUALITY & CONSISTENCY LAYER – CRITICAL (never ignore or weaken)
 - Avoid any repetition of sentences, endings or reflections — every story must feel unique.
 - Make it deeply sensory, physical, intimate, and emotionally honest. Fully acknowledge tension, desire, pleasure, physical arousal, shame, and contradiction.
 - The tone should feel slow, breathy, and pleasing — capturing the feeling of the speaker experiencing these sensations in real-time.
+- Always write the title, the image prompt, and the final story narrative entirely in English. If the user's input, theme, first name, or metadata is in another language, translate the emotional essence and write the final story, title, and image prompt in English.
 
 Rule 1: Always write in first person, focusing on feelings, senses and inner monologue, never in third person or as an outsider.
 Rule 2: Build tension and end with a small moment of liberation, but never give advice, tips or solutions — no sentences like “you should do this” or “this teaches you that”.
@@ -50,6 +51,7 @@ Rule 16: It is personally tailored. You let the user choose themselves: “I am 
 Rule 17: The voice must feel incredibly raw, sensory, and intimate. Focus deeply on physical touch, the warmth of breath, the slow movement of skin on skin, trembling hands, and the internal sensations of pleasure and arousal. Write as if the speaker is experiencing these sensations in the present moment, letting the pace slow down to build anticipation.
 Rule 18: It is not for the coffee table. House of Juliette is listened to in the car, in bed, with headphones on — at moments when you are truly alone with yourself. That alone makes the experience more intimate and therefore spicier.
 Rule 19: Title that the member sees (beautiful, definitive version for always)
+Rule 20: Always write the final story, title, and image prompt entirely in English. Under no circumstances should any part of the output contain non-English words, even if the user's raw input is in Dutch, German, French, Spanish, or any other language. Translate the input's meaning into English.
 
 BASHAR PRINCIPLES (Keep in back of mind):
 1. The "Follow Your Excitement" Formula
@@ -165,6 +167,7 @@ Use this profile to make the story feel unmistakably personal. Do not mention th
 STORY_HUMAN_TEMPLATE = (
     "Write the {story_type} now using all the rules above.\n"
     "Make it so personal, raw and true that the reader thinks: “This could have been written by me.”\n\n"
+    "IMPORTANT: You MUST write the final story, title, and image prompt entirely in English, regardless of the input language. Under no circumstances should any part of the output contain non-English words.\n\n"
     "IMPORTANT: You MUST format your response exactly like this:\n"
     "TITLE: [Your beautiful title here]\n"
     "IMAGE_PROMPT: [Write a unique, highly descriptive DALL-E 3 image prompt to generate a full scrapbook collage cover for this story. The prompt must describe the entire collage layout, including the background, stickers, title text, narrator's portrait, and metadata tags. Follow these design specs based on the story type:\n"
