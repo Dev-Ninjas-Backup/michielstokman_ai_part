@@ -49,7 +49,7 @@ ELEVENLABS_VOICES = {
 VOICE_OPTIMIZATION = {
     "Sophia": {
         "confession": {"stability": 0.55, "similarity_boost": 0.85, "style": 0.65, "speed": 0.88},
-        "meditation": {"stability": 0.62, "similarity_boost": 0.85, "style": 0.50, "speed": 0.82},
+        "meditation": {"stability": 0.62, "similarity_boost": 0.85, "style": 0.50, "speed": 0.80},
     },
     "Chapter1": {
         "confession": {"stability": 0.55, "similarity_boost": 0.85, "style": 0.60, "speed": 0.88},
@@ -152,6 +152,22 @@ def generate_voice_elevenlabs(
     import re
     # Strip markdown bold/italic tags so the TTS engine doesn't read them or glitch
     clean_text = text.replace("**", "").replace("*", "")
+    
+    # Parse explicit pause markers [6s], [pause 12s], etc. into chained breaks (max 3.0s limit)
+    def parse_pauses(match):
+        seconds = int(match.group(1))
+        tags = []
+        while seconds > 0:
+            chunk = min(seconds, 3)
+            tags.append(f'<break time="{chunk:.1f}s" />')
+            seconds -= chunk
+        return "".join(tags)
+    clean_text = re.sub(r'\[(?:pause\s+)?(\d+)s\]', parse_pauses, clean_text, flags=re.IGNORECASE)
+    
+    # Strip newlines and spaces immediately surrounding break tags to prevent duplicate padding
+    clean_text = re.sub(r'\s*\n\s*((?:<break time="[^"]+" />\s*)+)\s*\n\s*', r' \1 ', clean_text)
+    clean_text = re.sub(r'\s*((?:<break time="[^"]+" />\s*)+)\s*\n\s*', r' \1 ', clean_text)
+    clean_text = re.sub(r'\s*\n\s*((?:<break time="[^"]+" />\s*)+)\s*', r' \1 ', clean_text)
     
     # 1. Paragraph breaks (double newlines) -> 2.0s pause
     processed_text = re.sub(r'\n\s*\n', '\n\n<break time="2.0s" />\n\n', clean_text)
