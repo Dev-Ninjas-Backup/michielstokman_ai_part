@@ -49,27 +49,27 @@ ELEVENLABS_VOICES = {
 VOICE_OPTIMIZATION = {
     "Sophia": {
         "confession": {"stability": 0.55, "similarity_boost": 0.85, "style": 0.65, "speed": 0.88},
-        "meditation": {"stability": 0.62, "similarity_boost": 0.85, "style": 0.50, "speed": 0.80},
+        "meditation": {"stability": 0.62, "similarity_boost": 0.85, "style": 0.50, "speed": 0.88},
     },
     "Chapter1": {
         "confession": {"stability": 0.55, "similarity_boost": 0.85, "style": 0.60, "speed": 0.88},
-        "meditation": {"stability": 0.65, "similarity_boost": 0.85, "style": 0.50, "speed": 0.80},
+        "meditation": {"stability": 0.65, "similarity_boost": 0.85, "style": 0.50, "speed": 0.88},
     },
     "Calen": {
         "confession": {"stability": 0.58, "similarity_boost": 0.85, "style": 0.45, "speed": 0.88},
-        "meditation": {"stability": 0.65, "similarity_boost": 0.85, "style": 0.40, "speed": 0.80},
+        "meditation": {"stability": 0.65, "similarity_boost": 0.85, "style": 0.40, "speed": 0.88},
     },
     "Charlotte": {
         "confession": {"stability": 0.55, "similarity_boost": 0.85, "style": 0.65, "speed": 0.88},
-        "meditation": {"stability": 0.65, "similarity_boost": 0.85, "style": 0.50, "speed": 0.80},
+        "meditation": {"stability": 0.65, "similarity_boost": 0.85, "style": 0.50, "speed": 0.88},
     },
     "Victoria": {
         "confession": {"stability": 0.55, "similarity_boost": 0.85, "style": 0.60, "speed": 0.88},
-        "meditation": {"stability": 0.65, "similarity_boost": 0.85, "style": 0.50, "speed": 0.80},
+        "meditation": {"stability": 0.65, "similarity_boost": 0.85, "style": 0.50, "speed": 0.88},
     },
     "Anja": {
         "confession": {"stability": 0.55, "similarity_boost": 0.85, "style": 0.60, "speed": 0.88},
-        "meditation": {"stability": 0.65, "similarity_boost": 0.85, "style": 0.50, "speed": 0.80},
+        "meditation": {"stability": 0.65, "similarity_boost": 0.85, "style": 0.50, "speed": 0.88},
     }
 }
 
@@ -153,16 +153,17 @@ def generate_voice_elevenlabs(
     # Strip markdown bold/italic tags so the TTS engine doesn't read them or glitch
     clean_text = text.replace("**", "").replace("*", "")
     
-    # Parse explicit pause markers [6s], [pause 12s], etc. into chained breaks (max 3.0s limit)
+    # Parse explicit pause markers [6s], [pause 12s], [6s pause], etc. into chained breaks (max 3.0s limit, capped at 10s max)
     def parse_pauses(match):
         seconds = int(match.group(1))
+        seconds = min(seconds, 10)  # Shorten pauses: cap at 10s max
         tags = []
         while seconds > 0:
             chunk = min(seconds, 3)
             tags.append(f'<break time="{chunk:.1f}s" />')
             seconds -= chunk
         return "".join(tags)
-    clean_text = re.sub(r'\[(?:pause\s+)?(\d+)s\]', parse_pauses, clean_text, flags=re.IGNORECASE)
+    clean_text = re.sub(r'\[(?:pause\s+)?(\d+)(?:\s*s|\s*sec|\s*seconds)?(?:\s+pause)?\]', parse_pauses, clean_text, flags=re.IGNORECASE)
     
     # Strip newlines and spaces immediately surrounding break tags to prevent duplicate padding
     clean_text = re.sub(r'\s*\n\s*((?:<break time="[^"]+" />\s*)+)\s*\n\s*', r' \1 ', clean_text)
@@ -173,8 +174,8 @@ def generate_voice_elevenlabs(
     processed_text = re.sub(r'\n\s*\n', '\n\n<break time="2.0s" />\n\n', clean_text)
     # 2. Line breaks (single newline) -> 1.2s pause
     processed_text = re.sub(r'(?<!\n)\n(?!\n)', '\n<break time="1.2s" />\n', processed_text)
-    # 3. Ellipses (...) -> 1.5s pause
-    processed_text = re.sub(r'\.\.\.+', '... <break time="1.5s" />', processed_text)
+    # 3. Ellipses (...) -> 0.5s pause
+    processed_text = re.sub(r'\.\.\.+', '... <break time="0.5s" />', processed_text)
     # 4. Sentence endings (period, question mark, exclamation mark followed by space and Capital Letter) -> 1.0s pause
     processed_text = re.sub(r'([.!?])\s+([A-Z])', r'\1 <break time="1.0s" /> \2', processed_text)
 

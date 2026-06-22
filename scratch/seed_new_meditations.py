@@ -179,21 +179,35 @@ def main():
             
             print(f"\nProcessing Meditation {idx+1}: {title} ({data['first_name']})")
             
-            # Check if already seeded
+            # Delete if exists to re-seed fresh with new alignment/voices
             existing_story = db.query(Story).filter(Story.title == title).first()
             if existing_story:
-                print(f"Meditation already seeded. Story ID: {existing_story.id}. Skipping.")
-                continue
+                print(f"Found existing story for '{title}'. Deleting to re-seed fresh...")
+                db.delete(existing_story)
+                db.commit()
                 
             # Resolve voice selection
-            voice_name = "Calen" if data["gender"] == "male" else "Sophia"
+            if data["gender"] == "male":
+                voice_name = "Calen"
+            else:
+                # Mix them up deterministically to use all female voices
+                voice_mapping = {
+                    1: "Victoria",   # Emma (France)
+                    2: "Sophia",     # Elena (Canada)
+                    3: "Charlotte",  # Elena (Canada)
+                    5: "Chapter1",   # Elena (Canada)
+                    6: "Anja"        # Elena (Portugal)
+                }
+                voice_name = voice_mapping.get(idx + 1, "Sophia")
+                
             print(f"Generating voice audio using ElevenLabs voice: {voice_name}...")
             
-            # If we don't have ELEVENLABS_API_KEY set to a real key, generate_voice_elevenlabs will run in mock mode
-            audio_bytes = generate_voice_elevenlabs(
+            # Generate audio and word-level alignments
+            audio_bytes, alignment = generate_voice_elevenlabs(
                 text=data["story_text"],
                 voice_id=voice_name,
-                story_type="meditation"
+                story_type="meditation",
+                return_timestamps=True
             )
             
             print("Saving audio...")
@@ -220,6 +234,7 @@ def main():
                 audio_path=audio_path,
                 voice_name=voice_name,
                 audio_duration_seconds=duration,
+                alignment=alignment,
                 views_count=views,
                 shares_count=shares,
                 reflections_count=reflections,
