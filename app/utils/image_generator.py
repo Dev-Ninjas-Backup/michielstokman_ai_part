@@ -198,11 +198,11 @@ def generate_ai_cover_image(
             img_resp.raise_for_status()
             raw_bytes = img_resp.content
         
-        # Apply Pillow overlay
-        composed_bytes = compose_cover_image(raw_bytes, cleaned_title, subtitle)
+        # Apply Pillow overlay (disabled - using full AI image generation)
+        # composed_bytes = compose_cover_image(raw_bytes, cleaned_title, subtitle)
         
         # Upload/save (S3 or local fallback handled inside upload_image_to_s3)
-        final_url, s3_key = upload_image_to_s3(composed_bytes, file_extension="jpg")
+        final_url, s3_key = upload_image_to_s3(raw_bytes, file_extension="jpg")
         return final_url, s3_key
         
     except Exception as e:
