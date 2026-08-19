@@ -6,7 +6,8 @@ class StoryFeedItem(BaseModel):
     card_type: str = "story"
     id: str
     title: str
-    description: Optional[str] = None
+    excerpt: Optional[str] = None
+    description: Optional[str] = None  # Legacy alias for `excerpt`
     story_type: str  # "confession", "meditation", "transformation"
     cover_image_url: Optional[str] = None
     audio_path: Optional[str] = None

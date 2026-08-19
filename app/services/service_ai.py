@@ -351,10 +351,24 @@ class AIService:
             )
 
             from app.model.story import ImageSource
+            from app.schemas.schema_ai import CoverImageMode
 
             # A cover the member uploaded themselves outranks anything generated.
+            # `complete_story` refreshed the row, so a member who uploaded while
+            # the job was running is seen here rather than being overwritten.
+            member_supplies_cover = (
+                getattr(request, "image_mode", CoverImageMode.ai_generated)
+                == CoverImageMode.user_uploaded
+            )
+
             if story_row.image_source != ImageSource.user_uploaded:
-                if settings.OPENAI_API_KEY and image_prompt:
+                # Skip the paid image call entirely when the member said up front
+                # they would bring their own artwork.
+                if member_supplies_cover:
+                    logger.info(
+                        f"[Job {job_id}] Skipping AI cover — member supplies their own image."
+                    )
+                elif settings.OPENAI_API_KEY and image_prompt:
                     from app.utils.image_generator import generate_ai_cover_image
                     author_display = story_row.first_name or "Anonymous"
                     logger.info(f"Triggering AI cover generation for story {story_row.id}...")

@@ -94,6 +94,11 @@ async def generate_story(
     4. Poll GET /v1/admin/ai/status/{job_id} to check for completion and audio_path.
 
     Pass user profile context (age, life_phase, sliders) for maximum personalisation.
+
+    Cover art follows `image_mode`. The default, 'ai_generated', draws artwork
+    from the finished story. Send 'user_uploaded' to skip that and attach your
+    own image to POST /v1/me/stories/{story_id}/image using the `story_id`
+    returned here — it can be uploaded while the story is still generating.
     """
     # Fail fast if the member asked to narrate in a voice they have not recorded,
     # rather than silently falling back to a stock voice inside the worker.
@@ -137,7 +142,17 @@ async def generate_story(
             story_db_id=str(story.id),
         )
 
+        from app.schemas.schema_ai import CoverImageMode
         from app.services.service_member_story import story_reference
+
+        if request.image_mode == CoverImageMode.user_uploaded:
+            message = (
+                f"Story generation queued. No AI artwork will be created — upload your "
+                f"own image to /v1/me/stories/{story.id}/image. "
+                f"Poll /v1/me/stories/{story.id} for progress."
+            )
+        else:
+            message = f"Story generation queued. Poll /v1/admin/ai/status/{job_id} for updates."
 
         response = StoryGenerateResponse(
             story_id=str(story.id),
@@ -145,10 +160,11 @@ async def generate_story(
             story_reference=story_reference(story),
             job_id=job_id,
             voice_name=request.voice_name,
+            image_mode=request.image_mode,
             title=story.title,
             story_text="",
             audio_path=None,
-            message=f"Story generation queued. Poll /v1/admin/ai/status/{job_id} for updates.",
+            message=message,
         )
         return success_response("Story generation queued", status.HTTP_200_OK, response)
 

@@ -152,7 +152,7 @@ Deleting a cloned voice does **not** change audio already generated with it.
 
 ## 3. Creating a story
 
-Unchanged endpoint, two new optional fields:
+Unchanged endpoint, three new optional fields:
 
 ```
 POST /v1/ai/story/generate
@@ -170,7 +170,8 @@ POST /v1/ai/story/generate
   "high_intensity": false,
 
   "voice_name": "Charlotte",
-  "use_custom_voice": false
+  "use_custom_voice": false,
+  "image_mode": "ai_generated"
 }
 ```
 
@@ -184,6 +185,7 @@ Response:
     "story_reference": "TTL-000004",
     "job_id": "33cb99ed-...",
     "voice_name": "Charlotte",
+    "image_mode": "ai_generated",
     "message": "Story generation queued..."
   }
 }
@@ -203,6 +205,45 @@ Notes:
 
 `GET /v1/admin/ai/status/{job_id}` still works for polling and now requires
 auth, but `GET /v1/me/stories/{story_id}` is richer — prefer it.
+
+### Choosing the cover image up front
+
+`image_mode` decides where the story's artwork comes from. Give the member the
+choice on the create screen.
+
+| `image_mode` | What the backend does |
+|---|---|
+| `ai_generated` (default) | Draws cover art from the finished story, in the palette for its type |
+| `user_uploaded` | Skips AI artwork entirely so the member can attach their own |
+
+Omitting the field keeps today's behaviour, so existing clients need no change.
+
+When the member picks their own image, upload it to the story returned by the
+generate call. The `story_id` comes back immediately, so you can upload while
+the text and audio are still generating — the member does not have to wait:
+
+```js
+const { data } = await createStory({ ...form, image_mode: "user_uploaded" });
+
+const body = new FormData();
+body.append("image", file);
+await fetch(`/v1/me/stories/${data.story_id}/image`, {
+  method: "POST",
+  headers: { Authorization: `Bearer ${token}` },
+  body,
+});
+```
+
+Two things worth knowing:
+
+- Sending `user_uploaded` and then never uploading is safe. The story falls back
+  to the standard artwork for its type, so a card is never blank.
+- The member's image always wins. Once uploaded it is never replaced by AI
+  artwork, including when the story is edited and regenerated.
+
+They can change their mind at any point afterwards: `POST .../image` swaps in a
+new upload, and `POST .../image/generate` switches back to AI artwork. Both are
+covered in [section 7](#7-story-artwork).
 
 ---
 
@@ -229,6 +270,7 @@ All filters are optional; each also accepts `all`.
         "story_number": 4,
         "story_reference": "TTL-000004",
         "title": "The Room I Never Left",
+        "excerpt": "I stayed in that room long after the door opened. The quiet was not peace, it was practice…",
         "story_type": "confession",
         "cover_image_url": "https://.../images/abc.jpg",
         "audio_path": "https://.../audio/abc.mp3",
@@ -248,6 +290,22 @@ All filters are optional; each also accepts `all`.
 ```
 
 Use `counts` for tab badges and `meta` for pagination.
+
+### Preview text on cards
+
+`excerpt` is a ready-to-render one-line preview of the narrated story: around
+120 characters, cut on a word boundary, with an ellipsis only when text was
+actually removed. Line breaks are already collapsed, so it drops straight into a
+card without any client-side trimming.
+
+`GET /v1/dashboard/feed` returns the identical `excerpt` on each story item, so
+the same card component works for the public feed and the member's own library.
+The feed's older `description` field still carries the same value and is kept
+only for backwards compatibility — prefer `excerpt` in new code.
+
+`excerpt` is `null` while a story is still generating and on stories that
+failed, since there is no text yet. Fall back to the title in that state. The
+full text stays on the detail endpoint only, so lists stay small.
 
 This returns the member's **own** stories only, including ones still processing,
 awaiting moderation, or withdrawn — none of which appear in
@@ -411,7 +469,12 @@ first — it cannot be undone.
 ## 7. Story artwork
 
 Each story carries its own cover image, used everywhere it appears including
-social sharing.
+social sharing. The member picks the source when they create the story via
+`image_mode`, and can change it afterwards with either endpoint below.
+
+`image_source` on the story tells you where the current artwork came from:
+`ai_generated`, `user_uploaded`, or `admin_default` (the standard image for that
+story type, used as a fallback).
 
 ### Member uploads their own
 
@@ -436,6 +499,10 @@ JPEG, PNG or WebP, up to 8 MB. Wrong type → `415`, too large → `413`.
 
 An uploaded image sets `image_source: "user_uploaded"` and is preserved across
 regenerations, so the member never loses their own artwork.
+
+This works while the story is still generating, which is what makes the
+`image_mode: "user_uploaded"` flow in [section 3](#choosing-the-cover-image-up-front)
+a single uninterrupted step for the member.
 
 ### Generate artwork from the story
 
@@ -535,14 +602,17 @@ Requires `story_text` to exist — `409` if the story hasn't generated yet.
 
 1. `GET /v1/voices` → render the voice picker
 2. `GET /v1/dashboard/credits` → show remaining credits
-3. `POST /v1/ai/story/generate` → get `story_id`
-4. Poll `GET /v1/me/stories/{id}` until `completed`
-5. Show player (`audio_path` + `story_text` + `alignment`) and artwork
+3. Ask how they want the artwork: *Generate for me* or *Upload my own*
+4. `POST /v1/ai/story/generate` with the matching `image_mode` → get `story_id`
+5. If they chose *Upload my own*, `POST /v1/me/stories/{id}/image` right away —
+   no need to wait for the story to finish
+6. Poll `GET /v1/me/stories/{id}` until `completed`
+7. Show player (`audio_path` + `story_text` + `alignment`) and artwork
 
 **My Stories**
 
 1. `GET /v1/me/stories` → grid with `counts` tabs
-2. Per card: `story_reference`, cover, duration, the three status labels
+2. Per card: `story_reference`, cover, `excerpt`, duration, the three status labels
 3. Row actions: Edit · Change voice · Artwork · Share · Withdraw · Delete
 
 **Story detail**
@@ -567,15 +637,15 @@ Requires `story_text` to exist — `409` if the story hasn't generated yet.
 | `GET` | `/v1/me/voice` | Cloned voice status |
 | `POST` | `/v1/me/voice` | Upload recordings → clone · `201` · multipart `recordings` |
 | `DELETE` | `/v1/me/voice` | Remove cloned voice |
-| `POST` | `/v1/ai/story/generate` | Create story · now accepts `voice_name`, `use_custom_voice` |
-| `GET` | `/v1/me/stories` | Own library · filters + pagination |
+| `POST` | `/v1/ai/story/generate` | Create story · now accepts `voice_name`, `use_custom_voice`, `image_mode` |
+| `GET` | `/v1/me/stories` | Own library · filters + pagination · cards include `excerpt` |
 | `GET` | `/v1/me/stories/{id}` | Full detail · also the polling endpoint |
 | `PATCH` | `/v1/me/stories/{id}` | Edit · `202` when regenerating, `200` when not |
 | `DELETE` | `/v1/me/stories/{id}` | Permanent delete |
 | `POST` | `/v1/me/stories/{id}/narrate` | Re-narrate in another voice · `202` · free |
 | `POST` | `/v1/me/stories/{id}/withdraw` | Unpublish, keep in library |
 | `POST` | `/v1/me/stories/{id}/resubmit` | Republish, returns to review |
-| `POST` | `/v1/me/stories/{id}/image` | Upload own cover · multipart `image` |
+| `POST` | `/v1/me/stories/{id}/image` | Upload own cover · multipart `image` · works during generation |
 | `POST` | `/v1/me/stories/{id}/image/generate` | Generate cover from story |
 | `POST` | `/v1/me/stories/{id}/social-intros` | Write intros · `?force=true` to redo |
 | `GET` | `/v1/me/stories/{id}/share` | Full Meta/Spotify share package |
