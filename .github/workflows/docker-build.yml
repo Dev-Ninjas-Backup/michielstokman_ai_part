@@ -5,6 +5,10 @@ on:
     branches:
       - main  # Triggers immediately when you push code to the main branch
 
+# Lets GITHUB_TOKEN read this private repo so the EC2 deploy step can fetch it.
+permissions:
+  contents: read
+
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
@@ -36,14 +40,27 @@ jobs:
       - name: Deploy to AWS EC2
         # This step automatically logs into your EC2 server via SSH and tells it to pull the new update
         uses: appleboy/ssh-action@v1.0.3
+        env:
+          # Short-lived token, valid only for this workflow run. Preferred over a
+          # long-lived PAT stored on the server.
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPOSITORY: ${{ github.repository }}
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USERNAME }}
           key: ${{ secrets.EC2_SSH_KEY }}
+          envs: GH_TOKEN,GH_REPOSITORY
           script: |
             set -e
             cd ~/michielstokman_ai_part
-            git pull origin main
+
+            # The server's origin remote is an unauthenticated HTTPS URL, and
+            # GitHub answers anonymous requests for a private repo with
+            # "Repository not found". Fetch with the run's token instead, passed
+            # inline so no credentials are written to the server's git config.
+            git fetch --prune "https://x-access-token:${GH_TOKEN}@github.com/${GH_REPOSITORY}.git" main
+            git reset --hard FETCH_HEAD
+
             docker compose pull
             docker compose up -d --force-recreate
 
