@@ -13,6 +13,12 @@ class StoryType(str, Enum):
     transformation = "transformation"
 
 
+class CoverImageMode(str, Enum):
+    """Where the story's cover art comes from."""
+    ai_generated = "ai_generated"
+    user_uploaded = "user_uploaded"
+
+
 # ---------------------------------------------------------------------------
 # Track search
 # ---------------------------------------------------------------------------
@@ -86,6 +92,16 @@ class StoryGenerateRequest(BaseModel):
         description="Narrate with the member's own cloned voice (requires an uploaded recording)",
     )
 
+    # Cover art — AI draws it from the story, or the member supplies their own.
+    image_mode: CoverImageMode = Field(
+        CoverImageMode.ai_generated,
+        description=(
+            "'ai_generated' draws cover art from the story content. "
+            "'user_uploaded' skips AI artwork so the member can attach their own "
+            "via POST /v1/me/stories/{story_id}/image."
+        ),
+    )
+
     @field_validator("voice_name")
     @classmethod
     def validate_voice_name(cls, v: Optional[str]) -> Optional[str]:
@@ -109,6 +125,10 @@ class StoryGenerateResponse(BaseModel):
     )
     job_id: str = Field(..., description="Async job ID — poll /admin/ai/status/{job_id} for audio_path")
     voice_name: Optional[str] = Field(None, description="Voice selected for narration")
+    image_mode: CoverImageMode = Field(
+        CoverImageMode.ai_generated,
+        description="Cover art source. When 'user_uploaded', post the image to /v1/me/stories/{story_id}/image.",
+    )
     title: Optional[str] = Field(None, description="The title of the generated story")
     story_text: str = Field(..., description="The fully generated story text")
     audio_path: Optional[str] = Field(

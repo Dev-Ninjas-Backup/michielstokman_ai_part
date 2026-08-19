@@ -51,6 +51,14 @@ class MemberStoryListItem(BaseModel):
         None, description="Human-readable story number, e.g. 'TTL-000042'"
     )
     title: Optional[str] = None
+    excerpt: Optional[str] = Field(
+        None,
+        description=(
+            "Short single-line preview of the narrated story, for feed and library "
+            "cards. Null while the story is still generating. The full text is on "
+            "GET /v1/me/stories/{story_id}."
+        ),
+    )
     story_type: str
     cover_image_url: Optional[str] = None
     audio_path: Optional[str] = None

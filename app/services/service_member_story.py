@@ -59,6 +59,7 @@ from app.schemas.schema_member_story import (
 from app.schemas.schema_system import PaginationMeta
 from app.services.service_ai import AIService
 from app.utils.prompts import SOCIAL_INTRO_HUMAN, SOCIAL_INTRO_SYSTEM
+from app.utils.text import build_excerpt
 
 logger = logging.getLogger(__name__)
 
@@ -126,6 +127,7 @@ def to_list_item(story: Story) -> MemberStoryListItem:
         story_number=story.story_number,
         story_reference=story_reference(story),
         title=story.title,
+        excerpt=build_excerpt(story.story_text),
         story_type=_enum_value(story.story_type),
         cover_image_url=story.cover_image_url,
         audio_path=story.audio_path,
