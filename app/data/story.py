@@ -69,7 +69,10 @@ def complete_story(
     alignment: Optional[list] = None,
 ) -> Story:
     """Updates a Story row with the generated text + audio and marks it completed."""
-    story.title = title
+    # The LLM omits the TITLE: marker often enough that overwriting
+    # unconditionally would erase the title the member submitted.
+    if title:
+        story.title = title
     story.story_text = story_text
     story.audio_path = audio_path
     story.generation_status = GenerationStatus.completed
@@ -110,6 +113,184 @@ def get_stories_for_user(db: Session, user_id: str, limit: int = 20) -> list[Sto
         .all()
     )
 
+# ---------------------------------------------------------------------------
+# Member-owned story management
+# ---------------------------------------------------------------------------
+
+
+def get_member_story(db: Session, story_id: str, user_id: str) -> Optional[Story]:
+    """
+    Fetches a story only if it belongs to the given member.
+    Returns None for someone else's story so callers can 404 rather than 403,
+    which avoids confirming that the id exists.
+    """
+    try:
+        story_uuid = uuid.UUID(story_id)
+    except (ValueError, AttributeError, TypeError):
+        return None
+    return (
+        db.query(Story)
+        .filter(Story.id == story_uuid, Story.user_id == uuid.UUID(user_id))
+        .first()
+    )
+
+
+def _member_story_query(
+    db: Session,
+    user_id: str,
+    story_type: Optional[str] = None,
+    submission_status: Optional[str] = None,
+    generation_status: Optional[str] = None,
+):
+    from app.model.story import SubmissionStatus
+
+    query = db.query(Story).filter(Story.user_id == uuid.UUID(user_id))
+
+    if story_type and story_type.lower() != "all":
+        query = query.filter(Story.story_type == StoryType(story_type.lower()))
+    if submission_status and submission_status.lower() != "all":
+        query = query.filter(Story.submission_status == SubmissionStatus(submission_status.lower()))
+    if generation_status and generation_status.lower() != "all":
+        query = query.filter(Story.generation_status == GenerationStatus(generation_status.lower()))
+
+    return query
+
+
+def list_member_stories(
+    db: Session,
+    user_id: str,
+    story_type: Optional[str] = None,
+    submission_status: Optional[str] = None,
+    generation_status: Optional[str] = None,
+    limit: int = 20,
+    offset: int = 0,
+) -> list[Story]:
+    """Returns a member's own stories, newest first, regardless of moderation state."""
+    return (
+        _member_story_query(db, user_id, story_type, submission_status, generation_status)
+        .order_by(Story.created_at.desc())
+        .offset(offset)
+        .limit(limit)
+        .all()
+    )
+
+
+def count_member_stories(
+    db: Session,
+    user_id: str,
+    story_type: Optional[str] = None,
+    submission_status: Optional[str] = None,
+    generation_status: Optional[str] = None,
+) -> int:
+    return _member_story_query(
+        db, user_id, story_type, submission_status, generation_status
+    ).count()
+
+
+def withdraw_story(db: Session, story: Story) -> Story:
+    """
+    Withdraws a member's story from publication. The row is kept so the member
+    retains their library and the story number is never reused.
+    """
+    from datetime import datetime, timezone
+    from app.model.story import SubmissionStatus
+
+    story.submission_status = SubmissionStatus.withdrawn
+    story.withdrawn_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(story)
+    return story
+
+
+def resubmit_story(db: Session, story: Story) -> Story:
+    """
+    Puts a withdrawn story back into the publication pipeline. Moderation is
+    reset to pending so an admin re-reviews it before it reaches the feed again.
+    """
+    from app.model.story import ModerationStatus, SubmissionStatus
+
+    story.submission_status = SubmissionStatus.submitted
+    story.withdrawn_at = None
+    story.moderation_status = ModerationStatus.pending
+    story.moderation_notes = None
+    story.moderation_reviewed_by = None
+    story.moderation_reviewed_at = None
+    db.commit()
+    db.refresh(story)
+    return story
+
+
+def start_regeneration(db: Session, story: Story, job_id: str) -> Story:
+    """
+    Marks a story as being re-processed through the AI pipeline after an edit.
+    Moderation returns to pending because the content is about to change.
+    """
+    from app.model.story import ModerationStatus
+
+    story.job_id = job_id
+    story.generation_status = GenerationStatus.processing
+    story.moderation_status = ModerationStatus.pending
+    story.moderation_notes = None
+    story.moderation_reviewed_by = None
+    story.moderation_reviewed_at = None
+    story.regeneration_count = (story.regeneration_count or 0) + 1
+    db.commit()
+    db.refresh(story)
+    return story
+
+
+def set_story_audio(
+    db: Session,
+    story: Story,
+    audio_path: str,
+    voice_name: Optional[str],
+    voice_id: Optional[str],
+    uses_custom_voice: bool,
+    audio_duration_seconds: Optional[int] = None,
+    alignment: Optional[list] = None,
+) -> Story:
+    """Replaces the narration on an existing story (used when re-narrating)."""
+    story.audio_path = audio_path
+    story.voice_name = voice_name
+    story.voice_id = voice_id
+    story.uses_custom_voice = uses_custom_voice
+    if audio_duration_seconds is not None:
+        story.audio_duration_seconds = audio_duration_seconds
+    if alignment is not None:
+        story.alignment = alignment
+    story.generation_status = GenerationStatus.completed
+    db.commit()
+    db.refresh(story)
+    return story
+
+
+def set_story_cover(
+    db: Session,
+    story: Story,
+    image_url: Optional[str],
+    image_key: Optional[str],
+    source,
+) -> Story:
+    """Points a story at a new cover image and records where it came from."""
+    story.cover_image_url = image_url
+    story.cover_image_key = image_key
+    story.image_source = source
+    db.commit()
+    db.refresh(story)
+    return story
+
+
+def set_social_intros(db: Session, story: Story, intros: dict) -> Story:
+    """Stores the generated Meta/Spotify introduction copy."""
+    from datetime import datetime, timezone
+
+    story.social_intros = intros
+    story.social_intros_generated_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(story)
+    return story
+
+
 def count_stories_today(db: Session) -> int:
     """Get count of completed stories generated today."""
     from datetime import datetime, timezone
@@ -146,10 +327,13 @@ def get_stories_by_type_today(db: Session) -> dict:
 
 def get_moderation_stories(db: Session, limit: int = 20, offset: int = 0, status_filter: Optional[str] = None, search: Optional[str] = None) -> list[Story]:
     """Get all stories for moderation, optionally filtered by status and search."""
-    from app.model.story import ModerationStatus
+    from app.model.story import ModerationStatus, SubmissionStatus
     from app.model.user import User
     
-    query = db.query(Story).filter(Story.generation_status == GenerationStatus.completed)
+    query = db.query(Story).filter(
+        Story.generation_status == GenerationStatus.completed,
+        Story.submission_status != SubmissionStatus.withdrawn,
+    )
     
     if status_filter and status_filter.lower() != 'all':
         query = query.filter(Story.moderation_status == ModerationStatus(status_filter.lower()))
@@ -166,10 +350,13 @@ def get_moderation_stories(db: Session, limit: int = 20, offset: int = 0, status
 
 def count_moderation_stories(db: Session, status_filter: Optional[str] = None, search: Optional[str] = None) -> int:
     """Count stories for moderation, optionally filtered by status and search."""
-    from app.model.story import ModerationStatus
+    from app.model.story import ModerationStatus, SubmissionStatus
     from app.model.user import User
     
-    query = db.query(Story).filter(Story.generation_status == GenerationStatus.completed)
+    query = db.query(Story).filter(
+        Story.generation_status == GenerationStatus.completed,
+        Story.submission_status != SubmissionStatus.withdrawn,
+    )
     
     if status_filter and status_filter.lower() != 'all':
         query = query.filter(Story.moderation_status == ModerationStatus(status_filter.lower()))
