@@ -697,11 +697,12 @@ class MemberStoryService:
     # -----------------------------------------------------------------------
 
     @staticmethod
-    def upload_story_image(db: Session, user: User, story_id: str, image: UploadFile) -> Story:
-        """Replaces the story cover with an image the member supplies."""
-        from app.utils.s3 import delete_s3_object, upload_image_to_s3
-
-        story = _require_story(db, user, story_id)
+    def store_uploaded_image(image: UploadFile) -> tuple[str, str]:
+        """
+        Validates a member-supplied cover and stores it. Returns (url, key).
+        Used both at story creation and when replacing artwork later.
+        """
+        from app.utils.s3 import upload_image_to_s3
 
         content_type = (image.content_type or "").lower()
         if content_type not in ALLOWED_IMAGE_TYPES:
@@ -729,7 +730,15 @@ class MemberStoryService:
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                 detail="Could not store the image right now. Please try again.",
             )
+        return image_url, image_key
 
+    @staticmethod
+    def upload_story_image(db: Session, user: User, story_id: str, image: UploadFile) -> Story:
+        """Replaces the story cover with an image the member supplies."""
+        from app.utils.s3 import delete_s3_object
+
+        story = _require_story(db, user, story_id)
+        image_url, image_key = MemberStoryService.store_uploaded_image(image)
         previous_key = story.cover_image_key
         story_data.set_story_cover(db, story, image_url, image_key, ImageSource.user_uploaded)
         if previous_key:
