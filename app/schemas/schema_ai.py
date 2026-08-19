@@ -1,6 +1,8 @@
-from pydantic import BaseModel, Field, field_validator
-from typing import Dict, List, Optional
+import json
 from enum import Enum
+from typing import Any, Dict, List, Optional
+
+from pydantic import BaseModel, Field, field_validator
 
 
 # ---------------------------------------------------------------------------
@@ -92,13 +94,14 @@ class StoryGenerateRequest(BaseModel):
         description="Narrate with the member's own cloned voice (requires an uploaded recording)",
     )
 
-    # Cover art — AI draws it from the story, or the member supplies their own.
+    # Cover art — AI draws it from the story, or the member supplies their own
+    # in the same request as a multipart `image` file.
     image_mode: CoverImageMode = Field(
         CoverImageMode.ai_generated,
         description=(
             "'ai_generated' draws cover art from the story content. "
-            "'user_uploaded' skips AI artwork so the member can attach their own "
-            "via POST /v1/me/stories/{story_id}/image."
+            "'user_uploaded' uses the image file sent with this request "
+            "(multipart field name `image`)."
         ),
     )
 
@@ -116,6 +119,74 @@ class StoryGenerateRequest(BaseModel):
             )
         return canonical
 
+    @classmethod
+    def from_multipart(cls, form) -> "StoryGenerateRequest":
+        """Builds a request from a multipart form so the image can travel with it."""
+        return cls.model_validate(_form_to_generate_dict(form))
+
+
+def _form_value(form, name: str) -> Optional[str]:
+    value = form.get(name)
+    if value is None or value == "":
+        return None
+    if hasattr(value, "filename"):
+        return None
+    return str(value)
+
+
+def _form_bool(form, name: str, default: bool = False) -> bool:
+    raw = _form_value(form, name)
+    if raw is None:
+        return default
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _form_list(form, name: str) -> List[str]:
+    getter = getattr(form, "getlist", None)
+    raw_values = getter(name) if getter else [form.get(name)]
+    items: List[str] = []
+    for raw in raw_values:
+        if raw is None or raw == "" or hasattr(raw, "filename"):
+            continue
+        text = str(raw).strip()
+        if text.startswith("["):
+            try:
+                parsed = json.loads(text)
+            except json.JSONDecodeError:
+                parsed = None
+            if isinstance(parsed, list):
+                items.extend(str(item).strip() for item in parsed if str(item).strip())
+                continue
+        if "," in text and not text.startswith("["):
+            items.extend(part.strip() for part in text.split(",") if part.strip())
+            continue
+        items.append(text)
+    return items
+
+
+def _form_to_generate_dict(form) -> Dict[str, Any]:
+    return {
+        "story_type": _form_value(form, "story_type"),
+        "title": _form_value(form, "title"),
+        "first_name": _form_value(form, "first_name"),
+        "story_input": _form_value(form, "story_input"),
+        "growth_areas": _form_list(form, "growth_areas"),
+        "life_phase": _form_value(form, "life_phase"),
+        "tags": _form_list(form, "tags"),
+        "high_intensity": _form_bool(form, "high_intensity"),
+        "voice_name": _form_value(form, "voice_name"),
+        "use_custom_voice": _form_bool(form, "use_custom_voice"),
+        "image_mode": _form_value(form, "image_mode") or CoverImageMode.ai_generated,
+    }
+
+
+def multipart_image(form) -> Optional[Any]:
+    """Returns the uploaded cover file, or None when the field was left empty."""
+    image = form.get("image")
+    if image is None or not getattr(image, "filename", None):
+        return None
+    return image
+
 
 class StoryGenerateResponse(BaseModel):
     story_id: str = Field(..., description="UUID of the newly created Story row")
@@ -127,7 +198,14 @@ class StoryGenerateResponse(BaseModel):
     voice_name: Optional[str] = Field(None, description="Voice selected for narration")
     image_mode: CoverImageMode = Field(
         CoverImageMode.ai_generated,
-        description="Cover art source. When 'user_uploaded', post the image to /v1/me/stories/{story_id}/image.",
+        description=(
+            "Cover art source. 'user_uploaded' means the image was sent with this "
+            "request; 'ai_generated' means artwork is drawn after the story is written."
+        ),
+    )
+    cover_image_url: Optional[str] = Field(
+        None,
+        description="Set immediately when the member uploaded their own cover.",
     )
     title: Optional[str] = Field(None, description="The title of the generated story")
     story_text: str = Field(..., description="The fully generated story text")
@@ -136,6 +214,13 @@ class StoryGenerateResponse(BaseModel):
         description="Local path or S3 URL to the audio file once TTS is complete"
     )
     message: str = Field(default="Story generation queued. Audio is being processed.")
+
+    @field_validator("cover_image_url", mode="after")
+    @classmethod
+    def format_cover(cls, v):
+        from app.utils.media import format_media_url
+
+        return format_media_url(v)
 
 
 # ---------------------------------------------------------------------------

@@ -24,6 +24,9 @@ def create_story(
     life_phase: Optional[str] = None,
     tags: Optional[list] = None,
     high_intensity: bool = False,
+    cover_image_url: Optional[str] = None,
+    cover_image_key: Optional[str] = None,
+    image_source=None,
 ) -> Story:
     """
     Inserts a new Story row in 'processing' state.
@@ -48,6 +51,9 @@ def create_story(
         life_phase=life_phase,
         tags=tags,
         high_intensity=high_intensity,
+        cover_image_url=cover_image_url,
+        cover_image_key=cover_image_key,
+        image_source=image_source,
         views_count=views,
         shares_count=shares,
         reflections_count=reflections,

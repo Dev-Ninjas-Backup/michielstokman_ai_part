@@ -152,11 +152,17 @@ Deleting a cloned voice does **not** change audio already generated with it.
 
 ## 3. Creating a story
 
-Unchanged endpoint, three new optional fields:
+The member chooses the cover **on the create screen**, then one request
+creates the story.
 
 ```
 POST /v1/ai/story/generate
 ```
+
+### Option A — AI-generated artwork (JSON)
+
+Use this when the member picks *Generate for me*. Existing JSON clients keep
+working with no change.
 
 ```json
 {
@@ -175,7 +181,39 @@ POST /v1/ai/story/generate
 }
 ```
 
-Response:
+`image_mode` can be omitted — it defaults to `ai_generated`.
+
+### Option B — member's own image (multipart)
+
+Use this when the member picks *Upload my own*. The file travels **in the same
+request** as the story fields. Do not create the story first and upload later.
+
+```js
+const form = new FormData();
+form.append("story_type", "confession");
+form.append("title", "The Room I Never Left");
+form.append("first_name", "Mara");
+form.append("story_input", "I stayed too long in a place that stopped being mine.");
+form.append("growth_areas", JSON.stringify(["Fear & Freedom"]));
+form.append("tags", JSON.stringify(["silence", "leaving"]));
+form.append("voice_name", "Charlotte");
+form.append("image_mode", "user_uploaded");
+form.append("image", file);               // JPEG, PNG or WebP, up to 8 MB
+
+const res = await fetch("/v1/ai/story/generate", {
+  method: "POST",
+  headers: { Authorization: `Bearer ${token}` },
+  body: form,                             // do NOT set Content-Type
+});
+```
+
+Attaching `image` is enough — the backend treats that as `user_uploaded` even
+if `image_mode` is left off. Sending `image_mode: "user_uploaded"` **without**
+the file returns `422`.
+
+JPEG, PNG or WebP, up to 8 MB. Wrong type → `415`, too large → `413`.
+
+Response (both options):
 
 ```json
 {
@@ -185,11 +223,16 @@ Response:
     "story_reference": "TTL-000004",
     "job_id": "33cb99ed-...",
     "voice_name": "Charlotte",
-    "image_mode": "ai_generated",
-    "message": "Story generation queued..."
+    "image_mode": "user_uploaded",
+    "cover_image_url": "https://.../images/mine.png",
+    "message": "Story generation queued with your uploaded cover..."
   }
 }
 ```
+
+`cover_image_url` is set immediately for an uploaded file. For AI artwork it
+stays `null` until generation finishes — poll `GET /v1/me/stories/{story_id}`
+for the finished cover.
 
 Then poll `GET /v1/me/stories/{story_id}` until it completes.
 
@@ -202,48 +245,13 @@ Notes:
 - Costs one daily credit. `402` means the member is out; check remaining credits
   with `GET /v1/dashboard/credits`.
 - If generation fails the credit is refunded automatically.
+- A member-uploaded cover is never replaced by AI artwork, including when the
+  story is edited and regenerated.
 
 `GET /v1/admin/ai/status/{job_id}` still works for polling and now requires
 auth, but `GET /v1/me/stories/{story_id}` is richer — prefer it.
 
-### Choosing the cover image up front
-
-`image_mode` decides where the story's artwork comes from. Give the member the
-choice on the create screen.
-
-| `image_mode` | What the backend does |
-|---|---|
-| `ai_generated` (default) | Draws cover art from the finished story, in the palette for its type |
-| `user_uploaded` | Skips AI artwork entirely so the member can attach their own |
-
-Omitting the field keeps today's behaviour, so existing clients need no change.
-
-When the member picks their own image, upload it to the story returned by the
-generate call. The `story_id` comes back immediately, so you can upload while
-the text and audio are still generating — the member does not have to wait:
-
-```js
-const { data } = await createStory({ ...form, image_mode: "user_uploaded" });
-
-const body = new FormData();
-body.append("image", file);
-await fetch(`/v1/me/stories/${data.story_id}/image`, {
-  method: "POST",
-  headers: { Authorization: `Bearer ${token}` },
-  body,
-});
-```
-
-Two things worth knowing:
-
-- Sending `user_uploaded` and then never uploading is safe. The story falls back
-  to the standard artwork for its type, so a card is never blank.
-- The member's image always wins. Once uploaded it is never replaced by AI
-  artwork, including when the story is edited and regenerated.
-
-They can change their mind at any point afterwards: `POST .../image` swaps in a
-new upload, and `POST .../image/generate` switches back to AI artwork. Both are
-covered in [section 7](#7-story-artwork).
+To swap artwork later, use the endpoints in [section 7](#7-story-artwork).
 
 ---
 
@@ -469,12 +477,14 @@ first — it cannot be undone.
 ## 7. Story artwork
 
 Each story carries its own cover image, used everywhere it appears including
-social sharing. The member picks the source when they create the story via
-`image_mode`, and can change it afterwards with either endpoint below.
+social sharing. The member picks the source **when they create the story** —
+JSON for AI artwork, or multipart with `image` for their own file.
 
 `image_source` on the story tells you where the current artwork came from:
 `ai_generated`, `user_uploaded`, or `admin_default` (the standard image for that
 story type, used as a fallback).
+
+The endpoints below are only for **changing** artwork after creation.
 
 ### Member uploads their own
 
@@ -499,10 +509,6 @@ JPEG, PNG or WebP, up to 8 MB. Wrong type → `415`, too large → `413`.
 
 An uploaded image sets `image_source: "user_uploaded"` and is preserved across
 regenerations, so the member never loses their own artwork.
-
-This works while the story is still generating, which is what makes the
-`image_mode: "user_uploaded"` flow in [section 3](#choosing-the-cover-image-up-front)
-a single uninterrupted step for the member.
 
 ### Generate artwork from the story
 
@@ -603,11 +609,10 @@ Requires `story_text` to exist — `409` if the story hasn't generated yet.
 1. `GET /v1/voices` → render the voice picker
 2. `GET /v1/dashboard/credits` → show remaining credits
 3. Ask how they want the artwork: *Generate for me* or *Upload my own*
-4. `POST /v1/ai/story/generate` with the matching `image_mode` → get `story_id`
-5. If they chose *Upload my own*, `POST /v1/me/stories/{id}/image` right away —
-   no need to wait for the story to finish
-6. Poll `GET /v1/me/stories/{id}` until `completed`
-7. Show player (`audio_path` + `story_text` + `alignment`) and artwork
+4. `POST /v1/ai/story/generate` — JSON for AI art, or multipart with `image`
+   for their own file. One request, not two.
+5. Poll `GET /v1/me/stories/{id}` until `completed`
+6. Show player (`audio_path` + `story_text` + `alignment`) and artwork
 
 **My Stories**
 
@@ -637,7 +642,7 @@ Requires `story_text` to exist — `409` if the story hasn't generated yet.
 | `GET` | `/v1/me/voice` | Cloned voice status |
 | `POST` | `/v1/me/voice` | Upload recordings → clone · `201` · multipart `recordings` |
 | `DELETE` | `/v1/me/voice` | Remove cloned voice |
-| `POST` | `/v1/ai/story/generate` | Create story · now accepts `voice_name`, `use_custom_voice`, `image_mode` |
+| `POST` | `/v1/ai/story/generate` | Create story. JSON = AI cover. Multipart `image` = own cover. |
 | `GET` | `/v1/me/stories` | Own library · filters + pagination · cards include `excerpt` |
 | `GET` | `/v1/me/stories/{id}` | Full detail · also the polling endpoint |
 | `PATCH` | `/v1/me/stories/{id}` | Edit · `202` when regenerating, `200` when not |
@@ -645,7 +650,7 @@ Requires `story_text` to exist — `409` if the story hasn't generated yet.
 | `POST` | `/v1/me/stories/{id}/narrate` | Re-narrate in another voice · `202` · free |
 | `POST` | `/v1/me/stories/{id}/withdraw` | Unpublish, keep in library |
 | `POST` | `/v1/me/stories/{id}/resubmit` | Republish, returns to review |
-| `POST` | `/v1/me/stories/{id}/image` | Upload own cover · multipart `image` · works during generation |
+| `POST` | `/v1/me/stories/{id}/image` | Replace cover after creation · multipart `image` |
 | `POST` | `/v1/me/stories/{id}/image/generate` | Generate cover from story |
 | `POST` | `/v1/me/stories/{id}/social-intros` | Write intros · `?force=true` to redo |
 | `GET` | `/v1/me/stories/{id}/share` | Full Meta/Spotify share package |

@@ -1,15 +1,20 @@
+import json
 import uuid
 from datetime import datetime, timedelta, timezone
-from fastapi import APIRouter, BackgroundTasks, Query, HTTPException, Depends, status
+from typing import Optional
+
+from fastapi import APIRouter, BackgroundTasks, Query, HTTPException, Depends, Request, status
+from pydantic import ValidationError
 from sqlalchemy.orm import Session
 
 from app.core.db import get_db
 from app.core.responses import ApiResponse, success_response
-from app.api.deps import get_current_admin_user, get_current_user, check_story_credit
+from app.api.deps import get_current_admin_user, get_current_user
 from app.model.user import User
 import app.data.story as story_data
 import app.data.credit as credit_data
 from app.schemas.schema_ai import (
+    CoverImageMode,
     SearchResult,
     ResonanceRequest,
     ResonanceResponse,
@@ -19,6 +24,7 @@ from app.schemas.schema_ai import (
     SubmissionGenerateRequest,
     JobResponse,
     JobStatusResponse,
+    multipart_image,
 )
 from app.schemas.schema_rag import IngestAllResponse, IngestNewRequest, IngestNewResponse
 from app.services.service_ai import AIService
@@ -73,16 +79,90 @@ async def generate_resonance_question(request: ResonanceRequest):
         raise HTTPException(status_code=500, detail=f"Failed to generate resonance question: {err[:200]}")
 
 
+async def _parse_story_generate(http_request: Request) -> tuple[StoryGenerateRequest, Optional[object]]:
+    """
+    Accepts JSON (AI artwork) or multipart/form-data (own image travels with
+    the rest of the create payload).
+    """
+    content_type = (http_request.headers.get("content-type") or "").lower()
+    try:
+        if "multipart/form-data" in content_type:
+            form = await http_request.form()
+            payload = StoryGenerateRequest.from_multipart(form)
+            return payload, multipart_image(form)
+        body = await http_request.json()
+        if not isinstance(body, dict):
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Request body must be a JSON object or multipart form.",
+            )
+        return StoryGenerateRequest.model_validate(body), None
+    except ValidationError as exc:
+        first = exc.errors()[0]
+        loc = " -> ".join(str(part) for part in first.get("loc", []) if part != "body")
+        msg = first.get("msg") or "Invalid request."
+        detail = f"{loc}: {msg}" if loc else msg
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=detail)
+    except json.JSONDecodeError:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Request body must be JSON or multipart/form-data.",
+        )
+
+
 # ---------------------------------------------------------------------------
 # Story generation (Confession / Meditation / Transformation)
 # ---------------------------------------------------------------------------
 
-@router.post("/ai/story/generate", response_model=ApiResponse[StoryGenerateResponse])
+@router.post(
+    "/ai/story/generate",
+    response_model=ApiResponse[StoryGenerateResponse],
+    openapi_extra={
+        "requestBody": {
+            "required": True,
+            "content": {
+                "application/json": {
+                    "schema": {"$ref": "#/components/schemas/StoryGenerateRequest"},
+                },
+                "multipart/form-data": {
+                    "schema": {
+                        "type": "object",
+                        "required": ["story_type", "story_input"],
+                        "properties": {
+                            "story_type": {
+                                "type": "string",
+                                "enum": ["confession", "meditation", "transformation"],
+                            },
+                            "title": {"type": "string"},
+                            "first_name": {"type": "string"},
+                            "story_input": {"type": "string"},
+                            "growth_areas": {"type": "string", "description": "JSON array or comma-separated"},
+                            "life_phase": {"type": "string"},
+                            "tags": {"type": "string", "description": "JSON array or comma-separated"},
+                            "high_intensity": {"type": "boolean"},
+                            "voice_name": {"type": "string"},
+                            "use_custom_voice": {"type": "boolean"},
+                            "image_mode": {
+                                "type": "string",
+                                "enum": ["ai_generated", "user_uploaded"],
+                            },
+                            "image": {
+                                "type": "string",
+                                "format": "binary",
+                                "description": "Member's cover image. JPEG, PNG or WebP, up to 8 MB.",
+                            },
+                        },
+                    }
+                },
+            },
+        }
+    },
+)
 async def generate_story(
-    request: StoryGenerateRequest,
+    http_request: Request,
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
-    current_user: User = Depends(check_story_credit),
+    current_user: User = Depends(get_current_user),
 ):
     """
     Generates a personalised Confession, Meditation, or Transformation.
@@ -91,15 +171,42 @@ async def generate_story(
     1. Checks the user has available credits (free) or active subscription (premium).
     2. Creates a Story DB row in 'processing' state and returns immediately.
     3. SuperGrok generation + ElevenLabs TTS runs in the background.
-    4. Poll GET /v1/admin/ai/status/{job_id} to check for completion and audio_path.
+    4. Poll GET /v1/me/stories/{story_id} until generation_status is completed.
 
-    Pass user profile context (age, life_phase, sliders) for maximum personalisation.
+    Cover art is chosen on this same request:
+    - JSON, or multipart without an `image` file → AI-generated artwork
+      (`image_mode` defaults to `ai_generated`).
+    - multipart/form-data with field `image` → the uploaded file becomes the
+      cover immediately. `image_mode` is set to `user_uploaded` and no AI
+      image is generated.
 
-    Cover art follows `image_mode`. The default, 'ai_generated', draws artwork
-    from the finished story. Send 'user_uploaded' to skip that and attach your
-    own image to POST /v1/me/stories/{story_id}/image using the `story_id`
-    returned here — it can be uploaded while the story is still generating.
+    The later `POST /v1/me/stories/{id}/image` endpoint is only for replacing
+    artwork after creation.
     """
+    request, uploaded_image = await _parse_story_generate(http_request)
+
+    # An attached file is the member choosing their own cover — even if they
+    # forgot to set image_mode.
+    if uploaded_image is not None:
+        request.image_mode = CoverImageMode.user_uploaded
+    elif request.image_mode == CoverImageMode.user_uploaded:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=(
+                "To use your own image, send this request as multipart/form-data "
+                "and attach the file as `image`. To have the story illustrated "
+                "for you, omit image_mode or set it to ai_generated."
+            ),
+        )
+
+    from app.data.credit import has_credits
+
+    if not has_credits(db, str(current_user.id)):
+        raise HTTPException(
+            status_code=status.HTTP_402_PAYMENT_REQUIRED,
+            detail="Daily credit limit reached. Upgrade to Premium for unlimited stories.",
+        )
+
     # Fail fast if the member asked to narrate in a voice they have not recorded,
     # rather than silently falling back to a stock voice inside the worker.
     if request.use_custom_voice:
@@ -112,9 +219,18 @@ async def generate_story(
                 detail="No custom voice on file. Upload a recording first via POST /v1/me/voice.",
             )
 
+    cover_url = None
+    cover_key = None
+    if uploaded_image is not None:
+        from app.services.service_member_story import MemberStoryService
+
+        cover_url, cover_key = MemberStoryService.store_uploaded_image(uploaded_image)
+
     try:
         # Create a job_id and the Story DB row upfront — both in 'processing' state
         job_id = str(uuid.uuid4())
+
+        from app.model.story import ImageSource
 
         story = story_data.create_story(
             db=db,
@@ -129,6 +245,9 @@ async def generate_story(
             life_phase=request.life_phase,
             tags=request.tags,
             high_intensity=request.high_intensity,
+            cover_image_url=cover_url,
+            cover_image_key=cover_key,
+            image_source=ImageSource.user_uploaded if cover_url else None,
         )
 
         # Deduct 1 credit (no-op for premium users)
@@ -142,17 +261,15 @@ async def generate_story(
             story_db_id=str(story.id),
         )
 
-        from app.schemas.schema_ai import CoverImageMode
         from app.services.service_member_story import story_reference
 
         if request.image_mode == CoverImageMode.user_uploaded:
             message = (
-                f"Story generation queued. No AI artwork will be created — upload your "
-                f"own image to /v1/me/stories/{story.id}/image. "
+                "Story generation queued with your uploaded cover. "
                 f"Poll /v1/me/stories/{story.id} for progress."
             )
         else:
-            message = f"Story generation queued. Poll /v1/admin/ai/status/{job_id} for updates."
+            message = f"Story generation queued. Poll /v1/me/stories/{story.id} for updates."
 
         response = StoryGenerateResponse(
             story_id=str(story.id),
@@ -161,6 +278,7 @@ async def generate_story(
             job_id=job_id,
             voice_name=request.voice_name,
             image_mode=request.image_mode,
+            cover_image_url=story.cover_image_url,
             title=story.title,
             story_text="",
             audio_path=None,
@@ -169,8 +287,14 @@ async def generate_story(
         return success_response("Story generation queued", status.HTTP_200_OK, response)
 
     except HTTPException:
+        if cover_key:
+            from app.utils.s3 import delete_s3_object
+            delete_s3_object(cover_key)
         raise
     except Exception as e:
+        if cover_key:
+            from app.utils.s3 import delete_s3_object
+            delete_s3_object(cover_key)
         raise HTTPException(
             status_code=500,
             detail=f"Failed to initiate story generation: {str(e)}"
