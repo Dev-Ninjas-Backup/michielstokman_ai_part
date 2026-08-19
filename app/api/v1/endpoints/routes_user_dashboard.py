@@ -12,7 +12,7 @@ from app.core.db import get_db
 from app.core.responses import ApiResponse, success_response
 from app.api.deps import get_current_user, get_current_user_optional, enforce_guest_story_limit
 from app.model.user import User
-from app.model.story import ModerationStatus
+from app.model.story import ModerationStatus, SubmissionStatus
 from app.model.feedback import StoryFeedback
 from app.schemas.schema_rag import (
     BookRecommendationsResponse,
@@ -74,6 +74,7 @@ def get_discovery_feed(
         db.query(story_data.Story)
         .filter(story_data.Story.generation_status == GenerationStatus.completed)
         .filter(story_data.Story.moderation_status == ModerationStatus.approved)
+        .filter(story_data.Story.submission_status != SubmissionStatus.withdrawn)
     )
 
     if requested_types:
@@ -271,8 +272,11 @@ def get_story_detail(
             detail="Story not found.",
         )
 
-    # Regular users can only see approved stories
-    if story.moderation_status != ModerationStatus.approved:
+    # Regular users can only see approved stories the author has not withdrawn
+    if (
+        story.moderation_status != ModerationStatus.approved
+        or story.submission_status == SubmissionStatus.withdrawn
+    ):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Story not found.",

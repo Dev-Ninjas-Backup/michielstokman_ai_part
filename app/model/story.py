@@ -1,10 +1,14 @@
 import uuid
 from datetime import datetime, timezone
-from sqlalchemy import Column, String, Text, DateTime, ForeignKey, Enum as SAEnum, Boolean, Float, Integer
+from sqlalchemy import Column, String, Text, DateTime, ForeignKey, Enum as SAEnum, Boolean, Float, Integer, text
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship
 from app.core.db import Base
 import enum
+
+# Postgres sequence backing the human-readable story number. Created in the
+# migration rather than by SQLAlchemy so existing rows can be backfilled first.
+STORY_NUMBER_SEQUENCE = "story_number_seq"
 
 
 class StoryType(str, enum.Enum):
@@ -26,10 +30,34 @@ class ModerationStatus(str, enum.Enum):
     flagged = "flagged"
 
 
+class SubmissionStatus(str, enum.Enum):
+    """Member-controlled lifecycle, independent of admin moderation."""
+    draft = "draft"
+    submitted = "submitted"
+    withdrawn = "withdrawn"
+
+
+class ImageSource(str, enum.Enum):
+    """Where the cover image on a story came from."""
+    ai_generated = "ai_generated"
+    user_uploaded = "user_uploaded"
+    admin_default = "admin_default"
+
+
 class Story(Base):
     __tablename__ = "stories"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+
+    # Short, human-readable identifier shown to members (e.g. "TTL-000042").
+    # Allocated by a Postgres sequence so numbers are stable and never reused.
+    story_number = Column(
+        Integer,
+        server_default=text(f"nextval('{STORY_NUMBER_SEQUENCE}')"),
+        unique=True,
+        index=True,
+        nullable=True,
+    )
 
     # Content
     story_type = Column(SAEnum(StoryType), nullable=False)
@@ -39,12 +67,24 @@ class Story(Base):
     # Audio — S3 URL (falls back to local path e.g. "media/audio/abc123.mp3" if S3 not configured)
     audio_path = Column(String, nullable=True)
     voice_name = Column(String, nullable=True)
+    # Raw provider voice identifier. Set for cloned member voices, which have no
+    # entry in the predefined catalog and so cannot be resolved from voice_name.
+    voice_id = Column(String, nullable=True)
+    uses_custom_voice = Column(Boolean, default=False, nullable=False)
     audio_duration_seconds = Column(Integer, nullable=True)
     alignment = Column(JSONB, nullable=True)
 
     # Cover image — full S3 URL assigned by admin via Photo Management
     # e.g. "https://bucket.s3.region.amazonaws.com/images/abc123.jpg"
     cover_image_url = Column(String, nullable=True)
+    # Storage key for the cover, needed to clean up the object when it is replaced.
+    cover_image_key = Column(String, nullable=True)
+    image_source = Column(SAEnum(ImageSource), nullable=True)
+
+    # Teaser/intro copy generated per distribution platform.
+    # Shape: {"instagram": str, "facebook": str, "spotify": str}
+    social_intros = Column(JSONB, nullable=True)
+    social_intros_generated_at = Column(DateTime, nullable=True)
 
     # Associated track from the music library
     track_id = Column(String, nullable=True)
@@ -88,6 +128,19 @@ class Story(Base):
         nullable=False,
         default=GenerationStatus.processing,
     )
+
+    # Member-controlled submission lifecycle. Withdrawn stories stay in the
+    # member's library but are excluded from public feeds and moderation queues.
+    submission_status = Column(
+        SAEnum(SubmissionStatus),
+        nullable=False,
+        default=SubmissionStatus.submitted,
+        server_default=SubmissionStatus.submitted.value,
+        index=True,
+    )
+    withdrawn_at = Column(DateTime, nullable=True)
+    # Number of times the member has edited the text and re-run the AI pipeline.
+    regeneration_count = Column(Integer, default=0, nullable=False, server_default="0")
 
     # Moderation tracking
     moderation_status = Column(

@@ -24,7 +24,7 @@ from sqlalchemy.sql import func
 from app.utils.prompts import BOOK_REC_SYSTEM, BOOK_REC_HUMAN
 from app.core.config import settings
 from app.core.llm import get_story_llm
-from app.model.story import Story, GenerationStatus, StoryType, ModerationStatus
+from app.model.story import Story, GenerationStatus, StoryType, ModerationStatus, SubmissionStatus
 from app.model.profile import UserProfile
 from app.schemas.schema_rag import (
     BookRecommendation,
@@ -168,6 +168,7 @@ class RAGService:
             db.query(Story)
             .filter(Story.generation_status == GenerationStatus.completed)
             .filter(Story.moderation_status == ModerationStatus.approved)
+            .filter(Story.submission_status != SubmissionStatus.withdrawn)
             .filter(Story.story_text.isnot(None))
             .all()
         )
@@ -231,6 +232,7 @@ class RAGService:
             db.query(Story)
             .filter(Story.generation_status == GenerationStatus.completed)
             .filter(Story.moderation_status == ModerationStatus.approved)
+            .filter(Story.submission_status != SubmissionStatus.withdrawn)
             .filter(Story.story_text.isnot(None))
             .filter(Story.created_at >= since)
             .all()

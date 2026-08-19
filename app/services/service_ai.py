@@ -202,25 +202,84 @@ class AIService:
         return title, story_text, image_prompt
 
     @staticmethod
-    def generate_and_voice_story(request: StoryGenerateRequest, gender: Optional[str] = None) -> Tuple[Optional[str], str, str, str, Optional[str], Optional[list]]:
+    def resolve_voice(
+        gender: Optional[str] = None,
+        text: Optional[str] = None,
+        voice_name: Optional[str] = None,
+        custom_voice_id: Optional[str] = None,
+    ) -> Tuple[str, str, bool]:
+        """
+        Decides which voice narrates a story, in priority order:
+          1. the member's own cloned voice, when one is supplied
+          2. an explicitly chosen voice from the member-selectable catalog
+          3. a gender- and language-consistent pick from the curated list
+
+        Returns (voice_name, provider_voice_id, uses_custom_voice).
+        """
+        from app.core.llm import ELEVENLABS_VOICES, canonical_voice_name
+
+        if custom_voice_id:
+            return (voice_name or "My Voice"), custom_voice_id, True
+
+        if voice_name:
+            canonical = canonical_voice_name(voice_name)
+            if canonical:
+                return canonical, ELEVENLABS_VOICES[canonical], False
+
+        auto = AIService.select_voice_by_gender(gender, text=text)
+        return auto, ELEVENLABS_VOICES[auto], False
+
+    @staticmethod
+    def narrate_text(
+        text: str,
+        story_type,
+        voice_id: str,
+    ) -> Tuple[str, Optional[list]]:
+        """
+        Runs text through TTS and stores the result.
+        Returns (audio_path, word_alignment).
+        """
+        audio_bytes, alignment = generate_voice_elevenlabs(
+            text=text,
+            voice_id=voice_id,
+            return_timestamps=True,
+            story_type=story_type,
+        )
+        return save_audio(audio_bytes), alignment
+
+    @staticmethod
+    def generate_and_voice_story(
+        request: StoryGenerateRequest,
+        gender: Optional[str] = None,
+        voice_name: Optional[str] = None,
+        custom_voice_id: Optional[str] = None,
+    ) -> Tuple[Optional[str], str, str, str, Optional[str], Optional[list], str, bool]:
         """
         Generates a story with SuperGrok, then converts it to audio via
-        ElevenLabs using a gender-consistent premium voice, 
-        and saves it locally. Returns (title, story_text, audio_path, voice_name, image_prompt, alignment).
+        ElevenLabs and saves it. When `voice_name` or `custom_voice_id` is given
+        that voice is used; otherwise a gender-consistent premium voice is picked.
+
+        Returns (title, story_text, audio_path, voice_name, image_prompt,
+                 alignment, voice_id, uses_custom_voice).
         """
         title, story_text, image_prompt = AIService.generate_story(request, gender=gender)
-        
-        # Pick gender-consistent voice
-        voice_name = AIService.select_voice_by_gender(gender, text=story_text)
-        
-        audio_bytes, alignment = generate_voice_elevenlabs(
-            text=story_text, 
-            voice_id=voice_name, 
-            return_timestamps=True,
-            story_type=request.story_type
+
+        resolved_name, resolved_id, uses_custom = AIService.resolve_voice(
+            gender=gender,
+            text=story_text,
+            voice_name=voice_name,
+            custom_voice_id=custom_voice_id,
         )
-        audio_path = save_audio(audio_bytes)
-        return title, story_text, audio_path, voice_name, image_prompt, alignment
+
+        audio_path, alignment = AIService.narrate_text(
+            text=story_text,
+            story_type=request.story_type,
+            voice_id=resolved_id,
+        )
+        return (
+            title, story_text, audio_path, resolved_name,
+            image_prompt, alignment, resolved_id, uses_custom,
+        )
 
     # --- Background worker — story generation --------------------------------
 
@@ -250,18 +309,31 @@ class AIService:
             ).first()
 
             gender = None
+            custom_voice_id = None
             if story_row and story_row.user_id:
                 profile_row = db.query(UserProfile).filter(UserProfile.user_id == story_row.user_id).first()
                 if profile_row:
                     gender = profile_row.gender
+                    if getattr(request, "use_custom_voice", False):
+                        custom_voice_id = profile_row.custom_voice_id
 
-            title, story_text, audio_path, voice_name, image_prompt, alignment = AIService.generate_and_voice_story(request, gender=gender)
+            (
+                title, story_text, audio_path, voice_name,
+                image_prompt, alignment, voice_id, uses_custom_voice,
+            ) = AIService.generate_and_voice_story(
+                request,
+                gender=gender,
+                voice_name=getattr(request, "voice_name", None),
+                custom_voice_id=custom_voice_id,
+            )
 
             # Simple duration estimation (150 wpm) and default voice lookup
             from app.data import cover_image as cover_data
             from app.model.cover_image import CoverImageType
 
             story_row.voice_name = voice_name
+            story_row.voice_id = voice_id
+            story_row.uses_custom_voice = uses_custom_voice
             word_count = len(story_text.split()) if story_text else 0
             duration_secs = int((word_count / 150) * 60)
 
@@ -278,27 +350,34 @@ class AIService:
                 alignment=alignment,
             )
 
-            # Try generating AI Cover image if configured and prompt exists
-            if settings.OPENAI_API_KEY and image_prompt:
-                from app.utils.image_generator import generate_ai_cover_image
-                author_display = story_row.first_name or "Anonymous"
-                logger.info(f"Triggering AI cover generation for story {story_row.id}...")
-                cover_url, cover_key = generate_ai_cover_image(
-                    title=title or "Untitled",
-                    story_type=story_row.story_type.value,
-                    author_name=author_display,
-                    image_prompt=image_prompt
-                )
-                if cover_url:
-                    story_row.cover_image_url = cover_url
-                    logger.info(f"AI cover generation succeeded: {cover_url}")
-                else:
-                    logger.warning("AI cover generation returned None. Falling back to default covers.")
+            from app.model.story import ImageSource
 
-            # Auto-assign cover image from admin uploads if not already set
-            if not story_row.cover_image_url:
-                c_type = CoverImageType(story_row.story_type.value)
-                story_row.cover_image_url = cover_data.get_latest_active_image_url(db, c_type)
+            # A cover the member uploaded themselves outranks anything generated.
+            if story_row.image_source != ImageSource.user_uploaded:
+                if settings.OPENAI_API_KEY and image_prompt:
+                    from app.utils.image_generator import generate_ai_cover_image
+                    author_display = story_row.first_name or "Anonymous"
+                    logger.info(f"Triggering AI cover generation for story {story_row.id}...")
+                    cover_url, cover_key = generate_ai_cover_image(
+                        title=title or story_row.title or "Untitled",
+                        story_type=story_row.story_type.value,
+                        author_name=author_display,
+                        image_prompt=image_prompt
+                    )
+                    if cover_url:
+                        story_row.cover_image_url = cover_url
+                        story_row.cover_image_key = cover_key
+                        story_row.image_source = ImageSource.ai_generated
+                        logger.info(f"AI cover generation succeeded: {cover_url}")
+                    else:
+                        logger.warning("AI cover generation returned None. Falling back to default covers.")
+
+                # Auto-assign cover image from admin uploads if not already set
+                if not story_row.cover_image_url:
+                    c_type = CoverImageType(story_row.story_type.value)
+                    story_row.cover_image_url = cover_data.get_latest_active_image_url(db, c_type)
+                    if story_row.cover_image_url:
+                        story_row.image_source = ImageSource.admin_default
 
             db.commit()
             
@@ -313,8 +392,13 @@ class AIService:
                 if story_row:
                     story_row.title = f"API ERROR: {str(e)}"
                     story_data.fail_story(db=db, story=story_row)
+                    # The credit was spent when the job was queued; give it back
+                    # so a provider outage doesn't cost the member a generation.
+                    if story_row.user_id:
+                        from app.data.credit import refund_credit
+                        refund_credit(db, str(story_row.user_id))
             except Exception:
-                pass
+                logger.warning(f"[Job {job_id}] Could not record failure state.", exc_info=True)
         finally:
             db.close()
 
@@ -373,10 +457,15 @@ class AIService:
             )
 
             # 2. Call AIService.generate_and_voice_story(request)
-            title, story_text, audio_path, voice_name, image_prompt, alignment = AIService.generate_and_voice_story(request)
+            (
+                title, story_text, audio_path, voice_name,
+                image_prompt, alignment, voice_id, uses_custom_voice,
+            ) = AIService.generate_and_voice_story(request)
 
             # Save the chosen voice name to the database row
             story_row.voice_name = voice_name
+            story_row.voice_id = voice_id
+            story_row.uses_custom_voice = uses_custom_voice
 
             # Strip break tags before saving to DB
             story_text_db = re.sub(r'<break\s+time="[^"]+"\s*/>', '', story_text)
@@ -392,6 +481,7 @@ class AIService:
             )
             
             # Try generating AI Cover image if configured and prompt exists
+            from app.model.story import ImageSource
             if settings.OPENAI_API_KEY and image_prompt:
                 from app.utils.image_generator import generate_ai_cover_image
                 author_display = story_row.first_name or "Anonymous"
@@ -404,6 +494,8 @@ class AIService:
                 )
                 if cover_url:
                     story_row.cover_image_url = cover_url
+                    story_row.cover_image_key = cover_key
+                    story_row.image_source = ImageSource.ai_generated
                     logger.info(f"AI cover generation succeeded: {cover_url}")
                 else:
                     logger.warning("AI cover generation returned None. Falling back to default covers.")
@@ -414,6 +506,8 @@ class AIService:
             if not story_row.cover_image_url:
                 c_type = CoverImageType(story_row.story_type.value)
                 story_row.cover_image_url = cover_data.get_latest_active_image_url(db, c_type)
+                if story_row.cover_image_url:
+                    story_row.image_source = ImageSource.admin_default
 
             db.commit()
             
@@ -551,6 +645,9 @@ Example:
                     "title": story.title,
                     "audio_path": story.audio_path,
                     "story_text": story.story_text,
+                    # Lets the route confirm the caller owns this job before
+                    # returning the full story text.
+                    "owner_user_id": str(story.user_id) if story.user_id else None,
                 }
             
             # 2. Check Liberation Definitions
@@ -560,7 +657,8 @@ Example:
                     "status": definition.generation_status,
                     "title": definition.title,
                     "audio_path": None,
-                    "story_text": f"Liberation Journey Blueprint with {definition.total_days} days."
+                    "story_text": f"Liberation Journey Blueprint with {definition.total_days} days.",
+                    "owner_user_id": None,
                 }
                 
             return None

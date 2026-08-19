@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.core.db import get_db
 from app.core.responses import ApiResponse, success_response
-from app.api.deps import get_current_admin_user, check_story_credit
+from app.api.deps import get_current_admin_user, get_current_user, check_story_credit
 from app.model.user import User
 import app.data.story as story_data
 import app.data.credit as credit_data
@@ -95,6 +95,18 @@ async def generate_story(
 
     Pass user profile context (age, life_phase, sliders) for maximum personalisation.
     """
+    # Fail fast if the member asked to narrate in a voice they have not recorded,
+    # rather than silently falling back to a stock voice inside the worker.
+    if request.use_custom_voice:
+        from app.model.profile import UserProfile
+
+        profile = db.query(UserProfile).filter(UserProfile.user_id == current_user.id).first()
+        if not profile or not profile.custom_voice_id:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="No custom voice on file. Upload a recording first via POST /v1/me/voice.",
+            )
+
     try:
         # Create a job_id and the Story DB row upfront — both in 'processing' state
         job_id = str(uuid.uuid4())
@@ -125,15 +137,23 @@ async def generate_story(
             story_db_id=str(story.id),
         )
 
+        from app.services.service_member_story import story_reference
+
         response = StoryGenerateResponse(
             story_id=str(story.id),
+            story_number=story.story_number,
+            story_reference=story_reference(story),
             job_id=job_id,
+            voice_name=request.voice_name,
+            title=story.title,
             story_text="",
             audio_path=None,
             message=f"Story generation queued. Poll /v1/admin/ai/status/{job_id} for updates.",
         )
         return success_response("Story generation queued", status.HTTP_200_OK, response)
 
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(
             status_code=500,
@@ -146,7 +166,11 @@ async def generate_story(
 # ---------------------------------------------------------------------------
 
 @router.post("/admin/ai/generate/bulk", response_model=ApiResponse[JobResponse])
-async def admin_ai_generate_bulk(request: BulkGenerateRequest, background_tasks: BackgroundTasks):
+async def admin_ai_generate_bulk(
+    request: BulkGenerateRequest,
+    background_tasks: BackgroundTasks,
+    admin: User = Depends(get_current_admin_user),
+):
     """
     Admin endpoint: takes a topic and story type, spawns a long-running
     bulk generation task. Returns a job ID instantly.
@@ -167,7 +191,9 @@ async def admin_ai_generate_bulk(request: BulkGenerateRequest, background_tasks:
 
 @router.post("/admin/ai/generate/submission", response_model=ApiResponse[JobResponse])
 async def admin_ai_generate_submission(
-    request: SubmissionGenerateRequest, background_tasks: BackgroundTasks
+    request: SubmissionGenerateRequest,
+    background_tasks: BackgroundTasks,
+    admin: User = Depends(get_current_admin_user),
 ):
     """
     Triggers background AI processing based on an existing submission.
@@ -186,13 +212,23 @@ async def admin_ai_generate_submission(
 # ---------------------------------------------------------------------------
 
 @router.get("/admin/ai/status/{job_id}", response_model=ApiResponse[JobStatusResponse])
-async def admin_ai_status(job_id: str):
+async def admin_ai_status(
+    job_id: str,
+    current_user: User = Depends(get_current_user),
+):
     """
     Polling endpoint: returns the current status of a generation job.
     When status == 'completed', audio_path will contain the file location.
+
+    Members can poll their own jobs; admins can poll any job.
     """
     job = AIService.get_job_status(job_id)
     if not job:
+        raise HTTPException(status_code=404, detail="Job not found or expired.")
+
+    owner_id = job.get("owner_user_id")
+    if owner_id and not current_user.is_admin and owner_id != str(current_user.id):
+        # 404 rather than 403 so job ids cannot be probed for existence.
         raise HTTPException(status_code=404, detail="Job not found or expired.")
 
     result = JobStatusResponse(

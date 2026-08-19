@@ -44,6 +44,63 @@ ELEVENLABS_VOICES = {
     "Chapter1": "DGU073R3uvEaw6TvrL1r",    # Cloned Female (Chapter 1)
 }
 
+# The subset of voices members may choose from, in display order. Anja and
+# Chapter1 stay out of the catalog — they are reserved for admin/editorial use.
+MEMBER_VOICE_CATALOG = [
+    {
+        "name": "Sophia",
+        "label": "Sophia",
+        "gender": "female",
+        "language": "english",
+        "description": "Soft, meditative and unhurried. The default for guided meditations.",
+    },
+    {
+        "name": "Charlotte",
+        "label": "Charlotte",
+        "gender": "female",
+        "language": "english",
+        "description": "Gentle and close, like a friend speaking just above a whisper.",
+    },
+    {
+        "name": "Calen",
+        "label": "Calen",
+        "gender": "male",
+        "language": "english",
+        "description": "Resonant and magnetic, with a grounded low register.",
+    },
+    {
+        "name": "Victoria",
+        "label": "Victoria",
+        "gender": "female",
+        "language": "french",
+        "description": "Warm and calm, tuned for French-language narration.",
+    },
+    {
+        "name": "Anja",
+        "label": "Anja",
+        "gender": "female",
+        "language": "english",
+        "description": "Rich and expressive, with a storyteller's cadence.",
+    },
+]
+
+MEMBER_VOICE_NAMES = [voice["name"] for voice in MEMBER_VOICE_CATALOG]
+
+
+def is_selectable_voice(voice_name: str | None) -> bool:
+    """True when `voice_name` is one of the voices members are allowed to pick."""
+    if not voice_name:
+        return False
+    return any(voice_name.lower() == name.lower() for name in MEMBER_VOICE_NAMES)
+
+
+def canonical_voice_name(voice_name: str) -> str | None:
+    """Resolves a case-insensitive voice name to its catalog spelling."""
+    for name in MEMBER_VOICE_NAMES:
+        if voice_name.lower() == name.lower():
+            return name
+    return None
+
 # Curated, optimized settings for pre-made voices to prevent stumbling
 # and optimize quality specifically for confessions vs meditations.
 VOICE_OPTIMIZATION = {
@@ -286,6 +343,105 @@ def generate_voice_elevenlabs(
         return audio_bytes, word_alignments
     else:
         return response.content
+
+
+# ---------------------------------------------------------------------------
+# Voice cloning — ElevenLabs Instant Voice Cloning (IVC)
+# ---------------------------------------------------------------------------
+
+ELEVENLABS_API_BASE = "https://api.elevenlabs.io/v1"
+
+# ElevenLabs rejects very short samples outright and quality degrades badly
+# below roughly a minute of speech, so reject obviously unusable uploads early.
+MIN_VOICE_SAMPLE_BYTES = 32 * 1024
+MAX_VOICE_SAMPLE_BYTES = 10 * 1024 * 1024
+
+
+class VoiceCloningError(Exception):
+    """Raised when ElevenLabs refuses or fails a voice-cloning request."""
+
+
+def clone_voice_elevenlabs(
+    display_name: str,
+    samples: list[tuple[str, bytes, str]],
+    description: str | None = None,
+) -> str:
+    """
+    Creates an Instant Voice Clone from one or more recordings and returns the
+    new provider voice_id.
+
+    `samples` is a list of (filename, raw_bytes, content_type) tuples.
+
+    Instant voice cloning requires a paid ElevenLabs plan; on free keys the API
+    responds 401/403 and we surface that as a VoiceCloningError so the caller
+    can degrade to the predefined voices instead of failing the whole request.
+    """
+    if not samples:
+        raise VoiceCloningError("At least one voice recording is required.")
+
+    if not settings.ELEVENLABS_API_KEY or settings.ELEVENLABS_API_KEY == "your_elevenlabs_api_key_here":
+        # Mirror the mock TTS path so the feature is exercisable without a key.
+        return f"mock-voice-{uuid.uuid4().hex[:12]}"
+
+    files = [("files", (name, data, content_type)) for name, data, content_type in samples]
+    payload = {"name": display_name}
+    if description:
+        payload["description"] = description
+
+    try:
+        response = requests.post(
+            f"{ELEVENLABS_API_BASE}/voices/add",
+            headers={"xi-api-key": settings.ELEVENLABS_API_KEY},
+            data=payload,
+            files=files,
+            timeout=180,
+        )
+    except requests.RequestException as exc:
+        raise VoiceCloningError(f"Could not reach the voice provider: {exc}") from exc
+
+    if response.status_code >= 400:
+        detail = _extract_elevenlabs_error(response)
+        if response.status_code in (401, 403):
+            raise VoiceCloningError(
+                "Voice cloning is not enabled on the configured ElevenLabs plan. "
+                f"Provider said: {detail}"
+            )
+        raise VoiceCloningError(detail)
+
+    voice_id = response.json().get("voice_id")
+    if not voice_id:
+        raise VoiceCloningError("Voice provider did not return a voice id.")
+    return voice_id
+
+
+def delete_cloned_voice(voice_id: str) -> bool:
+    """Best-effort removal of a cloned voice from the provider account."""
+    if not voice_id or voice_id.startswith("mock-voice-"):
+        return True
+    if not settings.ELEVENLABS_API_KEY:
+        return False
+    try:
+        response = requests.delete(
+            f"{ELEVENLABS_API_BASE}/voices/{voice_id}",
+            headers={"xi-api-key": settings.ELEVENLABS_API_KEY},
+            timeout=30,
+        )
+        return response.status_code < 400
+    except requests.RequestException:
+        return False
+
+
+def _extract_elevenlabs_error(response: "requests.Response") -> str:
+    """Pulls a readable message out of an ElevenLabs error body."""
+    try:
+        body = response.json()
+    except ValueError:
+        return response.text[:200] or f"HTTP {response.status_code}"
+
+    detail = body.get("detail", body)
+    if isinstance(detail, dict):
+        return str(detail.get("message") or detail.get("status") or detail)[:300]
+    return str(detail)[:300]
 
 
 # ---------------------------------------------------------------------------

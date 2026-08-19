@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from typing import Dict, List, Optional
 from enum import Enum
 
@@ -76,10 +76,39 @@ class StoryGenerateRequest(BaseModel):
         description="Toggle for high intensity/explicit content (True = Activated, False = Off)"
     )
 
+    # Narration voice — see GET /v1/voices for the selectable options.
+    voice_name: Optional[str] = Field(
+        None,
+        description="Narration voice to use. Omit to auto-select one matching the profile.",
+    )
+    use_custom_voice: bool = Field(
+        False,
+        description="Narrate with the member's own cloned voice (requires an uploaded recording)",
+    )
+
+    @field_validator("voice_name")
+    @classmethod
+    def validate_voice_name(cls, v: Optional[str]) -> Optional[str]:
+        if v is None or v == "":
+            return None
+        from app.core.llm import MEMBER_VOICE_NAMES, canonical_voice_name
+
+        canonical = canonical_voice_name(v)
+        if not canonical:
+            raise ValueError(
+                f"Unknown voice '{v}'. Choose one of: {', '.join(MEMBER_VOICE_NAMES)}."
+            )
+        return canonical
+
 
 class StoryGenerateResponse(BaseModel):
     story_id: str = Field(..., description="UUID of the newly created Story row")
+    story_number: Optional[int] = Field(None, description="Sequential story number")
+    story_reference: Optional[str] = Field(
+        None, description="Human-readable story number, e.g. 'TTL-000042'"
+    )
     job_id: str = Field(..., description="Async job ID — poll /admin/ai/status/{job_id} for audio_path")
+    voice_name: Optional[str] = Field(None, description="Voice selected for narration")
     title: Optional[str] = Field(None, description="The title of the generated story")
     story_text: str = Field(..., description="The fully generated story text")
     audio_path: Optional[str] = Field(

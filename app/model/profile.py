@@ -37,6 +37,12 @@ class UserProfile(Base):
     slider_health_body = Column(Float, nullable=True)
     slider_enlightenment = Column(Float, nullable=True)
 
+    # Step 4: Cloned narration voice (ElevenLabs Instant Voice Clone).
+    # Populated when the member uploads their own voice recording.
+    custom_voice_id = Column(String, nullable=True)
+    custom_voice_name = Column(String, nullable=True)
+    custom_voice_created_at = Column(DateTime, nullable=True)
+
     # Timestamps
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), nullable=False)

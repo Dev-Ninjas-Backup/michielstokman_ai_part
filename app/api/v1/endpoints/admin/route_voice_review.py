@@ -178,6 +178,10 @@ def regenerate_voice(
             else:
                 new_voice_name = "Calen"
             story_row.voice_name = new_voice_name
+            # Admin re-narration always uses a stock voice, so keep the stored
+            # provider id in step and drop any custom-voice flag from the member.
+            story_row.voice_id = ELEVENLABS_VOICES[new_voice_name]
+            story_row.uses_custom_voice = False
 
             audio_bytes, alignment = generate_voice_elevenlabs(
                 text=text, 

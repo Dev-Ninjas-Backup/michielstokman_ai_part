@@ -113,3 +113,23 @@ def deduct_credit(db: Session, user_id: str) -> int:
     db.commit()
     db.refresh(credit)
     return credit.daily_credits_remaining
+
+
+def refund_credit(db: Session, user_id: str) -> int:
+    """
+    Returns 1 credit to the user, used when a queued generation job fails.
+    Never exceeds the daily allowance, so a refund after a midnight reset
+    cannot hand out extra credits.
+    """
+    if is_premium_user(db, user_id):
+        return -1  # unlimited
+
+    credit = get_or_create_credit(db, user_id)
+
+    if credit.daily_credits_remaining >= credit.max_daily_credits:
+        return credit.daily_credits_remaining
+
+    credit.daily_credits_remaining += 1
+    db.commit()
+    db.refresh(credit)
+    return credit.daily_credits_remaining
