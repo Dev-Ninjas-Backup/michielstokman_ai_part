@@ -60,6 +60,19 @@ check("catalog has no custom voice yet", data["custom_voice"] is None)
 check("catalog names are usable",
       {v["name"] for v in data["voices"]} == {"Sophia", "Charlotte", "Calen", "Victoria", "Anja"},
       str([v["name"] for v in data["voices"]]))
+check("every voice has a preview url",
+      all(v.get("preview_url") for v in data["voices"]),
+      str([v.get("preview_url") for v in data["voices"]]))
+check("every voice has preview text",
+      all(v.get("preview_text") for v in data["voices"]))
+sophia = next(v for v in data["voices"] if v["name"] == "Sophia")
+check("preview url is playable",
+      sophia["preview_url"].startswith("http") or "/media/audio/" in sophia["preview_url"],
+      sophia["preview_url"])
+victoria = next(v for v in data["voices"] if v["name"] == "Victoria")
+check("french voice has french preview text",
+      "histoire" in (victoria.get("preview_text") or "").lower(),
+      victoria.get("preview_text"))
 
 r = client.get("/v1/voices")
 check("voices requires auth", r.status_code == 401, str(r.status_code))
