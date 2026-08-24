@@ -1,10 +1,9 @@
 """
-Verifies the two additions to the member story workspace:
+Verifies cover choice at story creation and excerpt on story cards:
 
-  1. `image_mode` on POST /v1/ai/story/generate — the member can opt out of AI
-     artwork and attach their own image instead.
-  2. `excerpt` on the member's own story list, matching what the discovery feed
-     renders.
+  1. POST /v1/ai/story/generate accepts the member's own image in the same
+     request (multipart), or generates artwork when no file is sent.
+  2. `excerpt` on the member's own story list matches the discovery feed.
 
 The LLM and the image generator are mocked, so no provider keys are needed.
 
@@ -117,50 +116,85 @@ check("default mode stores the generated cover",
       detail["cover_image_url"] == "https://cdn.example.com/ai-cover.jpg",
       str(detail["cover_image_url"]))
 
-# --- user_uploaded mode skips the AI image call ----------------------------
-with patch("app.services.service_ai.get_story_llm", return_value=fake_llm(STORY_OUTPUT)), \
-     patch("app.utils.image_generator.generate_ai_cover_image",
-           return_value=("https://cdn.example.com/ai-cover.jpg", "images/ai-cover.jpg")) as ai_cover, \
-     patch("app.core.config.settings.OPENAI_API_KEY", "test-key"):
-    r = client.post("/v1/ai/story/generate", headers=auth,
-                    json=dict(base_payload, image_mode="user_uploaded"))
-check("user_uploaded generation accepted", r.status_code == 200, f"{r.status_code} {r.text[:200]}")
-own_payload = r.json()["data"]
-own_story_id = own_payload["story_id"]
-check("user_uploaded image_mode echoed back", own_payload["image_mode"] == "user_uploaded",
-      str(own_payload["image_mode"]))
-check("AI cover generator was NOT called", ai_cover.call_count == 0, str(ai_cover.call_count))
-check("message points at the upload endpoint",
-      f"/v1/me/stories/{own_story_id}/image" in own_payload["message"],
-      own_payload["message"][:160])
+# --- user_uploaded without a file is rejected --------------------------------
+r = client.post("/v1/ai/story/generate", headers=auth,
+                json=dict(base_payload, image_mode="user_uploaded"))
+check("user_uploaded JSON without a file is rejected", r.status_code == 422,
+      f"{r.status_code} {r.text[:200]}")
 
-r = client.get(f"/v1/me/stories/{own_story_id}", headers=auth)
-detail = r.json()["data"]
-check("story still completed without AI art", detail["generation_status"] == "completed",
-      str(detail["generation_status"]))
-check("no AI artwork was attached", detail["image_source"] != "ai_generated",
-      str(detail["image_source"]))
-
-# --- the member attaches their own image -----------------------------------
 png = (
     b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01"
     b"\x08\x06\x00\x00\x00\x1f\x15\xc4\x89\x00\x00\x00\nIDATx\x9cc\x00\x01"
     b"\x00\x00\x05\x00\x01\r\n-\xb4\x00\x00\x00\x00IEND\xaeB`\x82"
 )
+
+# --- own image travels with the create request -------------------------------
+with patch("app.services.service_ai.get_story_llm", return_value=fake_llm(STORY_OUTPUT)), \
+     patch("app.utils.image_generator.generate_ai_cover_image",
+           return_value=("https://cdn.example.com/ai-cover.jpg", "images/ai-cover.jpg")) as ai_cover, \
+     patch("app.utils.s3.upload_image_to_s3",
+           return_value=("https://cdn.example.com/mine.png", "images/mine.png")), \
+     patch("app.core.config.settings.OPENAI_API_KEY", "test-key"):
+    r = client.post(
+        "/v1/ai/story/generate",
+        headers=auth,
+        data={**base_payload, "image_mode": "user_uploaded"},
+        files={"image": ("mine.png", io.BytesIO(png), "image/png")},
+    )
+check("create with own image accepted", r.status_code == 200, f"{r.status_code} {r.text[:200]}")
+own_payload = r.json()["data"]
+own_story_id = own_payload["story_id"]
+check("create echoes user_uploaded", own_payload["image_mode"] == "user_uploaded",
+      str(own_payload["image_mode"]))
+check("create returns the uploaded cover immediately",
+      own_payload["cover_image_url"] == "https://cdn.example.com/mine.png",
+      str(own_payload["cover_image_url"]))
+check("AI cover generator was NOT called", ai_cover.call_count == 0, str(ai_cover.call_count))
+
+r = client.get(f"/v1/me/stories/{own_story_id}", headers=auth)
+detail = r.json()["data"]
+check("story still completed without AI art", detail["generation_status"] == "completed",
+      str(detail["generation_status"]))
+check("create stored user_uploaded provenance", detail["image_source"] == "user_uploaded",
+      str(detail["image_source"]))
+check("create stored the member's image",
+      detail["cover_image_url"] == "https://cdn.example.com/mine.png",
+      str(detail["cover_image_url"]))
+
+# attaching the file without image_mode still counts as own artwork
+with patch("app.services.service_ai.get_story_llm", return_value=fake_llm(STORY_OUTPUT)), \
+     patch("app.utils.image_generator.generate_ai_cover_image",
+           return_value=("https://cdn.example.com/ai-cover.jpg", "images/ai-cover.jpg")) as ai_cover, \
+     patch("app.utils.s3.upload_image_to_s3",
+           return_value=("https://cdn.example.com/implied.png", "images/implied.png")), \
+     patch("app.core.config.settings.OPENAI_API_KEY", "test-key"):
+    r = client.post(
+        "/v1/ai/story/generate",
+        headers=auth,
+        data=base_payload,
+        files={"image": ("mine.png", io.BytesIO(png), "image/png")},
+    )
+check("image without image_mode still treated as upload",
+      r.status_code == 200 and r.json()["data"]["image_mode"] == "user_uploaded",
+      f"{r.status_code} {r.text[:160]}")
+check("implied upload skipped AI art", ai_cover.call_count == 0, str(ai_cover.call_count))
+
+# --- replacing artwork after creation still works --------------------------
 with patch("app.utils.s3.upload_image_to_s3",
-           return_value=("https://cdn.example.com/mine.png", "images/mine.png")):
+           return_value=("https://cdn.example.com/replacement.png", "images/replacement.png")), \
+     patch("app.utils.s3.delete_s3_object"):
     r = client.post(
         f"/v1/me/stories/{own_story_id}/image",
         headers=auth,
-        files={"image": ("mine.png", io.BytesIO(png), "image/png")},
+        files={"image": ("replacement.png", io.BytesIO(png), "image/png")},
     )
-check("own image upload accepted", r.status_code == 200, f"{r.status_code} {r.text[:200]}")
-uploaded = r.json()["data"]
-check("upload records user_uploaded provenance", uploaded["image_source"] == "user_uploaded",
-      str(uploaded["image_source"]))
-check("upload returns the member's image",
-      uploaded["cover_image_url"] == "https://cdn.example.com/mine.png",
-      str(uploaded["cover_image_url"]))
+check("replace cover after creation accepted", r.status_code == 200,
+      f"{r.status_code} {r.text[:200]}")
+check("replacement records user_uploaded provenance",
+      r.json()["data"]["image_source"] == "user_uploaded", str(r.json()["data"]))
+check("replacement returns the new image",
+      r.json()["data"]["cover_image_url"] == "https://cdn.example.com/replacement.png",
+      str(r.json()["data"]["cover_image_url"]))
 
 r = client.post(f"/v1/me/stories/{own_story_id}/image", headers=auth,
                 files={"image": ("bad.txt", io.BytesIO(b"nope"), "text/plain")})
@@ -184,7 +218,7 @@ check("regeneration left the member's cover alone", ai_cover.call_count == 0, st
 r = client.get(f"/v1/me/stories/{own_story_id}", headers=auth)
 detail = r.json()["data"]
 check("member cover survives regeneration",
-      detail["cover_image_url"] == "https://cdn.example.com/mine.png",
+      detail["cover_image_url"] == "https://cdn.example.com/replacement.png",
       str(detail["cover_image_url"]))
 
 # ---------------------------------------------------------------------------
@@ -210,10 +244,15 @@ check("excerpt is a prefix of the full story",
       item["excerpt"][:60])
 
 # A story still generating has no text yet, so no excerpt.
+email2 = f"img2-{uuid.uuid4().hex[:8]}@example.com"
+r = client.post("/v1/signup", json={"email": email2, "password": "secret123"})
+token2 = r.json().get("access_token") or r.json()["data"]["access_token"]
+auth2 = {"Authorization": f"Bearer {token2}"}
 with patch("app.services.service_ai.get_story_llm", side_effect=RuntimeError("provider down")):
-    r = client.post("/v1/ai/story/generate", headers=auth, json=dict(base_payload))
+    r = client.post("/v1/ai/story/generate", headers=auth2, json=dict(base_payload))
+check("failed generation still queues a story", r.status_code == 200, f"{r.status_code} {r.text[:160]}")
 failed_id = r.json()["data"]["story_id"]
-r = client.get(f"/v1/me/stories/{failed_id}", headers=auth)
+r = client.get(f"/v1/me/stories/{failed_id}", headers=auth2)
 check("story with no text has a null excerpt", r.json()["data"]["excerpt"] is None,
       str(r.json()["data"]["excerpt"]))
 
