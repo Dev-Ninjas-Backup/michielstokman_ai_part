@@ -23,6 +23,17 @@ class VoiceOption(BaseModel):
     language: str
     description: str
     is_custom: bool = Field(False, description="True for the member's own cloned voice")
+    preview_url: Optional[str] = Field(
+        None, description="Short MP3 the member can play before choosing this voice"
+    )
+    preview_text: Optional[str] = Field(
+        None, description="The line spoken in the preview clip"
+    )
+
+    @field_validator("preview_url", mode="after")
+    @classmethod
+    def format_preview(cls, v):
+        return format_media_url(v)
 
 
 class VoiceCatalogResponse(BaseModel):

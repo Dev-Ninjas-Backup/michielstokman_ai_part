@@ -58,8 +58,9 @@ def list_voices(
 ):
     """
     The narration voices a member can choose from, plus their own cloned voice
-    when they have recorded one. Pass the returned `name` as `voice_name` on
-    story generation, regeneration, or re-narration.
+    when they have recorded one. Each option includes `preview_url` — play it
+    so the member can hear the voice before they pick it. Pass the returned
+    `name` as `voice_name` on story generation, regeneration, or re-narration.
     """
     result = MemberStoryService.get_voice_catalog(db, current_user)
     return success_response("Voice options retrieved", status.HTTP_200_OK, result)

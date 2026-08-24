@@ -24,12 +24,15 @@ from sqlalchemy.orm import Session
 import app.data.story as story_data
 from app.core.config import settings
 from app.core.llm import (
+    ELEVENLABS_VOICES,
     MEMBER_VOICE_CATALOG,
     VoiceCloningError,
     canonical_voice_name,
     clone_voice_elevenlabs,
     delete_cloned_voice,
     get_story_llm,
+    get_voice_preview_url,
+    voice_preview_text,
     MIN_VOICE_SAMPLE_BYTES,
     MAX_VOICE_SAMPLE_BYTES,
 )
@@ -170,18 +173,35 @@ class MemberStoryService:
     @staticmethod
     def get_voice_catalog(db: Session, user: User) -> VoiceCatalogResponse:
         """Predefined narration voices, plus the member's cloned voice if present."""
-        voices = [VoiceOption(**voice, is_custom=False) for voice in MEMBER_VOICE_CATALOG]
+        voices = []
+        for voice in MEMBER_VOICE_CATALOG:
+            voices.append(VoiceOption(
+                **voice,
+                is_custom=False,
+                preview_url=get_voice_preview_url(
+                    voice["name"],
+                    voice_id=ELEVENLABS_VOICES.get(voice["name"]),
+                    language=voice.get("language"),
+                ),
+                preview_text=voice_preview_text(voice.get("language")),
+            ))
 
         custom = None
         profile = _get_profile(db, user.id)
         if profile and profile.custom_voice_id:
+            custom_label = profile.custom_voice_name or "My Voice"
             custom = VoiceOption(
                 name="custom",
-                label=profile.custom_voice_name or "My Voice",
+                label=custom_label,
                 gender="unspecified",
                 language="unspecified",
                 description="Your own recorded voice.",
                 is_custom=True,
+                preview_url=get_voice_preview_url(
+                    f"custom-{profile.custom_voice_id}",
+                    voice_id=profile.custom_voice_id,
+                ),
+                preview_text=voice_preview_text("english"),
             )
 
         return VoiceCatalogResponse(

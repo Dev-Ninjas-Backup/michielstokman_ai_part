@@ -35,6 +35,8 @@ def get_story_llm(
 
 
 # Curated list of high-quality premium pre-made ElevenLabs voices
+ELEVENLABS_API_BASE = "https://api.elevenlabs.io/v1"
+
 ELEVENLABS_VOICES = {
     "Charlotte": "aRlmTYIQo6Tlg5SlulGC",   # Client Preferred soft/gentle (Female)
     "Sophia": "u8ADrbquiJqufR9XMtb8",      # Client Preferred Meditative Voice (Female)
@@ -85,6 +87,103 @@ MEMBER_VOICE_CATALOG = [
 ]
 
 MEMBER_VOICE_NAMES = [voice["name"] for voice in MEMBER_VOICE_CATALOG]
+
+# Short lines the member hears in the voice picker. Kept here so the sample
+# matches the language of the voice rather than always being English.
+VOICE_PREVIEW_LINES = {
+    "english": "Welcome. This is how I will tell your story — slowly, clearly, and close.",
+    "french": "Bienvenue. Voici comment je raconterai votre histoire — posément, clairement, tout près.",
+}
+
+_EL_PREVIEW_BY_ID: dict[str, str] | None = None
+_PREVIEW_LOCK = None  # set lazily so importing this module stays cheap
+
+
+def voice_preview_text(language: str | None = None) -> str:
+    key = (language or "english").strip().lower()
+    return VOICE_PREVIEW_LINES.get(key, VOICE_PREVIEW_LINES["english"])
+
+
+def _preview_lock():
+    global _PREVIEW_LOCK
+    if _PREVIEW_LOCK is None:
+        import threading
+
+        _PREVIEW_LOCK = threading.Lock()
+    return _PREVIEW_LOCK
+
+
+def _elevenlabs_preview_map() -> dict[str, str]:
+    """
+    One ElevenLabs /voices call, then reuse it for the life of the process.
+    Each premade voice already has a public preview clip on their CDN.
+    """
+    global _EL_PREVIEW_BY_ID
+    if _EL_PREVIEW_BY_ID is not None:
+        return _EL_PREVIEW_BY_ID
+
+    _EL_PREVIEW_BY_ID = {}
+    if not settings.ELEVENLABS_API_KEY or settings.ELEVENLABS_API_KEY == "your_elevenlabs_api_key_here":
+        return _EL_PREVIEW_BY_ID
+
+    try:
+        response = requests.get(
+            f"{ELEVENLABS_API_BASE}/voices",
+            headers={"xi-api-key": settings.ELEVENLABS_API_KEY},
+            timeout=12,
+        )
+        response.raise_for_status()
+        for voice in response.json().get("voices") or []:
+            voice_id = voice.get("voice_id")
+            preview = voice.get("preview_url")
+            if voice_id and preview:
+                _EL_PREVIEW_BY_ID[voice_id] = preview
+    except Exception:
+        # Catalog still returns without previews rather than failing the picker.
+        pass
+    return _EL_PREVIEW_BY_ID
+
+
+def get_voice_preview_url(
+    voice_name: str,
+    voice_id: str | None = None,
+    language: str | None = None,
+) -> str | None:
+    """
+    A playable MP3 URL for the voice picker.
+
+    Prefers a locally cached clip so the sample sounds like our narration.
+    Falls back to ElevenLabs' own preview, then generates and caches a short
+    clip with the same TTS path stories use.
+    """
+    slug = "".join(ch.lower() if ch.isalnum() else "-" for ch in (voice_name or "voice")).strip("-") or "voice"
+    cache_rel = f"media/audio/voice-previews/{slug}.mp3"
+    cache_path = Path(cache_rel)
+
+    if cache_path.exists() and cache_path.stat().st_size > 0:
+        return cache_rel
+
+    resolved_id = ELEVENLABS_VOICES.get(voice_name, voice_id) or voice_id
+    el_preview = _elevenlabs_preview_map().get(resolved_id or "")
+    if el_preview:
+        return el_preview
+
+    with _preview_lock():
+        if cache_path.exists() and cache_path.stat().st_size > 0:
+            return cache_rel
+        try:
+            audio = generate_voice_elevenlabs(
+                voice_preview_text(language),
+                voice_id=resolved_id or voice_name,
+                story_type="confession",
+            )
+            if isinstance(audio, tuple):
+                audio = audio[0]
+            cache_path.parent.mkdir(parents=True, exist_ok=True)
+            cache_path.write_bytes(audio)
+            return cache_rel
+        except Exception:
+            return None
 
 
 def is_selectable_voice(voice_name: str | None) -> bool:
@@ -348,8 +447,6 @@ def generate_voice_elevenlabs(
 # ---------------------------------------------------------------------------
 # Voice cloning — ElevenLabs Instant Voice Cloning (IVC)
 # ---------------------------------------------------------------------------
-
-ELEVENLABS_API_BASE = "https://api.elevenlabs.io/v1"
 
 # ElevenLabs rejects very short samples outright and quality degrades badly
 # below roughly a minute of speech, so reject obviously unusable uploads early.

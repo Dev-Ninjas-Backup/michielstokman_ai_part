@@ -79,11 +79,16 @@ GET /v1/voices
 {
   "data": {
     "voices": [
-      { "name": "Sophia",    "label": "Sophia",    "gender": "female", "language": "english", "description": "Soft, meditative and unhurried...", "is_custom": false },
-      { "name": "Charlotte", "label": "Charlotte", "gender": "female", "language": "english", "description": "Gentle and close...",                "is_custom": false },
-      { "name": "Calen",     "label": "Calen",     "gender": "male",   "language": "english", "description": "Resonant and magnetic...",           "is_custom": false },
-      { "name": "Victoria",  "label": "Victoria",  "gender": "female", "language": "french",  "description": "Warm and calm...",                    "is_custom": false },
-      { "name": "Anja",      "label": "Anja",      "gender": "female", "language": "english", "description": "Rich and expressive...",              "is_custom": false }
+      {
+        "name": "Sophia",
+        "label": "Sophia",
+        "gender": "female",
+        "language": "english",
+        "description": "Soft, meditative and unhurried. The default for guided meditations.",
+        "is_custom": false,
+        "preview_url": "https://www.transformtoliberation.com/media/audio/voice-previews/sophia.mp3",
+        "preview_text": "Welcome. This is how I will tell your story — slowly, clearly, and close."
+      }
     ],
     "custom_voice": null,
     "default_voice": "Sophia"
@@ -91,10 +96,23 @@ GET /v1/voices
 }
 ```
 
-Build the picker from `voices`. Pass the **`name`** value (not `label`) as
-`voice_name` in later requests. If `custom_voice` is not `null`, show it as an
-extra option — selecting it means sending `use_custom_voice: true` instead of a
-`voice_name`.
+Build the picker from `voices`. Each row has a **`preview_url`** — that is a
+short MP3. Play it when the member taps a voice so they can hear it before
+they confirm:
+
+```js
+const audio = new Audio(voice.preview_url);
+audio.play();
+```
+
+Do not prepend a base URL; `preview_url` is already fully qualified. If it is
+`null` (rare — the TTS provider was down), hide the play button rather than
+erroring.
+
+Pass the **`name`** value (not `label`) as `voice_name` in later requests. If
+`custom_voice` is not `null`, show it as an extra option — selecting it means
+sending `use_custom_voice: true` instead of a `voice_name`. It also carries a
+`preview_url` once the clone is ready.
 
 Omitting `voice_name` entirely is fine: the backend picks a voice matching the
 member's profile.
@@ -638,7 +656,7 @@ Requires `story_text` to exist — `409` if the story hasn't generated yet.
 
 | Method | Path | Notes |
 |---|---|---|
-| `GET` | `/v1/voices` | Voice options + member's cloned voice |
+| `GET` | `/v1/voices` | Voice options + `preview_url` sample clip per voice |
 | `GET` | `/v1/me/voice` | Cloned voice status |
 | `POST` | `/v1/me/voice` | Upload recordings → clone · `201` · multipart `recordings` |
 | `DELETE` | `/v1/me/voice` | Remove cloned voice |
