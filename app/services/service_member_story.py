@@ -163,7 +163,7 @@ def to_detail(story: Story) -> MemberStoryDetail:
         uses_custom_voice=bool(story.uses_custom_voice),
         image_source=_enum_value(story.image_source),
         alignment=story.alignment,
-        social_intros=story.social_intros,
+        social_intros=story.social_intros if isinstance(story.social_intros, dict) else None,
         regeneration_count=story.regeneration_count or 0,
         moderation_notes=story.moderation_notes,
         withdrawn_at=_isoformat(story.withdrawn_at),
