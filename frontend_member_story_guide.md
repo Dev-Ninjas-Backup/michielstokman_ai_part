@@ -366,6 +366,10 @@ Everything in the list item, plus:
 
 | Field | Use for |
 |---|---|
+| `title` | **Active display title** — what cards, share, and feeds show today |
+| `member_title` | Title the member typed on create/edit |
+| `ai_generated_title` | Title the LLM produced (`TITLE:` line), or `null` while generating |
+| `use_ai_title` | `false` (default) → show `member_title`; `true` → show `ai_generated_title` |
 | `story_text` | **The AI-narrated story** — the read-along text |
 | `story_input` | **The member's own original submission**, untouched |
 | `alignment` | Word-level timings `[{word, start, end}]` for karaoke highlighting |
@@ -410,7 +414,22 @@ Send only the fields that changed:
 
 Accepted fields: `title`, `story_input`, `story_type`, `growth_areas`,
 `life_phase`, `tags`, `high_intensity`, `voice_name`, `use_custom_voice`,
-`regenerate`.
+`use_ai_title`, `regenerate`.
+
+`title` updates `member_title` and refreshes the active `title` (unless
+`use_ai_title` is already `true`). To switch to the AI suggestion later:
+
+```json
+{ "use_ai_title": true }
+```
+
+To switch back:
+
+```json
+{ "use_ai_title": false }
+```
+
+Returns `422` if `use_ai_title: true` but `ai_generated_title` is not set yet.
 
 Two behaviours depending on `regenerate` (defaults to `true`):
 

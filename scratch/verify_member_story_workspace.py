@@ -104,6 +104,36 @@ story_data.complete_story(db, s2, story_text="Body text.", title=None,
 db.refresh(s2)
 check("title preserved when LLM omits TITLE", s2.title == "Second", f"got {s2.title!r}")
 
+story_data.complete_story(
+    db, s2, story_text="Updated body.", title="AI Invented Title",
+    audio_path="media/audio/y2.mp3",
+)
+db.refresh(s2)
+check(
+    "title preserved when LLM returns different TITLE",
+    s2.title == "Second",
+    f"got {s2.title!r}",
+)
+check(
+    "ai title stored separately",
+    s2.ai_generated_title == "AI Invented Title",
+    f"got {s2.ai_generated_title!r}",
+)
+check("member title kept on story", s2.member_title == "Second", f"got {s2.member_title!r}")
+
+s2.use_ai_title = True
+from app.utils.story_title import sync_active_title
+sync_active_title(s2)
+db.commit()
+db.refresh(s2)
+check("use_ai_title switches active title", s2.title == "AI Invented Title", f"got {s2.title!r}")
+
+s2.use_ai_title = False
+sync_active_title(s2)
+db.commit()
+db.refresh(s2)
+check("member title restored when flag off", s2.title == "Second", f"got {s2.title!r}")
+
 # --- credit refund --------------------------------------------------------
 db.add(UserCredit(user_id=user.id, daily_credits_remaining=3, max_daily_credits=3))
 db.commit()

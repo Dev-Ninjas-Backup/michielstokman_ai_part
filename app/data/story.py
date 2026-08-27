@@ -9,6 +9,7 @@ from typing import Optional
 from sqlalchemy.orm import Session
 
 from app.model.story import Story, StoryType, GenerationStatus
+from app.utils.story_title import sync_active_title
 
 
 def create_story(
@@ -44,7 +45,9 @@ def create_story(
         generation_status=GenerationStatus.processing,
         user_id=uuid.UUID(user_id) if user_id else None,
         admin_id=uuid.UUID(admin_id) if admin_id else None,
-        title=title,
+        title=title.strip() if title and title.strip() else None,
+        member_title=title.strip() if title and title.strip() else None,
+        use_ai_title=False,
         first_name=first_name,
         story_input=story_input,
         growth_areas=growth_areas,
@@ -75,10 +78,9 @@ def complete_story(
     alignment: Optional[list] = None,
 ) -> Story:
     """Updates a Story row with the generated text + audio and marks it completed."""
-    # The LLM omits the TITLE: marker often enough that overwriting
-    # unconditionally would erase the title the member submitted.
-    if title:
-        story.title = title
+    if title and title.strip():
+        story.ai_generated_title = title.strip()
+    sync_active_title(story)
     story.story_text = story_text
     story.audio_path = audio_path
     story.generation_status = GenerationStatus.completed

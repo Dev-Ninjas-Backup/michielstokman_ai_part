@@ -79,6 +79,7 @@ class MemberStoryListItem(BaseModel):
     moderation_status: str
     submission_status: str
     has_social_intros: bool = False
+    moderation_notes: Optional[str] = None
     created_at: str
 
     @field_validator("cover_image_url", "audio_path", mode="after")
@@ -88,6 +89,16 @@ class MemberStoryListItem(BaseModel):
 
 
 class MemberStoryDetail(MemberStoryListItem):
+    member_title: Optional[str] = Field(
+        None, description="Title the member submitted on create or edit"
+    )
+    ai_generated_title: Optional[str] = Field(
+        None, description="Title produced by the LLM during generation"
+    )
+    use_ai_title: bool = Field(
+        False,
+        description="When true, `title` reflects `ai_generated_title` instead of `member_title`",
+    )
     story_text: Optional[str] = Field(None, description="The AI-narrated story text")
     story_input: Optional[str] = Field(
         None, description="The member's own original submission, before AI processing"
@@ -102,7 +113,6 @@ class MemberStoryDetail(MemberStoryListItem):
     alignment: Optional[List[Dict[str, Any]]] = None
     social_intros: Optional[Dict[str, str]] = None
     regeneration_count: int = 0
-    moderation_notes: Optional[str] = None
     withdrawn_at: Optional[str] = None
 
 
@@ -129,6 +139,13 @@ class UpdateMemberStoryRequest(BaseModel):
     title: Optional[str] = None
     story_input: Optional[str] = Field(
         None, description="The member's rewritten source text"
+    )
+    use_ai_title: Optional[bool] = Field(
+        None,
+        description=(
+            "Switch the active title to the AI-generated one (true) or the member's "
+            "own (false). Requires ai_generated_title to be set when true."
+        ),
     )
     story_type: Optional[StoryType] = None
     growth_areas: Optional[List[str]] = None
