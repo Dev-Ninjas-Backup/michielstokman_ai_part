@@ -134,11 +134,12 @@ def get_member_story(db: Session, story_id: str, user_id: str) -> Optional[Story
     """
     try:
         story_uuid = uuid.UUID(story_id)
+        owner_uuid = uuid.UUID(user_id)
     except (ValueError, AttributeError, TypeError):
         return None
     return (
         db.query(Story)
-        .filter(Story.id == story_uuid, Story.user_id == uuid.UUID(user_id))
+        .filter(Story.id == story_uuid, Story.user_id == owner_uuid)
         .first()
     )
 
