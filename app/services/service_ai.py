@@ -328,9 +328,6 @@ class AIService:
             )
 
             # Simple duration estimation (150 wpm) and default voice lookup
-            from app.data import cover_image as cover_data
-            from app.model.cover_image import CoverImageType
-
             story_row.voice_name = voice_name
             story_row.voice_id = voice_id
             story_row.uses_custom_voice = uses_custom_voice
@@ -351,47 +348,11 @@ class AIService:
             )
 
             from app.model.story import ImageSource
-            from app.schemas.schema_ai import CoverImageMode
-
-            # A cover the member uploaded themselves outranks anything generated.
-            # `complete_story` refreshed the row, so a member who uploaded while
-            # the job was running is seen here rather than being overwritten.
-            member_supplies_cover = (
-                getattr(request, "image_mode", CoverImageMode.ai_generated)
-                == CoverImageMode.user_uploaded
-            )
+            from app.utils.story_image_prompt import try_generate_story_cover
 
             if story_row.image_source != ImageSource.user_uploaded:
-                # Skip the paid image call entirely when the member said up front
-                # they would bring their own artwork.
-                if member_supplies_cover:
-                    logger.info(
-                        f"[Job {job_id}] Skipping AI cover — member supplies their own image."
-                    )
-                elif settings.OPENAI_API_KEY and image_prompt:
-                    from app.utils.image_generator import generate_ai_cover_image
-                    author_display = story_row.first_name or "Anonymous"
-                    logger.info(f"Triggering AI cover generation for story {story_row.id}...")
-                    cover_url, cover_key = generate_ai_cover_image(
-                        title=title or story_row.title or "Untitled",
-                        story_type=story_row.story_type.value,
-                        author_name=author_display,
-                        image_prompt=image_prompt
-                    )
-                    if cover_url:
-                        story_row.cover_image_url = cover_url
-                        story_row.cover_image_key = cover_key
-                        story_row.image_source = ImageSource.ai_generated
-                        logger.info(f"AI cover generation succeeded: {cover_url}")
-                    else:
-                        logger.warning("AI cover generation returned None. Falling back to default covers.")
-
-                # Auto-assign cover image from admin uploads if not already set
-                if not story_row.cover_image_url:
-                    c_type = CoverImageType(story_row.story_type.value)
-                    story_row.cover_image_url = cover_data.get_latest_active_image_url(db, c_type)
-                    if story_row.cover_image_url:
-                        story_row.image_source = ImageSource.admin_default
+                logger.info(f"Triggering cover generation for story {story_row.id}...")
+                try_generate_story_cover(db, story_row, image_prompt=image_prompt)
 
             db.commit()
             
@@ -494,34 +455,12 @@ class AIService:
                 alignment=alignment,
             )
             
-            # Try generating AI Cover image if configured and prompt exists
+            # Try generating a story-specific AI cover unless the member uploaded one.
             from app.model.story import ImageSource
-            if settings.OPENAI_API_KEY and image_prompt:
-                from app.utils.image_generator import generate_ai_cover_image
-                author_display = story_row.first_name or "Anonymous"
-                logger.info(f"Triggering AI cover generation for bulk story {story_row.id}...")
-                cover_url, cover_key = generate_ai_cover_image(
-                    title=title or "Untitled",
-                    story_type=story_row.story_type.value,
-                    author_name=author_display,
-                    image_prompt=image_prompt
-                )
-                if cover_url:
-                    story_row.cover_image_url = cover_url
-                    story_row.cover_image_key = cover_key
-                    story_row.image_source = ImageSource.ai_generated
-                    logger.info(f"AI cover generation succeeded: {cover_url}")
-                else:
-                    logger.warning("AI cover generation returned None. Falling back to default covers.")
+            from app.utils.story_image_prompt import try_generate_story_cover
 
-            # Auto-assign cover image from admin uploads if not already set
-            from app.data import cover_image as cover_data
-            from app.model.cover_image import CoverImageType
-            if not story_row.cover_image_url:
-                c_type = CoverImageType(story_row.story_type.value)
-                story_row.cover_image_url = cover_data.get_latest_active_image_url(db, c_type)
-                if story_row.cover_image_url:
-                    story_row.image_source = ImageSource.admin_default
+            if story_row.image_source != ImageSource.user_uploaded:
+                try_generate_story_cover(db, story_row, image_prompt=image_prompt)
 
             db.commit()
             

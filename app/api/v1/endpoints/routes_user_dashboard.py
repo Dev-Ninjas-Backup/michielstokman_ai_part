@@ -330,15 +330,17 @@ def get_story_detail(
 
     top_tags = sorted(tag_counts, key=tag_counts.get, reverse=True)[:5]
 
-    # --- Resolve admin-managed cover image for this story type ---
+    # --- Resolve cover: per-story artwork first, then admin category fallback ---
     from app.data import cover_image as cover_data
     from app.model.cover_image import CoverImageType
     s_type = story.story_type.value if story.story_type else "confession"
-    try:
-        cover_type = CoverImageType(s_type)
-        cover_image_url = cover_data.get_latest_active_image_url(db, cover_type)
-    except (ValueError, Exception):
-        cover_image_url = None
+    cover_image_url = story.cover_image_url
+    if not cover_image_url:
+        try:
+            cover_type = CoverImageType(s_type)
+            cover_image_url = cover_data.get_latest_active_image_url(db, cover_type)
+        except (ValueError, Exception):
+            cover_image_url = None
 
     # --- Resolve author name ---
     author_name = story.first_name

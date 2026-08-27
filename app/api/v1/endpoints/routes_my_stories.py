@@ -325,8 +325,9 @@ def upload_my_story_image(
     current_user: User = Depends(get_current_user),
 ):
     """
-    Uses the member's own image as the story artwork. A member-uploaded image
-    is preserved across regenerations and is never replaced by AI artwork.
+    Uses the member's own image as the story artwork. Uploading again replaces
+    the current cover. Story text regeneration keeps a member upload unless
+    they generate new AI artwork explicitly.
     """
     story = MemberStoryService.upload_story_image(db, current_user, story_id, image)
     result = StoryImageResponse(
@@ -349,9 +350,8 @@ def generate_my_story_image(
     current_user: User = Depends(get_current_user),
 ):
     """
-    Generates artwork from the story's own content, using the palette and
-    collage composition defined for its type (confession, meditation or
-    transformation) so it matches the rest of the catalog.
+    Generates artwork from the story's own content. Replaces any existing cover,
+    including a member upload, when the member chooses this action.
     """
     story = MemberStoryService.generate_story_image(db, current_user, story_id)
     result = StoryImageResponse(

@@ -64,6 +64,7 @@ from app.services.service_ai import AIService
 from app.utils.prompts import SOCIAL_INTRO_HUMAN, SOCIAL_INTRO_SYSTEM
 from app.utils.text import build_excerpt
 from app.utils.story_title import sync_active_title
+from app.utils.story_image_prompt import try_generate_story_cover
 
 logger = logging.getLogger(__name__)
 
@@ -595,23 +596,8 @@ class MemberStoryService:
             story_row.social_intros = None
             story_row.social_intros_generated_at = None
 
-            if story_row.image_source != ImageSource.user_uploaded and settings.OPENAI_API_KEY and image_prompt:
-                from app.utils.image_generator import generate_ai_cover_image
-
-                old_key = story_row.cover_image_key
-                cover_url, cover_key = generate_ai_cover_image(
-                    title=story_row.title or "Untitled",
-                    story_type=story_row.story_type.value,
-                    author_name=story_row.first_name or "Anonymous",
-                    image_prompt=image_prompt,
-                )
-                if cover_url:
-                    story_row.cover_image_url = cover_url
-                    story_row.cover_image_key = cover_key
-                    story_row.image_source = ImageSource.ai_generated
-                    if old_key:
-                        from app.utils.s3 import delete_s3_object
-                        delete_s3_object(old_key)
+            if story_row.image_source != ImageSource.user_uploaded:
+                try_generate_story_cover(db, story_row, image_prompt=image_prompt)
 
             db.commit()
             logger.info(f"[Regenerate {job_id}] Completed for story {story_db_id}.")
@@ -785,8 +771,7 @@ class MemberStoryService:
         Regenerates the AI cover art from the story's own content, matching the
         palette and composition rules defined for its type.
         """
-        from app.utils.image_generator import generate_ai_cover_image
-        from app.utils.s3 import delete_s3_object
+        from app.utils.story_image_prompt import try_generate_story_cover
 
         story = _require_story(db, user, story_id)
         _require_not_processing(story)
@@ -802,49 +787,21 @@ class MemberStoryService:
                 detail="Generate the story before creating its artwork.",
             )
 
-        image_prompt = MemberStoryService._build_image_prompt(story)
-        previous_key = story.cover_image_key
-
-        cover_url, cover_key = generate_ai_cover_image(
-            title=story.title or "Untitled",
-            story_type=story.story_type.value,
-            author_name=story.first_name or "Anonymous",
-            image_prompt=image_prompt,
+        try_generate_story_cover(
+            db,
+            story,
+            image_prompt=None,
+            allow_admin_fallback=False,
+            replace_member_cover=True,
         )
-        if not cover_url:
+        db.commit()
+        db.refresh(story)
+        if not story.cover_image_url:
             raise HTTPException(
                 status_code=status.HTTP_502_BAD_GATEWAY,
                 detail="The image provider could not generate artwork for this story. Please try again.",
             )
-
-        story_data.set_story_cover(db, story, cover_url, cover_key, ImageSource.ai_generated)
-        if previous_key:
-            delete_s3_object(previous_key)
         return story
-
-    @staticmethod
-    def _build_image_prompt(story: Story) -> str:
-        """
-        Asks the LLM for a DALL-E prompt for an existing story, reusing the same
-        collage art direction the generation pipeline uses so covers stay
-        visually consistent across the catalog.
-        """
-        from app.utils.prompts import STORY_HUMAN_TEMPLATE
-
-        art_direction = STORY_HUMAN_TEMPLATE.split("IMAGE_PROMPT:", 1)[1].split("STORY:", 1)[0]
-        excerpt = (story.story_text or "")[:SOCIAL_INTRO_EXCERPT_CHARS]
-
-        llm = get_story_llm(temperature=0.7)
-        response = llm.invoke(
-            "You write image prompts for cover artwork. Return only the prompt text, "
-            "with no preamble and no quotes.\n\n"
-            f"Story type: {story.story_type.value}\n"
-            f"Title: {story.title or 'Untitled'}\n"
-            f"Narrator: {story.first_name or 'Anonymous'}\n\n"
-            f"Art direction:\n{art_direction.strip()}\n\n"
-            f"Story:\n{excerpt}"
-        )
-        return response.content.strip()
 
     # -----------------------------------------------------------------------
     # Meta / Spotify distribution
