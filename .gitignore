@@ -1,5 +1,6 @@
 .env
 b.txt
+/web/
 
 # Sensitive credentials — never push these
 shejan-a82dd-firebase-adminsdk-zh6eg-52309d3440.json

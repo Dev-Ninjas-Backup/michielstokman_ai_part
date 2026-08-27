@@ -249,10 +249,16 @@ def build_user_context(request: StoryGenerateRequest) -> str:
     
     user_story_input = request.story_input
     intensity_toggle = "Activated" if getattr(request, 'high_intensity', False) else "Off"
+    title_line = ""
+    if request.title and request.title.strip():
+        title_line = (
+            f"- Chosen title (you MUST use this exact title in your TITLE: line): "
+            f"{request.title.strip()}\n"
+        )
 
     context_str = f"""
 User Profile Block (mandatory — always fill this in):
-- Name: {name}
+{title_line}- Name: {name}
 - Life phase: {life_phase}
 - Growth areas focusing on: {growth_areas}
 - Tags / Themes: {tags}

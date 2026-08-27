@@ -63,6 +63,7 @@ from app.schemas.schema_system import PaginationMeta
 from app.services.service_ai import AIService
 from app.utils.prompts import SOCIAL_INTRO_HUMAN, SOCIAL_INTRO_SYSTEM
 from app.utils.text import build_excerpt
+from app.utils.story_title import sync_active_title
 
 logger = logging.getLogger(__name__)
 
@@ -140,6 +141,7 @@ def to_list_item(story: Story) -> MemberStoryListItem:
         moderation_status=_enum_value(story.moderation_status),
         submission_status=_enum_value(story.submission_status),
         has_social_intros=bool(story.social_intros),
+        moderation_notes=story.moderation_notes,
         created_at=_isoformat(story.created_at),
     )
 
@@ -147,6 +149,9 @@ def to_list_item(story: Story) -> MemberStoryListItem:
 def to_detail(story: Story) -> MemberStoryDetail:
     return MemberStoryDetail(
         **to_list_item(story).model_dump(),
+        member_title=story.member_title,
+        ai_generated_title=story.ai_generated_title,
+        use_ai_title=bool(story.use_ai_title),
         story_text=story.story_text,
         story_input=story.story_input,
         first_name=story.first_name,
@@ -469,7 +474,16 @@ class MemberStoryService:
         _require_not_processing(story)
 
         if payload.title is not None:
-            story.title = payload.title.strip() or None
+            story.member_title = payload.title.strip() or None
+            sync_active_title(story)
+        if payload.use_ai_title is not None:
+            if payload.use_ai_title and not (story.ai_generated_title or "").strip():
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail="No AI-generated title is available yet for this story.",
+                )
+            story.use_ai_title = payload.use_ai_title
+            sync_active_title(story)
         if payload.story_input is not None:
             cleaned = payload.story_input.strip()
             if not cleaned:
@@ -540,7 +554,7 @@ class MemberStoryService:
 
             request = StoryGenerateRequest(
                 story_type=StoryTypeSchema(story_row.story_type.value),
-                title=story_row.title,
+                title=story_row.member_title or story_row.title,
                 first_name=story_row.first_name,
                 story_input=story_row.story_input,
                 growth_areas=story_row.growth_areas or [],

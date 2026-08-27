@@ -62,6 +62,23 @@ class Story(Base):
     # Content
     story_type = Column(SAEnum(StoryType), nullable=False)
     title = Column(String, nullable=True)
+    member_title = Column(
+        String,
+        nullable=True,
+        comment="Title the member submitted on create or edit",
+    )
+    ai_generated_title = Column(
+        String,
+        nullable=True,
+        comment="Title produced by the LLM TITLE: line",
+    )
+    use_ai_title = Column(
+        Boolean,
+        default=False,
+        nullable=False,
+        server_default="false",
+        comment="When true, the active title prefers ai_generated_title",
+    )
     story_text = Column(Text, nullable=True)
 
     # Audio — S3 URL (falls back to local path e.g. "media/audio/abc123.mp3" if S3 not configured)
