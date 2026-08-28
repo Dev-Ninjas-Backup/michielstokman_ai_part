@@ -1,10 +1,12 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Request, Header, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Header, status
 from sqlalchemy.orm import Session
 
+from app.api.deps import get_current_user
 from app.core.db import get_db
 from app.core.responses import ApiResponse, success_response
+from app.model.user import User
 from app.schemas.schema_billing import (
     StartCheckoutRequest,
     StartCheckoutResponse,
@@ -17,10 +19,14 @@ router = APIRouter()
 
 
 @router.post("/payment/checkout/start", response_model=ApiResponse[StartCheckoutResponse])
-def start_checkout(payload: StartCheckoutRequest, db: Session = Depends(get_db)):
+def start_checkout(
+    payload: StartCheckoutRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     checkout = BillingService.start_checkout(
         db=db,
-        user_id=payload.user_id,
+        user_id=current_user.id,
         plan_id=payload.plan_id,
         journey_id=payload.journey_id,
         journey_code=payload.journey_code,
@@ -48,6 +54,15 @@ async def payment_webhook(
 
 
 @router.get("/payment/history/{user_id}", response_model=ApiResponse[list[PaymentHistoryItem]])
-def payment_history(user_id: UUID, db: Session = Depends(get_db)):
+def payment_history(
+    user_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    if not current_user.is_admin and str(current_user.id) != str(user_id):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You can only view your own payment history.",
+        )
     history = BillingService.payment_history(db=db, user_id=user_id)
     return success_response("Payment history fetched successfully", status.HTTP_200_OK, history)

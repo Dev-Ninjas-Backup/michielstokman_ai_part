@@ -179,8 +179,11 @@ def generate_ai_cover_image(
             "model": model,
             "prompt": image_prompt,
             "n": 1,
-            "size": size
+            "size": size,
         }
+        if model.startswith("dall-e"):
+            payload["quality"] = "hd"
+            payload["style"] = "natural"
         
         resp = requests.post(url, json=payload, headers=headers, timeout=180)
         resp.raise_for_status()

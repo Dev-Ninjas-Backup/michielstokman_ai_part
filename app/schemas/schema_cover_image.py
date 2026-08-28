@@ -40,3 +40,14 @@ class CoverImageUpdateRequest(BaseModel):
     story_type: Optional[APICoverImageType] = None
     is_active: Optional[bool] = None
 
+
+class CoverRegenRequest(BaseModel):
+    limit: int = 25
+    only_missing_or_default: bool = False
+
+
+class CoverRegenResponse(BaseModel):
+    queued: int
+    story_ids: list[str]
+    message: str
+
