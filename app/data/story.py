@@ -28,6 +28,7 @@ def create_story(
     cover_image_url: Optional[str] = None,
     cover_image_key: Optional[str] = None,
     image_source=None,
+    audio_path: Optional[str] = None,
 ) -> Story:
     """
     Inserts a new Story row in 'processing' state.
@@ -57,6 +58,7 @@ def create_story(
         cover_image_url=cover_image_url,
         cover_image_key=cover_image_key,
         image_source=image_source,
+        audio_path=audio_path,
         views_count=views,
         shares_count=shares,
         reflections_count=reflections,
