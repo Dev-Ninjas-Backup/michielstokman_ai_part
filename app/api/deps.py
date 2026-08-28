@@ -12,6 +12,19 @@ from app.model.user import User
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"/v1/login")
 
+def _assert_token_version(payload: dict, user: User) -> None:
+    """Honour token_version so /signout actually invalidates existing JWTs."""
+    token_version = payload.get("version")
+    if token_version is None:
+        return
+    if user.token_version != token_version:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token has been invalidated. Please login again.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+
 def get_current_user(
     db: Session = Depends(get_db),
     token: str = Depends(oauth2_scheme)
@@ -43,6 +56,7 @@ def get_current_user(
         raise HTTPException(status_code=404, detail="User not found")
     if not user.is_active:
         raise HTTPException(status_code=400, detail="Inactive user")
+    _assert_token_version(payload, user)
     return user
 
 
@@ -85,6 +99,7 @@ def get_current_user_optional(
         raise HTTPException(status_code=404, detail="User not found")
     if not user.is_active:
         raise HTTPException(status_code=400, detail="Inactive user")
+    _assert_token_version(payload, user)
     return user
 
 
@@ -173,6 +188,7 @@ def get_current_user_or_guest(
         raise HTTPException(status_code=404, detail="User not found")
     if not user.is_active:
         raise HTTPException(status_code=400, detail="Inactive user")
+    _assert_token_version(payload, user)
     return {"user": user, "is_guest": False, "guest_id": None}
 
 
