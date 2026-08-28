@@ -93,6 +93,10 @@ class StoryGenerateRequest(BaseModel):
         False,
         description="Narrate with the member's own cloned voice (requires an uploaded recording)",
     )
+    skip_narration: bool = Field(
+        False,
+        description="True when the member uploaded a finished narration; skip ElevenLabs TTS.",
+    )
 
     # Cover art — AI draws it from the story, or the member supplies their own
     # in the same request as a multipart `image` file.
@@ -176,6 +180,7 @@ def _form_to_generate_dict(form) -> Dict[str, Any]:
         "high_intensity": _form_bool(form, "high_intensity"),
         "voice_name": _form_value(form, "voice_name"),
         "use_custom_voice": _form_bool(form, "use_custom_voice"),
+        "skip_narration": _form_bool(form, "skip_narration"),
         "image_mode": _form_value(form, "image_mode") or CoverImageMode.ai_generated,
     }
 
@@ -186,6 +191,14 @@ def multipart_image(form) -> Optional[Any]:
     if image is None or not getattr(image, "filename", None):
         return None
     return image
+
+
+def multipart_audio(form) -> Optional[Any]:
+    """Returns the member's finished narration file, or None when omitted."""
+    audio = form.get("audio")
+    if audio is None or not getattr(audio, "filename", None):
+        return None
+    return audio
 
 
 class StoryGenerateResponse(BaseModel):

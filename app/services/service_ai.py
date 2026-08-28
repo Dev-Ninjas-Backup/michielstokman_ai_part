@@ -317,15 +317,29 @@ class AIService:
                     if getattr(request, "use_custom_voice", False):
                         custom_voice_id = profile_row.custom_voice_id
 
-            (
-                title, story_text, audio_path, voice_name,
-                image_prompt, alignment, voice_id, uses_custom_voice,
-            ) = AIService.generate_and_voice_story(
-                request,
-                gender=gender,
-                voice_name=getattr(request, "voice_name", None),
-                custom_voice_id=custom_voice_id,
+            skip_narration = bool(
+                getattr(request, "skip_narration", False) or story_row.audio_path
             )
+
+            if skip_narration:
+                title, story_text, image_prompt = AIService.generate_story(
+                    request, gender=gender
+                )
+                audio_path = story_row.audio_path
+                voice_name = "Member narration"
+                alignment = None
+                voice_id = None
+                uses_custom_voice = False
+            else:
+                (
+                    title, story_text, audio_path, voice_name,
+                    image_prompt, alignment, voice_id, uses_custom_voice,
+                ) = AIService.generate_and_voice_story(
+                    request,
+                    gender=gender,
+                    voice_name=getattr(request, "voice_name", None),
+                    custom_voice_id=custom_voice_id,
+                )
 
             # Simple duration estimation (150 wpm) and default voice lookup
             story_row.voice_name = voice_name
