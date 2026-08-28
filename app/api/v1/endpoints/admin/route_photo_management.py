@@ -15,7 +15,7 @@ Endpoints:
     DELETE /v1/admin/photos/{id}     — Remove from S3 and delete DB record
 """
 import os
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, Query, UploadFile, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_admin_user
@@ -28,6 +28,8 @@ from app.schemas.schema_cover_image import (
     CoverImageResponse,
     CoverImageUpdateRequest,
     APICoverImageType,
+    CoverRegenRequest,
+    CoverRegenResponse,
 )
 import app.data.cover_image as cover_image_data
 from app.utils.s3 import delete_s3_object, upload_image_to_s3
@@ -266,3 +268,44 @@ def delete_cover_image(
     cover_image_data.delete_cover_image(db, cover)
 
     return success_response("Cover image deleted successfully", status.HTTP_200_OK, None)
+
+
+@router.post(
+    "/admin/stories/regenerate-covers",
+    response_model=ApiResponse[CoverRegenResponse],
+)
+def regenerate_story_covers(
+    payload: CoverRegenRequest,
+    background_tasks: BackgroundTasks,
+    current_user: User = Depends(get_current_admin_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Queue collage covers for existing completed stories.
+    Member-uploaded covers are never overwritten.
+    """
+    from app.utils.story_image_prompt import (
+        cover_regeneration_worker,
+        list_stories_for_cover_regen,
+    )
+
+    stories = list_stories_for_cover_regen(
+        db,
+        limit=payload.limit,
+        only_missing_or_default=payload.only_missing_or_default,
+    )
+    story_ids = [str(story.id) for story in stories]
+    if story_ids:
+        background_tasks.add_task(cover_regeneration_worker, story_ids)
+
+    result = CoverRegenResponse(
+        queued=len(story_ids),
+        story_ids=story_ids,
+        message=(
+            f"Queued {len(story_ids)} collage cover(s). This runs in the background "
+            "and can take several minutes."
+            if story_ids
+            else "No eligible stories found."
+        ),
+    )
+    return success_response(result.message, status.HTTP_200_OK, result)
