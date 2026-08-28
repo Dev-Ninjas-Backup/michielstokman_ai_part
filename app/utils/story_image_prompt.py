@@ -161,3 +161,74 @@ def try_generate_story_cover(
     logger.warning("AI cover generation returned None for story %s", story.id)
     if allow_admin_fallback:
         _apply_admin_default_cover(db, story)
+
+
+def list_stories_for_cover_regen(
+    db: Session,
+    *,
+    limit: int = 25,
+    only_missing_or_default: bool = False,
+) -> list[Story]:
+    """Completed stories whose covers can be replaced (never member uploads)."""
+    from sqlalchemy import or_
+
+    from app.model.story import GenerationStatus
+
+    query = (
+        db.query(Story)
+        .filter(Story.generation_status == GenerationStatus.completed)
+        .filter(Story.story_text.isnot(None))
+        .filter(Story.story_text != "")
+        .filter(
+            or_(
+                Story.image_source.is_(None),
+                Story.image_source != ImageSource.user_uploaded,
+            )
+        )
+        .order_by(Story.updated_at.asc(), Story.created_at.asc())
+    )
+    if only_missing_or_default:
+        query = query.filter(
+            or_(
+                Story.cover_image_url.is_(None),
+                Story.cover_image_url == "",
+                Story.image_source.is_(None),
+                Story.image_source == ImageSource.admin_default,
+            )
+        )
+    return query.limit(max(1, min(limit, 80))).all()
+
+
+def cover_regeneration_worker(story_ids: list[str]) -> None:
+    """Regenerate collage covers for the given story IDs. Own DB session."""
+    from app.core.db import SessionLocal
+
+    db = SessionLocal()
+    try:
+        for story_id in story_ids:
+            story = db.query(Story).filter(Story.id == story_id).first()
+            if not story:
+                logger.warning("Cover regen skipped — story %s not found", story_id)
+                continue
+            if story.image_source == ImageSource.user_uploaded:
+                continue
+            try:
+                try_generate_story_cover(
+                    db,
+                    story,
+                    image_prompt=None,
+                    allow_admin_fallback=False,
+                    replace_member_cover=False,
+                )
+                db.commit()
+                logger.info(
+                    "Cover regen finished for %s source=%s url=%s",
+                    story.id,
+                    story.image_source,
+                    bool(story.cover_image_url),
+                )
+            except Exception:
+                db.rollback()
+                logger.exception("Cover regen failed for story %s", story_id)
+    finally:
+        db.close()
