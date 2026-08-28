@@ -25,6 +25,7 @@ from app.schemas.schema_ai import (
     JobResponse,
     JobStatusResponse,
     multipart_image,
+    multipart_audio,
 )
 from app.schemas.schema_rag import IngestAllResponse, IngestNewRequest, IngestNewResponse
 from app.services.service_ai import AIService
@@ -79,24 +80,24 @@ async def generate_resonance_question(request: ResonanceRequest):
         raise HTTPException(status_code=500, detail=f"Failed to generate resonance question: {err[:200]}")
 
 
-async def _parse_story_generate(http_request: Request) -> tuple[StoryGenerateRequest, Optional[object]]:
+async def _parse_story_generate(http_request: Request) -> tuple[StoryGenerateRequest, Optional[object], Optional[object]]:
     """
-    Accepts JSON (AI artwork) or multipart/form-data (own image travels with
-    the rest of the create payload).
+    Accepts JSON (AI artwork + our voices) or multipart/form-data
+    (own cover and/or finished narration).
     """
     content_type = (http_request.headers.get("content-type") or "").lower()
     try:
         if "multipart/form-data" in content_type:
             form = await http_request.form()
             payload = StoryGenerateRequest.from_multipart(form)
-            return payload, multipart_image(form)
+            return payload, multipart_image(form), multipart_audio(form)
         body = await http_request.json()
         if not isinstance(body, dict):
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail="Request body must be a JSON object or multipart form.",
             )
-        return StoryGenerateRequest.model_validate(body), None
+        return StoryGenerateRequest.model_validate(body), None, None
     except ValidationError as exc:
         first = exc.errors()[0]
         loc = " -> ".join(str(part) for part in first.get("loc", []) if part != "body")
@@ -183,7 +184,7 @@ async def generate_story(
     The later `POST /v1/me/stories/{id}/image` endpoint is only for replacing
     artwork after creation.
     """
-    request, uploaded_image = await _parse_story_generate(http_request)
+    request, uploaded_image, uploaded_audio = await _parse_story_generate(http_request)
 
     # An attached file is the member choosing their own cover — even if they
     # forgot to set image_mode.
@@ -226,6 +227,37 @@ async def generate_story(
 
         cover_url, cover_key = MemberStoryService.store_uploaded_image(uploaded_image)
 
+    member_audio_path = None
+    if uploaded_audio is not None:
+        from app.core.llm import save_audio, MAX_VOICE_SAMPLE_BYTES
+        from app.services.service_member_story import ALLOWED_AUDIO_TYPES
+
+        content_type = (uploaded_audio.content_type or "").lower()
+        if content_type not in ALLOWED_AUDIO_TYPES:
+            raise HTTPException(
+                status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+                detail="Narration must be mp3, wav, m4a, ogg or webm.",
+            )
+        audio_bytes = await uploaded_audio.read()
+        if not audio_bytes:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="The narration file was empty.",
+            )
+        if len(audio_bytes) > MAX_VOICE_SAMPLE_BYTES:
+            raise HTTPException(
+                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                detail="Narration file must be 10 MB or smaller.",
+            )
+        member_audio_path = save_audio(audio_bytes)
+        request.skip_narration = True
+        request.use_custom_voice = False
+    elif request.skip_narration:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="To use your own narration, attach the finished audio as multipart field `audio`.",
+        )
+
     try:
         # Create a job_id and the Story DB row upfront — both in 'processing' state
         job_id = str(uuid.uuid4())
@@ -248,6 +280,7 @@ async def generate_story(
             cover_image_url=cover_url,
             cover_image_key=cover_key,
             image_source=ImageSource.user_uploaded if cover_url else None,
+            audio_path=member_audio_path,
         )
 
         # Deduct 1 credit (no-op for premium users)
