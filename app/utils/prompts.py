@@ -243,9 +243,12 @@ def build_user_context(request: StoryGenerateRequest) -> str:
     Fills in available data from request and defaults the rest.
     """
     name = request.first_name if request.first_name else "Friend"
-    life_phase = request.life_phase if request.life_phase else "Not specified"
-    growth_areas = ", ".join(request.growth_areas) if request.growth_areas else "General growth"
-    tags = ", ".join(request.tags) if request.tags else "None"
+    location = request.location.strip() if getattr(request, "location", None) else "Not specified"
+    gender = request.gender.strip() if getattr(request, "gender", None) else "Not specified"
+    occupation = (
+        request.occupation.strip() if getattr(request, "occupation", None) else "Not specified"
+    )
+    age = str(request.age) if getattr(request, "age", None) is not None else "Not specified"
     
     user_story_input = request.story_input
     intensity_toggle = "Activated" if getattr(request, 'high_intensity', False) else "Off"
@@ -259,9 +262,10 @@ def build_user_context(request: StoryGenerateRequest) -> str:
     context_str = f"""
 User Profile Block (mandatory — always fill this in):
 {title_line}- Name: {name}
-- Life phase: {life_phase}
-- Growth areas focusing on: {growth_areas}
-- Tags / Themes: {tags}
+- Location (place of the story): {location}
+- Gender: {gender}
+- Occupation: {occupation}
+- Age: {age}
 - User's raw story/meditation input: {user_story_input}
 - Desired High Intensity Toggle: {intensity_toggle}
 """
@@ -349,6 +353,35 @@ Growth areas: {growth_areas}
 {story_excerpt}
 
 Write the three platform introductions now.
+"""
+
+
+# ---------------------------------------------------------------------------
+# Public details-hero hook (juicy excerpt)
+# ---------------------------------------------------------------------------
+
+HERO_HOOK_SYSTEM = """\
+You write a short public teaser for Transform to Liberation, a platform of
+intimate audio confessions and meditations.
+
+Given a finished piece, pick or lightly reshape 2–4 sentences that make a
+listener urgently curious — sensory, unfinished, emotionally charged. Do not
+spoil the ending. Do not summarise the whole story. Do not add quotation
+marks around the whole answer. Write in English, first person when the source
+is first person.
+
+Return ONLY the teaser paragraph. No title, no labels, no markdown.
+"""
+
+HERO_HOOK_HUMAN = """\
+## Piece
+Type: {story_type}
+Title: {title}
+
+## Full text
+{story_text}
+
+Write the teaser now.
 """
 
 

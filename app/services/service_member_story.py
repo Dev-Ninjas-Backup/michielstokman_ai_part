@@ -62,7 +62,7 @@ from app.schemas.schema_member_story import (
 from app.schemas.schema_system import PaginationMeta
 from app.services.service_ai import AIService
 from app.utils.prompts import SOCIAL_INTRO_HUMAN, SOCIAL_INTRO_SYSTEM
-from app.utils.text import build_excerpt
+from app.utils.text import story_card_excerpt
 from app.utils.story_title import sync_active_title
 from app.utils.story_image_prompt import try_generate_story_cover
 
@@ -132,7 +132,7 @@ def to_list_item(story: Story) -> MemberStoryListItem:
         story_number=story.story_number,
         story_reference=story_reference(story),
         title=story.title,
-        excerpt=build_excerpt(story.story_text),
+        excerpt=story_card_excerpt(story),
         story_type=_enum_value(story.story_type),
         cover_image_url=story.cover_image_url,
         audio_path=story.audio_path,
@@ -156,6 +156,10 @@ def to_detail(story: Story) -> MemberStoryDetail:
         story_text=story.story_text,
         story_input=story.story_input,
         first_name=story.first_name,
+        location=story.location,
+        gender=story.gender,
+        occupation=story.occupation,
+        age=story.age,
         growth_areas=story.growth_areas,
         life_phase=story.life_phase,
         tags=story.tags,
@@ -556,6 +560,10 @@ class MemberStoryService:
                 story_type=StoryTypeSchema(story_row.story_type.value),
                 title=story_row.member_title or story_row.title,
                 first_name=story_row.first_name,
+                location=story_row.location,
+                gender=story_row.gender,
+                occupation=story_row.occupation,
+                age=story_row.age,
                 story_input=story_row.story_input,
                 growth_areas=story_row.growth_areas or [],
                 life_phase=story_row.life_phase,
@@ -589,6 +597,8 @@ class MemberStoryService:
                 audio_duration_seconds=int((word_count / 150) * 60),
                 alignment=alignment,
             )
+
+            AIService.persist_hero_hook(story_row, story_text_db)
 
             # The story text changed, so any previously generated distribution
             # copy no longer describes it.

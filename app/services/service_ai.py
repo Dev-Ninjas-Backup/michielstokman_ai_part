@@ -36,9 +36,12 @@ from app.utils.prompts import (
     RESONANCE_SYSTEM_TEMPLATE,
     RESONANCE_HUMAN_TEMPLATE,
     STORY_HUMAN_TEMPLATE,
+    HERO_HOOK_SYSTEM,
+    HERO_HOOK_HUMAN,
     build_story_system_template,
     build_user_context,
 )
+from app.utils.text import build_excerpt
 
 
 # ---------------------------------------------------------------------------
@@ -202,6 +205,56 @@ class AIService:
         return title, story_text, image_prompt
 
     @staticmethod
+    def generate_hero_hook(
+        story_text: str,
+        story_type: str = "confession",
+        title: Optional[str] = None,
+    ) -> Optional[str]:
+        """
+        Writes a 2–4 sentence public teaser from the finished story.
+        Returns None when the model call fails so callers can fall back.
+        """
+        if not story_text or not story_text.strip():
+            return None
+
+        try:
+            llm = get_story_llm()
+            chat_prompt = ChatPromptTemplate.from_messages([
+                SystemMessagePromptTemplate.from_template(HERO_HOOK_SYSTEM),
+                HumanMessagePromptTemplate.from_template(HERO_HOOK_HUMAN),
+            ])
+            messages = chat_prompt.format_prompt(
+                story_type=story_type,
+                title=(title or "").strip() or "Untitled",
+                story_text=story_text.strip()[:8000],
+            ).to_messages()
+            response = llm.invoke(messages)
+            hook = (response.content or "").strip()
+            if hook.startswith("```"):
+                hook = re.sub(r"^```(?:\w+)?\s*", "", hook)
+                hook = re.sub(r"\s*```$", "", hook)
+            hook = hook.strip().strip('"').strip("'").strip()
+            return hook or None
+        except Exception as exc:
+            logger.warning("Hero hook generation failed: %s", exc, exc_info=True)
+            return None
+
+    @staticmethod
+    def persist_hero_hook(story_row, story_text: str) -> None:
+        """Sets story.hero_hook from the LLM, with a trimmed-excerpt fallback."""
+        story_type = (
+            story_row.story_type.value
+            if getattr(story_row.story_type, "value", None)
+            else str(story_row.story_type or "confession")
+        )
+        hook = AIService.generate_hero_hook(
+            story_text,
+            story_type=story_type,
+            title=story_row.title,
+        )
+        story_row.hero_hook = hook or build_excerpt(story_text, max_chars=400)
+
+    @staticmethod
     def resolve_voice(
         gender: Optional[str] = None,
         text: Optional[str] = None,
@@ -361,6 +414,8 @@ class AIService:
                 alignment=alignment,
             )
 
+            AIService.persist_hero_hook(story_row, story_text_db)
+
             from app.model.story import ImageSource
             from app.utils.story_image_prompt import try_generate_story_cover
 
@@ -468,6 +523,8 @@ class AIService:
                 audio_path=audio_path,
                 alignment=alignment,
             )
+
+            AIService.persist_hero_hook(story_row, story_text_db)
             
             # Try generating a story-specific AI cover unless the member uploaded one.
             from app.model.story import ImageSource

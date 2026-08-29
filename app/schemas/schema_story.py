@@ -22,6 +22,11 @@ class StoryDetailResponse(BaseModel):
     moderation_status: str
     moderation_notes: str | None
     first_name: str | None
+    location: str | None = None
+    gender: str | None = None
+    occupation: str | None = None
+    age: int | None = None
+    hero_hook: str | None = None
     story_input: str | None
     growth_areas: list[str] | None
     life_phase: str | None
@@ -101,6 +106,11 @@ class StoryDetailUserResponse(BaseModel):
     audio_path: Optional[str] = None
     cover_image_url: Optional[str] = None  # Admin-managed category image
     author_name: Optional[str] = None
+    location: Optional[str] = None
+    gender: Optional[str] = None
+    occupation: Optional[str] = None
+    age: Optional[int] = None
+    hero_hook: Optional[str] = None
     voice_name: Optional[str] = None
     track_id: Optional[str] = None
     high_intensity: bool = False

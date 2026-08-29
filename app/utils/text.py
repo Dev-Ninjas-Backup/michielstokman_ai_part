@@ -38,3 +38,11 @@ def build_excerpt(text: Optional[str], max_chars: int = DEFAULT_EXCERPT_CHARS) -
     if boundary > max_chars * 0.5:
         clipped = clipped[:boundary]
     return clipped.rstrip(" ,;:.!?—-") + "…"
+
+
+def story_card_excerpt(story) -> Optional[str]:
+    """Prefer the AI hero hook on cards; fall back to a trimmed story preview."""
+    hook = getattr(story, "hero_hook", None)
+    if isinstance(hook, str) and hook.strip():
+        return hook.strip()
+    return build_excerpt(getattr(story, "story_text", None))
