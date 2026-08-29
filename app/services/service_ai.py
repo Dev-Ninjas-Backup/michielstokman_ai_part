@@ -38,6 +38,8 @@ from app.utils.prompts import (
     STORY_HUMAN_TEMPLATE,
     HERO_HOOK_SYSTEM,
     HERO_HOOK_HUMAN,
+    HERO_TAGLINE_SYSTEM,
+    HERO_TAGLINE_HUMAN,
     build_story_system_template,
     build_user_context,
 )
@@ -240,8 +242,44 @@ class AIService:
             return None
 
     @staticmethod
+    def generate_hero_tagline(
+        story_text: str,
+        story_type: str = "confession",
+        title: Optional[str] = None,
+    ) -> Optional[str]:
+        """
+        Writes a two-line all-caps brush headline. Returns None on failure
+        so the public page can fall back to the story title.
+        """
+        if not story_text or not story_text.strip():
+            return None
+
+        try:
+            llm = get_story_llm()
+            chat_prompt = ChatPromptTemplate.from_messages([
+                SystemMessagePromptTemplate.from_template(HERO_TAGLINE_SYSTEM),
+                HumanMessagePromptTemplate.from_template(HERO_TAGLINE_HUMAN),
+            ])
+            messages = chat_prompt.format_prompt(
+                story_type=story_type,
+                title=(title or "").strip() or "Untitled",
+                story_text=story_text.strip()[:8000],
+            ).to_messages()
+            response = llm.invoke(messages)
+            line = (response.content or "").strip()
+            if line.startswith("```"):
+                line = re.sub(r"^```(?:\w+)?\s*", "", line)
+                line = re.sub(r"\s*```$", "", line)
+            line = line.strip().strip('"').strip("'").strip()
+            line = re.sub(r"\n{3,}", "\n\n", line)
+            return line or None
+        except Exception as exc:
+            logger.warning("Hero tagline generation failed: %s", exc, exc_info=True)
+            return None
+
+    @staticmethod
     def persist_hero_hook(story_row, story_text: str) -> None:
-        """Sets story.hero_hook from the LLM, with a trimmed-excerpt fallback."""
+        """Sets story.hero_hook and story.hero_tagline from the LLM."""
         story_type = (
             story_row.story_type.value
             if getattr(story_row.story_type, "value", None)
@@ -253,6 +291,12 @@ class AIService:
             title=story_row.title,
         )
         story_row.hero_hook = hook or build_excerpt(story_text, max_chars=400)
+        tagline = AIService.generate_hero_tagline(
+            story_text,
+            story_type=story_type,
+            title=story_row.title,
+        )
+        story_row.hero_tagline = tagline
 
     @staticmethod
     def resolve_voice(

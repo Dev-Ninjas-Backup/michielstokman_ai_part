@@ -27,6 +27,7 @@ class StoryDetailResponse(BaseModel):
     occupation: str | None = None
     age: int | None = None
     hero_hook: str | None = None
+    hero_tagline: str | None = None
     story_input: str | None
     growth_areas: list[str] | None
     life_phase: str | None
@@ -111,6 +112,7 @@ class StoryDetailUserResponse(BaseModel):
     occupation: Optional[str] = None
     age: Optional[int] = None
     hero_hook: Optional[str] = None
+    hero_tagline: Optional[str] = None
     voice_name: Optional[str] = None
     track_id: Optional[str] = None
     high_intensity: bool = False
