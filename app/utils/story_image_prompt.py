@@ -39,11 +39,85 @@ def substitute_cover_placeholders(
     return result.strip()
 
 
-def build_image_prompt_from_story(story: Story) -> str:
-    """Ask the LLM for a story-specific DALL-E prompt after generation completes."""
+def _cover_art_direction() -> str:
     from app.utils.prompts import STORY_HUMAN_TEMPLATE
 
-    art_direction = STORY_HUMAN_TEMPLATE.split("IMAGE_PROMPT:", 1)[1].split("STORY:", 1)[0]
+    return STORY_HUMAN_TEMPLATE.split("IMAGE_PROMPT:", 1)[1].split("STORY:", 1)[0].strip()
+
+
+def build_image_prompt_from_draft(
+    *,
+    story_type: str,
+    title: Optional[str],
+    first_name: Optional[str],
+    location: Optional[str],
+    gender: Optional[str],
+    occupation: Optional[str],
+    age: Optional[int],
+    story_input: str,
+) -> str:
+    """Ask the LLM for a DALL-E prompt from the member's submission (no finished story yet)."""
+    llm = get_story_llm(temperature=0.8)
+    response = llm.invoke(
+        "You write image prompts for cover artwork. Return only the prompt text, "
+        "with no preamble and no quotes.\n\n"
+        f"Story type: {story_type}\n"
+        f"Title: {(title or '').strip() or 'Untitled'}\n"
+        f"Name: {(first_name or '').strip() or 'Anonymous'}\n"
+        f"Location: {(location or '').strip() or 'unspecified'}\n"
+        f"Gender: {(gender or '').strip() or 'unspecified'}\n"
+        f"Occupation: {(occupation or '').strip() or 'unspecified'}\n"
+        f"Age: {age if age is not None else 'unspecified'}\n\n"
+        f"Art direction:\n{_cover_art_direction()}\n\n"
+        f"Member's original submission:\n{(story_input or '')[:INPUT_EXCERPT_CHARS]}\n\n"
+        "The cover scene must visually reflect THIS specific piece — its setting, "
+        "mood, and symbols. Do not describe a generic stock scene."
+    )
+    return response.content.strip()
+
+
+def generate_cover_from_draft(
+    *,
+    story_type: str,
+    title: Optional[str],
+    first_name: Optional[str],
+    location: Optional[str],
+    gender: Optional[str],
+    occupation: Optional[str],
+    age: Optional[int],
+    story_input: str,
+) -> tuple[str, str] | tuple[None, None]:
+    """Generate cover artwork from create-form fields and upload it. Returns (url, key)."""
+    from app.utils.image_generator import generate_ai_cover_image
+
+    prompt = build_image_prompt_from_draft(
+        story_type=story_type,
+        title=title,
+        first_name=first_name,
+        location=location,
+        gender=gender,
+        occupation=occupation,
+        age=age,
+        story_input=story_input,
+    )
+    if not prompt:
+        return None, None
+
+    display_title = (title or "").strip() or "Untitled"
+    author = (first_name or "").strip() or "Anonymous"
+    resolved = substitute_cover_placeholders(
+        prompt, title=display_title, author_name=author
+    )
+    return generate_ai_cover_image(
+        title=display_title,
+        story_type=story_type,
+        author_name=author,
+        image_prompt=resolved,
+    )
+
+
+def build_image_prompt_from_story(story: Story) -> str:
+    """Ask the LLM for a story-specific DALL-E prompt after generation completes."""
     excerpt = (story.story_text or "")[:STORY_EXCERPT_CHARS]
     input_excerpt = (story.story_input or "")[:INPUT_EXCERPT_CHARS]
     tags = ", ".join(story.tags or [])
@@ -62,7 +136,7 @@ def build_image_prompt_from_story(story: Story) -> str:
         f"Age: {story.age if story.age is not None else 'unspecified'}\n"
         f"Themes/tags: {tags or 'none'}\n"
         f"Growth areas: {growth or 'none'}\n\n"
-        f"Art direction:\n{art_direction.strip()}\n\n"
+        f"Art direction:\n{_cover_art_direction()}\n\n"
         f"Member's original submission:\n{input_excerpt}\n\n"
         f"Narrated story:\n{excerpt}\n\n"
         "The cover scene must visually reflect THIS specific story — its setting, "
