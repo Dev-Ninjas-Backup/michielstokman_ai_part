@@ -50,6 +50,15 @@ def create_story(
     shares = random.randint(20, 80)
     pulse = round(random.uniform(88.0, 97.5), 1)
 
+    resolved_mode = submission_mode or SubmissionMode.studio
+    mode_value = getattr(resolved_mode, "value", resolved_mode)
+    submitted_text = story_input.strip() if story_input and story_input.strip() else None
+    # Human-ready rows publish the member's script as-is; seed it now so the
+    # public text is correct even before the worker finishes hook/cover.
+    seeded_story_text = (
+        submitted_text if (mode_value == "human_ready" or audio_path) else None
+    )
+
     story = Story(
         story_type=story_type,
         job_id=job_id,
@@ -70,7 +79,8 @@ def create_story(
         lifestyle=lifestyle,
         situation=situation,
         story_input=story_input,
-        submission_mode=submission_mode or SubmissionMode.studio,
+        story_text=seeded_story_text,
+        submission_mode=resolved_mode,
         growth_areas=growth_areas,
         life_phase=life_phase,
         tags=tags,

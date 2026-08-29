@@ -381,6 +381,20 @@ class AIService:
     # --- Background worker — story generation --------------------------------
 
     @staticmethod
+    def _keep_submitted_narration(request, story_row) -> bool:
+        """True when the member uploaded finished audio: keep their script, skip rewrite/TTS."""
+        request_mode = getattr(request, "submission_mode", None)
+        request_mode_value = getattr(request_mode, "value", request_mode)
+        row_mode = getattr(story_row, "submission_mode", None) if story_row else None
+        row_mode_value = getattr(row_mode, "value", row_mode)
+        return bool(
+            getattr(request, "skip_rewrite", False)
+            or request_mode_value == "human_ready"
+            or row_mode_value == "human_ready"
+            or (story_row and story_row.audio_path)
+        )
+
+    @staticmethod
     def story_generation_worker(
         job_id: str,
         request: StoryGenerateRequest,
@@ -417,35 +431,16 @@ class AIService:
                     if getattr(request, "use_custom_voice", False):
                         custom_voice_id = profile_row.custom_voice_id
 
-            skip_rewrite = bool(
-                getattr(request, "skip_rewrite", False)
-                or getattr(request, "submission_mode", None) == "human_ready"
-                or (
-                    getattr(getattr(request, "submission_mode", None), "value", None)
-                    == "human_ready"
-                )
-            )
-            skip_narration = bool(
-                skip_rewrite
-                or getattr(request, "skip_narration", False)
-                or (story_row and story_row.audio_path)
-            )
+            keep_submitted = AIService._keep_submitted_narration(request, story_row)
 
-            if skip_rewrite:
+            if keep_submitted:
                 title = None
-                story_text = (request.story_input or "").strip()
+                story_text = (
+                    (story_row.story_input or getattr(request, "story_input", None) or "")
+                ).strip()
                 if not story_text:
                     raise ValueError("Fully narrated submissions need the finished text.")
                 image_prompt = None
-                audio_path = story_row.audio_path
-                voice_name = "Member narration"
-                alignment = None
-                voice_id = None
-                uses_custom_voice = False
-            elif skip_narration:
-                title, story_text, image_prompt = AIService.generate_story(
-                    request, gender=gender
-                )
                 audio_path = story_row.audio_path
                 voice_name = "Member narration"
                 alignment = None
