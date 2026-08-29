@@ -21,6 +21,12 @@ class CoverImageMode(str, Enum):
     user_uploaded = "user_uploaded"
 
 
+class SubmissionMode(str, Enum):
+    """Studio Voice (editorial + TTS) vs publication-ready human narration."""
+    studio = "studio"
+    human_ready = "human_ready"
+
+
 # ---------------------------------------------------------------------------
 # Track search
 # ---------------------------------------------------------------------------
@@ -72,8 +78,23 @@ class StoryGenerateRequest(BaseModel):
     gender: Optional[str] = Field(
         None, description="Public gender / identity line, free text"
     )
+    sexual_orientation: Optional[str] = Field(
+        None, description="Optional public sexual orientation, free text"
+    )
     occupation: Optional[str] = Field(None, description="Public occupation or role")
     age: Optional[int] = Field(None, ge=1, le=120, description="Public age of the person in the piece")
+    background: Optional[str] = Field(
+        None, description="Optional character background for cover and editorial"
+    )
+    personality: Optional[str] = Field(
+        None, description="Optional personality notes for cover and editorial"
+    )
+    lifestyle: Optional[str] = Field(
+        None, description="Optional lifestyle notes for cover and editorial"
+    )
+    situation: Optional[str] = Field(
+        None, description="Optional situation notes for cover and editorial"
+    )
     story_input: str = Field(..., description="The user's manual story or meditation script")
     
     growth_areas: List[str] = Field(
@@ -105,16 +126,19 @@ class StoryGenerateRequest(BaseModel):
         False,
         description="True when the member uploaded a finished narration; skip ElevenLabs TTS.",
     )
+    skip_rewrite: bool = Field(
+        False,
+        description="True for publication-ready human narration: keep story_input as story_text.",
+    )
+    submission_mode: SubmissionMode = Field(
+        SubmissionMode.studio,
+        description="'studio' rewrites and narrates. 'human_ready' publishes the submitted text and audio.",
+    )
 
-    # Cover art — AI draws it from the story, or the member supplies their own
-    # in the same request as a multipart `image` file.
+    # Cover art is always generated after the finished piece.
     image_mode: CoverImageMode = Field(
         CoverImageMode.ai_generated,
-        description=(
-            "'ai_generated' draws cover art from the story content. "
-            "'user_uploaded' uses the image file sent with this request "
-            "(multipart field name `image`)."
-        ),
+        description="Cover art is always drawn after the story exists. Member upload is not accepted on create.",
     )
 
     @field_validator("voice_name")
@@ -193,8 +217,13 @@ def _form_to_generate_dict(form) -> Dict[str, Any]:
         "first_name": _form_value(form, "first_name"),
         "location": _form_value(form, "location"),
         "gender": _form_value(form, "gender"),
+        "sexual_orientation": _form_value(form, "sexual_orientation"),
         "occupation": _form_value(form, "occupation"),
         "age": _form_int(form, "age"),
+        "background": _form_value(form, "background"),
+        "personality": _form_value(form, "personality"),
+        "lifestyle": _form_value(form, "lifestyle"),
+        "situation": _form_value(form, "situation"),
         "story_input": _form_value(form, "story_input"),
         "growth_areas": _form_list(form, "growth_areas"),
         "life_phase": _form_value(form, "life_phase"),
@@ -203,6 +232,8 @@ def _form_to_generate_dict(form) -> Dict[str, Any]:
         "voice_name": _form_value(form, "voice_name"),
         "use_custom_voice": _form_bool(form, "use_custom_voice"),
         "skip_narration": _form_bool(form, "skip_narration"),
+        "skip_rewrite": _form_bool(form, "skip_rewrite"),
+        "submission_mode": _form_value(form, "submission_mode") or SubmissionMode.studio,
         "image_mode": _form_value(form, "image_mode") or CoverImageMode.ai_generated,
     }
 
@@ -233,10 +264,7 @@ class StoryGenerateResponse(BaseModel):
     voice_name: Optional[str] = Field(None, description="Voice selected for narration")
     image_mode: CoverImageMode = Field(
         CoverImageMode.ai_generated,
-        description=(
-            "Cover art source. 'user_uploaded' means the image was sent with this "
-            "request; 'ai_generated' means artwork is drawn after the story is written."
-        ),
+        description="Cover art is generated after the story is written.",
     )
     cover_image_url: Optional[str] = Field(
         None,

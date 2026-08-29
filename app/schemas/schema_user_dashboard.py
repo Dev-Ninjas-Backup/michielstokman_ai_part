@@ -14,6 +14,12 @@ class StoryFeedItem(BaseModel):
     rating: Optional[float] = None
     listened_count: int = 0
     author_name: Optional[str] = None
+    location: Optional[str] = None
+    gender: Optional[str] = None
+    sexual_orientation: Optional[str] = None
+    occupation: Optional[str] = None
+    age: Optional[int] = None
+    audio_duration_seconds: Optional[int] = None
     is_explicit: bool = False
 
 class HeroStats(BaseModel):

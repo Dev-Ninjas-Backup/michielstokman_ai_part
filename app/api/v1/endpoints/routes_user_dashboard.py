@@ -100,12 +100,10 @@ def get_discovery_feed(
     for s in stories:
         s_type = s.story_type.value if s.story_type else "confession"
 
-        # Resolve author/display name
-        author_display = s.first_name
-        if not author_display and s.user and s.user.profile:
-            author_display = s.user.profile.true_name
-        if not author_display and s.user:
-            author_display = s.user.email
+        # Public identity only — never fall back to email on listing cards.
+        author_display = (s.first_name or "").strip() or None
+        if author_display and "@" in author_display:
+            author_display = None
 
         # Get actual average star rating from StoryFeedback
         from app.model.feedback import StoryFeedback
@@ -129,7 +127,13 @@ def get_discovery_feed(
             rating=feed_rating,
             listened_count=s.views_count or 0,
             author_name=author_display,
-            is_explicit=False 
+            location=s.location,
+            gender=s.gender,
+            sexual_orientation=s.sexual_orientation,
+            occupation=s.occupation,
+            age=s.age,
+            audio_duration_seconds=s.audio_duration_seconds,
+            is_explicit=bool(s.high_intensity),
         ))
 
     # 6. Inject the Liberation Journey cards (if not filtering or if specifically looking for journeys)
@@ -361,6 +365,7 @@ def get_story_detail(
         author_name=author_name,
         location=story.location,
         gender=story.gender,
+        sexual_orientation=story.sexual_orientation,
         occupation=story.occupation,
         age=story.age,
         hero_hook=story.hero_hook,

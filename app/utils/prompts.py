@@ -245,10 +245,27 @@ def build_user_context(request: StoryGenerateRequest) -> str:
     name = request.first_name if request.first_name else "Friend"
     location = request.location.strip() if getattr(request, "location", None) else "Not specified"
     gender = request.gender.strip() if getattr(request, "gender", None) else "Not specified"
+    orientation = (
+        request.sexual_orientation.strip()
+        if getattr(request, "sexual_orientation", None)
+        else "Not specified"
+    )
     occupation = (
         request.occupation.strip() if getattr(request, "occupation", None) else "Not specified"
     )
     age = str(request.age) if getattr(request, "age", None) is not None else "Not specified"
+    background = (
+        request.background.strip() if getattr(request, "background", None) else "Not specified"
+    )
+    personality = (
+        request.personality.strip() if getattr(request, "personality", None) else "Not specified"
+    )
+    lifestyle = (
+        request.lifestyle.strip() if getattr(request, "lifestyle", None) else "Not specified"
+    )
+    situation = (
+        request.situation.strip() if getattr(request, "situation", None) else "Not specified"
+    )
     
     user_story_input = request.story_input
     intensity_toggle = "Activated" if getattr(request, 'high_intensity', False) else "Off"
@@ -264,8 +281,13 @@ User Profile Block (mandatory — always fill this in):
 {title_line}- Name: {name}
 - Location (place of the story): {location}
 - Gender: {gender}
+- Sexual orientation: {orientation}
 - Occupation: {occupation}
 - Age: {age}
+- Background: {background}
+- Personality: {personality}
+- Lifestyle: {lifestyle}
+- Situation: {situation}
 - User's raw story/meditation input: {user_story_input}
 - Desired High Intensity Toggle: {intensity_toggle}
 """

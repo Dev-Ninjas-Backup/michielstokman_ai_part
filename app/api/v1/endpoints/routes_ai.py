@@ -15,6 +15,7 @@ import app.data.story as story_data
 import app.data.credit as credit_data
 from app.schemas.schema_ai import (
     CoverImageMode,
+    SubmissionMode,
     SearchResult,
     ResonanceRequest,
     ResonanceResponse,
@@ -82,8 +83,7 @@ async def generate_resonance_question(request: ResonanceRequest):
 
 async def _parse_story_generate(http_request: Request) -> tuple[StoryGenerateRequest, Optional[object], Optional[object]]:
     """
-    Accepts JSON (AI artwork + our voices) or multipart/form-data
-    (own cover and/or finished narration).
+    Accepts JSON (studio voice) or multipart/form-data (finished narration audio).
     """
     content_type = (http_request.headers.get("content-type") or "").lower()
     try:
@@ -138,23 +138,28 @@ async def _parse_story_generate(http_request: Request) -> tuple[StoryGenerateReq
                             "first_name": {"type": "string"},
                             "location": {"type": "string"},
                             "gender": {"type": "string"},
+                            "sexual_orientation": {"type": "string"},
                             "occupation": {"type": "string"},
                             "age": {"type": "integer"},
+                            "background": {"type": "string"},
+                            "personality": {"type": "string"},
+                            "lifestyle": {"type": "string"},
+                            "situation": {"type": "string"},
                             "story_input": {"type": "string"},
                             "growth_areas": {"type": "string", "description": "JSON array or comma-separated"},
                             "life_phase": {"type": "string"},
                             "tags": {"type": "string", "description": "JSON array or comma-separated"},
                             "high_intensity": {"type": "boolean"},
                             "voice_name": {"type": "string"},
-                            "use_custom_voice": {"type": "boolean"},
-                            "image_mode": {
+                            "submission_mode": {
                                 "type": "string",
-                                "enum": ["ai_generated", "user_uploaded"],
+                                "enum": ["studio", "human_ready"],
                             },
-                            "image": {
+                            "skip_rewrite": {"type": "boolean"},
+                            "audio": {
                                 "type": "string",
                                 "format": "binary",
-                                "description": "Member's cover image. JPEG, PNG or WebP, up to 8 MB.",
+                                "description": "Finished narration. Required for human_ready. mp3, wav, m4a, ogg or webm, up to 10 MB.",
                             },
                         },
                     }
@@ -175,35 +180,38 @@ async def generate_story(
     Flow:
     1. Checks the user has available credits (free) or active subscription (premium).
     2. Creates a Story DB row in 'processing' state and returns immediately.
-    3. SuperGrok generation + ElevenLabs TTS runs in the background.
+    3. Studio Voice: SuperGrok rewrite + ElevenLabs TTS, then AI cover.
+       Human narration: keep submitted text and audio, then AI cover.
     4. Poll GET /v1/me/stories/{story_id} until generation_status is completed.
 
-    Cover art is chosen on this same request:
-    - JSON, or multipart without an `image` file → AI-generated artwork
-      (`image_mode` defaults to `ai_generated`). Artwork is drawn after the
-      story is written.
-    - multipart/form-data with field `image` → the uploaded file becomes the
-      cover immediately. `image_mode` is set to `user_uploaded` and no AI
-      image is generated.
-
-    The later `POST /v1/me/stories/{id}/image` endpoint is only for replacing
-    artwork after creation.
+    Cover art is always generated after the finished piece. Member cover
+    upload is not accepted on create.
     """
     request, uploaded_image, uploaded_audio = await _parse_story_generate(http_request)
 
-    # An attached file is the member choosing their own cover — even if they
-    # forgot to set image_mode.
-    if uploaded_image is not None:
-        request.image_mode = CoverImageMode.user_uploaded
-    elif request.image_mode == CoverImageMode.user_uploaded:
+    if uploaded_image is not None or request.image_mode == CoverImageMode.user_uploaded:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=(
-                "To use your own image, send this request as multipart/form-data "
-                "and attach the file as `image`. To have the story illustrated "
-                "for you, omit image_mode or set it to ai_generated."
-            ),
+            detail="Covers are generated from the finished piece. Member cover upload is not accepted.",
         )
+    request.image_mode = CoverImageMode.ai_generated
+
+    human_ready = (
+        request.submission_mode == SubmissionMode.human_ready
+        or request.skip_rewrite
+        or uploaded_audio is not None
+    )
+    if human_ready:
+        request.submission_mode = SubmissionMode.human_ready
+        request.skip_rewrite = True
+        request.skip_narration = True
+        request.use_custom_voice = False
+        request.voice_name = None
+        if uploaded_audio is None:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Fully narrated submissions need the finished audio as multipart field `audio`.",
+            )
 
     from app.data.credit import has_credits
 
@@ -224,13 +232,6 @@ async def generate_story(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail="No custom voice on file. Upload a recording first via POST /v1/me/voice.",
             )
-
-    cover_url = None
-    cover_key = None
-    if uploaded_image is not None:
-        from app.services.service_member_story import MemberStoryService
-
-        cover_url, cover_key = MemberStoryService.store_uploaded_image(uploaded_image)
 
     member_audio_path = None
     if uploaded_audio is not None:
@@ -267,7 +268,7 @@ async def generate_story(
         # Create a job_id and the Story DB row upfront — both in 'processing' state
         job_id = str(uuid.uuid4())
 
-        from app.model.story import ImageSource
+        from app.model.story import SubmissionMode as StorySubmissionMode
 
         story = story_data.create_story(
             db=db,
@@ -279,16 +280,19 @@ async def generate_story(
             first_name=request.first_name,
             location=request.location,
             gender=request.gender,
+            sexual_orientation=request.sexual_orientation,
             occupation=request.occupation,
             age=request.age,
+            background=request.background,
+            personality=request.personality,
+            lifestyle=request.lifestyle,
+            situation=request.situation,
             story_input=request.story_input,
+            submission_mode=StorySubmissionMode(request.submission_mode.value),
             growth_areas=request.growth_areas,
             life_phase=request.life_phase,
             tags=request.tags,
             high_intensity=request.high_intensity,
-            cover_image_url=cover_url,
-            cover_image_key=cover_key,
-            image_source=ImageSource.user_uploaded if cover_url else None,
             audio_path=member_audio_path,
         )
 
@@ -305,13 +309,7 @@ async def generate_story(
 
         from app.services.service_member_story import story_reference
 
-        if request.image_mode == CoverImageMode.user_uploaded:
-            message = (
-                "Story generation queued with your uploaded cover. "
-                f"Poll /v1/me/stories/{story.id} for progress."
-            )
-        else:
-            message = f"Story generation queued. Poll /v1/me/stories/{story.id} for updates."
+        message = f"Story generation queued. Poll /v1/me/stories/{story.id} for updates."
 
         response = StoryGenerateResponse(
             story_id=str(story.id),
@@ -329,14 +327,8 @@ async def generate_story(
         return success_response("Story generation queued", status.HTTP_200_OK, response)
 
     except HTTPException:
-        if cover_key:
-            from app.utils.s3 import delete_s3_object
-            delete_s3_object(cover_key)
         raise
     except Exception as e:
-        if cover_key:
-            from app.utils.s3 import delete_s3_object
-            delete_s3_object(cover_key)
         raise HTTPException(
             status_code=500,
             detail=f"Failed to initiate story generation: {str(e)}"

@@ -44,6 +44,12 @@ class ImageSource(str, enum.Enum):
     admin_default = "admin_default"
 
 
+class SubmissionMode(str, enum.Enum):
+    """How the member submitted the piece."""
+    studio = "studio"
+    human_ready = "human_ready"
+
+
 class Story(Base):
     __tablename__ = "stories"
 
@@ -111,9 +117,20 @@ class Story(Base):
     first_name = Column(String, nullable=True)
     location = Column(String, nullable=True)
     gender = Column(String, nullable=True)
+    sexual_orientation = Column(String, nullable=True)
     occupation = Column(String, nullable=True)
     age = Column(Integer, nullable=True)
+    background = Column(Text, nullable=True)
+    personality = Column(Text, nullable=True)
+    lifestyle = Column(Text, nullable=True)
+    situation = Column(Text, nullable=True)
     story_input = Column(Text, nullable=True)
+    submission_mode = Column(
+        SAEnum(SubmissionMode, name="submissionmode"),
+        nullable=False,
+        default=SubmissionMode.studio,
+        server_default=SubmissionMode.studio.value,
+    )
     growth_areas = Column(JSONB, nullable=True) # list of strings
     life_phase = Column(String, nullable=True)
     tags = Column(JSONB, nullable=True)         # list of strings

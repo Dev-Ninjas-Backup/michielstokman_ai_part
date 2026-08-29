@@ -24,8 +24,14 @@ class StoryDetailResponse(BaseModel):
     first_name: str | None
     location: str | None = None
     gender: str | None = None
+    sexual_orientation: str | None = None
     occupation: str | None = None
     age: int | None = None
+    background: str | None = None
+    personality: str | None = None
+    lifestyle: str | None = None
+    situation: str | None = None
+    submission_mode: str | None = None
     hero_hook: str | None = None
     hero_tagline: str | None = None
     story_input: str | None
@@ -109,6 +115,7 @@ class StoryDetailUserResponse(BaseModel):
     author_name: Optional[str] = None
     location: Optional[str] = None
     gender: Optional[str] = None
+    sexual_orientation: Optional[str] = None
     occupation: Optional[str] = None
     age: Optional[int] = None
     hero_hook: Optional[str] = None
