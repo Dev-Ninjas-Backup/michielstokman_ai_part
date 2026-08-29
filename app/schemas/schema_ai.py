@@ -116,6 +116,13 @@ class StoryGenerateRequest(BaseModel):
             "(multipart field name `image`)."
         ),
     )
+    preview_cover_key: Optional[str] = Field(
+        None,
+        description=(
+            "Image key returned by POST /ai/story/cover-preview. Attaches that "
+            "artwork as the cover and skips generating a second image after the story."
+        ),
+    )
 
     @field_validator("voice_name")
     @classmethod
@@ -130,6 +137,14 @@ class StoryGenerateRequest(BaseModel):
                 f"Unknown voice '{v}'. Choose one of: {', '.join(MEMBER_VOICE_NAMES)}."
             )
         return canonical
+
+    @field_validator("preview_cover_key")
+    @classmethod
+    def empty_preview_key_to_none(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return None
+        stripped = v.strip()
+        return stripped or None
 
     @classmethod
     def from_multipart(cls, form) -> "StoryGenerateRequest":
@@ -204,6 +219,7 @@ def _form_to_generate_dict(form) -> Dict[str, Any]:
         "use_custom_voice": _form_bool(form, "use_custom_voice"),
         "skip_narration": _form_bool(form, "skip_narration"),
         "image_mode": _form_value(form, "image_mode") or CoverImageMode.ai_generated,
+        "preview_cover_key": _form_value(form, "preview_cover_key"),
     }
 
 
@@ -221,6 +237,31 @@ def multipart_audio(form) -> Optional[Any]:
     if audio is None or not getattr(audio, "filename", None):
         return None
     return audio
+
+
+class CoverPreviewRequest(BaseModel):
+    """Payload to generate cover artwork before the story row exists."""
+
+    story_type: StoryType
+    title: Optional[str] = None
+    first_name: Optional[str] = None
+    location: Optional[str] = None
+    gender: Optional[str] = None
+    occupation: Optional[str] = None
+    age: Optional[int] = Field(None, ge=1, le=120)
+    story_input: str = Field(..., min_length=1)
+
+
+class CoverPreviewResponse(BaseModel):
+    cover_image_url: str
+    cover_image_key: str
+
+    @field_validator("cover_image_url", mode="after")
+    @classmethod
+    def format_cover(cls, v):
+        from app.utils.media import format_media_url
+
+        return format_media_url(v)
 
 
 class StoryGenerateResponse(BaseModel):

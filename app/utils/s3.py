@@ -1,8 +1,14 @@
+import re
 import boto3
 from botocore.exceptions import ClientError
 import uuid
 import logging
 from app.core.config import settings
+
+# Keys written by upload_image_to_s3 (S3 prefix or local fallback).
+_STORED_IMAGE_KEY_RE = re.compile(
+    r"^(?:images|local)/[a-fA-F0-9]{32}\.(?:jpg|jpeg|png|webp)$"
+)
 
 logger = logging.getLogger(__name__)
 
@@ -137,4 +143,31 @@ def delete_s3_object(s3_key: str) -> bool:
     except ClientError as e:
         logger.error(f"Failed to delete S3 object '{s3_key}': {e}")
         return False
+
+
+def public_url_for_image_key(s3_key: str) -> str | None:
+    """Rebuild the public URL for a key previously returned by upload_image_to_s3."""
+    if s3_key.startswith("local/"):
+        filename = s3_key.split("/", 1)[1]
+        return f"media/images/{filename}"
+    if s3_key.startswith("images/") and settings.AWS_BUCKET_NAME:
+        return (
+            f"https://{settings.AWS_BUCKET_NAME}.s3.{settings.AWS_REGION_NAME}"
+            f".amazonaws.com/{s3_key}"
+        )
+    return None
+
+
+def resolve_stored_image_key(s3_key: str | None) -> tuple[str, str] | tuple[None, None]:
+    """
+    Validate a stored image key and return (public_url, key).
+    Rejects anything that does not match our upload key format.
+    """
+    key = (s3_key or "").strip()
+    if not _STORED_IMAGE_KEY_RE.match(key):
+        return None, None
+    url = public_url_for_image_key(key)
+    if not url:
+        return None, None
+    return url, key
 

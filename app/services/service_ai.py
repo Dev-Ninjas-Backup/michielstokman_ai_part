@@ -416,10 +416,14 @@ class AIService:
 
             AIService.persist_hero_hook(story_row, story_text_db)
 
-            from app.model.story import ImageSource
             from app.utils.story_image_prompt import try_generate_story_cover
 
-            if story_row.image_source != ImageSource.user_uploaded:
+            if story_row.cover_image_url:
+                logger.info(
+                    "Story %s already has a cover; skipping automatic artwork.",
+                    story_row.id,
+                )
+            else:
                 logger.info(f"Triggering cover generation for story {story_row.id}...")
                 try_generate_story_cover(db, story_row, image_prompt=image_prompt)
 
