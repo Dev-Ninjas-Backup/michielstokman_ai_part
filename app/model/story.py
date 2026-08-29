@@ -120,6 +120,8 @@ class Story(Base):
     high_intensity = Column(Boolean, default=False, nullable=False)
     # Juicy 2–4 sentence excerpt for the public details hero and listing cards.
     hero_hook = Column(Text, nullable=True)
+    # Short brush-stroke line for the details hero (title is the display fallback).
+    hero_tagline = Column(Text, nullable=True)
 
     # Figma Dashboard Metrics
     views_count = Column(Integer, default=0, nullable=False)

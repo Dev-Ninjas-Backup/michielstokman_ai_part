@@ -386,6 +386,38 @@ Write the teaser now.
 
 
 # ---------------------------------------------------------------------------
+# Public details-hero brush tagline
+# ---------------------------------------------------------------------------
+
+HERO_TAGLINE_SYSTEM = """\
+You write a two-line brush-stroke headline for Transform to Liberation.
+Match this style (short, all-caps, daring, one punch word):
+
+A SPACE TO SAY WHAT
+YOU'VE **NEVER** DARED TO SAY.
+
+Rules:
+- English only. ALL CAPS.
+- Two short lines, separated by a single newline.
+- 8–16 words total.
+- Mark exactly one word with **WORD** — the emotional punch (like NEVER).
+- Write a unique line for THIS piece. Do not copy the example. Do not use the story title.
+- No quotation marks, no labels, no extra lines.
+"""
+
+HERO_TAGLINE_HUMAN = """\
+## Piece
+Type: {story_type}
+Title: {title}
+
+## Full text
+{story_text}
+
+Write the two-line brush headline now.
+"""
+
+
+# ---------------------------------------------------------------------------
 # Liberation Journey — daily exercise prompt (dynamic)
 # ---------------------------------------------------------------------------
 

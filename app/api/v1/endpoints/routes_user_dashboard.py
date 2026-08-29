@@ -364,6 +364,7 @@ def get_story_detail(
         occupation=story.occupation,
         age=story.age,
         hero_hook=story.hero_hook,
+        hero_tagline=story.hero_tagline,
         voice_name=story.voice_name,
         track_id=story.track_id,
         high_intensity=story.high_intensity,
