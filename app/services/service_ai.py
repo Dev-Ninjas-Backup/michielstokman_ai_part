@@ -404,6 +404,9 @@ class AIService:
             story_row = db.query(StoryModel).filter(
                 StoryModel.id == story_db_id
             ).first()
+            if not story_row:
+                logger.error(f"[Job {job_id}] Story row not found.")
+                return
 
             gender = None
             custom_voice_id = None
@@ -414,11 +417,32 @@ class AIService:
                     if getattr(request, "use_custom_voice", False):
                         custom_voice_id = profile_row.custom_voice_id
 
+            skip_rewrite = bool(
+                getattr(request, "skip_rewrite", False)
+                or getattr(request, "submission_mode", None) == "human_ready"
+                or (
+                    getattr(getattr(request, "submission_mode", None), "value", None)
+                    == "human_ready"
+                )
+            )
             skip_narration = bool(
-                getattr(request, "skip_narration", False) or story_row.audio_path
+                skip_rewrite
+                or getattr(request, "skip_narration", False)
+                or (story_row and story_row.audio_path)
             )
 
-            if skip_narration:
+            if skip_rewrite:
+                title = None
+                story_text = (request.story_input or "").strip()
+                if not story_text:
+                    raise ValueError("Fully narrated submissions need the finished text.")
+                image_prompt = None
+                audio_path = story_row.audio_path
+                voice_name = "Member narration"
+                alignment = None
+                voice_id = None
+                uses_custom_voice = False
+            elif skip_narration:
                 title, story_text, image_prompt = AIService.generate_story(
                     request, gender=gender
                 )
@@ -460,12 +484,10 @@ class AIService:
 
             AIService.persist_hero_hook(story_row, story_text_db)
 
-            from app.model.story import ImageSource
             from app.utils.story_image_prompt import try_generate_story_cover
 
-            if story_row.image_source != ImageSource.user_uploaded:
-                logger.info(f"Triggering cover generation for story {story_row.id}...")
-                try_generate_story_cover(db, story_row, image_prompt=image_prompt)
+            logger.info(f"Triggering cover generation for story {story_row.id}...")
+            try_generate_story_cover(db, story_row, image_prompt=image_prompt)
 
             db.commit()
             

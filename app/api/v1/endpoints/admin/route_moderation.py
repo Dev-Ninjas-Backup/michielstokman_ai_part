@@ -165,8 +165,18 @@ def get_story_details(
         first_name=story.first_name,
         location=story.location,
         gender=story.gender,
+        sexual_orientation=story.sexual_orientation,
         occupation=story.occupation,
         age=story.age,
+        background=story.background,
+        personality=story.personality,
+        lifestyle=story.lifestyle,
+        situation=story.situation,
+        submission_mode=(
+            story.submission_mode.value
+            if getattr(story.submission_mode, "value", None)
+            else story.submission_mode
+        ),
         hero_hook=story.hero_hook,
         hero_tagline=story.hero_tagline,
         story_input=story.story_input,
@@ -220,8 +230,18 @@ def update_story_details(
         first_name=story.first_name,
         location=story.location,
         gender=story.gender,
+        sexual_orientation=story.sexual_orientation,
         occupation=story.occupation,
         age=story.age,
+        background=story.background,
+        personality=story.personality,
+        lifestyle=story.lifestyle,
+        situation=story.situation,
+        submission_mode=(
+            story.submission_mode.value
+            if getattr(story.submission_mode, "value", None)
+            else story.submission_mode
+        ),
         hero_hook=story.hero_hook,
         hero_tagline=story.hero_tagline,
         story_input=story.story_input,

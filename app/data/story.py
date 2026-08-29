@@ -8,7 +8,7 @@ import random
 from typing import Optional
 from sqlalchemy.orm import Session
 
-from app.model.story import Story, StoryType, GenerationStatus
+from app.model.story import Story, StoryType, GenerationStatus, SubmissionMode
 from app.utils.story_title import sync_active_title
 
 
@@ -22,9 +22,15 @@ def create_story(
     first_name: Optional[str] = None,
     location: Optional[str] = None,
     gender: Optional[str] = None,
+    sexual_orientation: Optional[str] = None,
     occupation: Optional[str] = None,
     age: Optional[int] = None,
+    background: Optional[str] = None,
+    personality: Optional[str] = None,
+    lifestyle: Optional[str] = None,
+    situation: Optional[str] = None,
     story_input: Optional[str] = None,
+    submission_mode=None,
     growth_areas: Optional[list] = None,
     life_phase: Optional[str] = None,
     tags: Optional[list] = None,
@@ -56,9 +62,15 @@ def create_story(
         first_name=first_name,
         location=location,
         gender=gender,
+        sexual_orientation=sexual_orientation,
         occupation=occupation,
         age=age,
+        background=background,
+        personality=personality,
+        lifestyle=lifestyle,
+        situation=situation,
         story_input=story_input,
+        submission_mode=submission_mode or SubmissionMode.studio,
         growth_areas=growth_areas,
         life_phase=life_phase,
         tags=tags,

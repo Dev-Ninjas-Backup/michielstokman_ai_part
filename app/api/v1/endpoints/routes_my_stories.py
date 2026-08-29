@@ -14,6 +14,7 @@ from fastapi import (
     BackgroundTasks,
     Depends,
     File,
+    HTTPException,
     Query,
     Response,
     UploadFile,
@@ -325,18 +326,12 @@ def upload_my_story_image(
     current_user: User = Depends(get_current_user),
 ):
     """
-    Uses the member's own image as the story artwork. Uploading again replaces
-    the current cover. Story text regeneration keeps a member upload unless
-    they generate new AI artwork explicitly.
+    Covers are generated from the finished piece. Members cannot upload a replacement.
     """
-    story = MemberStoryService.upload_story_image(db, current_user, story_id, image)
-    result = StoryImageResponse(
-        story_id=str(story.id),
-        cover_image_url=story.cover_image_url,
-        image_source=story.image_source.value if story.image_source else None,
-        message="Cover image updated.",
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="Covers are generated from the story. Use POST /v1/me/stories/{id}/image/generate to create new artwork.",
     )
-    return success_response("Cover image updated", status.HTTP_200_OK, result)
 
 
 @router.post(
