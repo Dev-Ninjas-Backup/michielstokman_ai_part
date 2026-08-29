@@ -15,8 +15,6 @@ import app.data.story as story_data
 import app.data.credit as credit_data
 from app.schemas.schema_ai import (
     CoverImageMode,
-    CoverPreviewRequest,
-    CoverPreviewResponse,
     SearchResult,
     ResonanceRequest,
     ResonanceResponse,
@@ -114,71 +112,6 @@ async def _parse_story_generate(http_request: Request) -> tuple[StoryGenerateReq
 
 
 # ---------------------------------------------------------------------------
-# Cover preview (generate artwork on the create form, before submit)
-# ---------------------------------------------------------------------------
-
-@router.post(
-    "/ai/story/cover-preview",
-    response_model=ApiResponse[CoverPreviewResponse],
-)
-def preview_story_cover(
-    request: CoverPreviewRequest,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-):
-    """
-    Generates cover artwork from the member's title, identity, and draft text
-    so they can see it on the create form before submitting the story.
-    Does not create a story or deduct a credit.
-    """
-    from app.data.credit import has_credits
-    from app.utils.story_image_prompt import generate_cover_from_draft
-
-    if not has_credits(db, str(current_user.id)):
-        raise HTTPException(
-            status_code=status.HTTP_402_PAYMENT_REQUIRED,
-            detail="Daily credit limit reached. Upgrade to Premium for unlimited stories.",
-        )
-
-    from app.core.config import settings
-
-    if not settings.OPENAI_API_KEY:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="AI image generation is not configured on this server.",
-        )
-
-    try:
-        cover_url, cover_key = generate_cover_from_draft(
-            story_type=request.story_type.value,
-            title=request.title,
-            first_name=request.first_name,
-            location=request.location,
-            gender=request.gender,
-            occupation=request.occupation,
-            age=request.age,
-            story_input=request.story_input,
-        )
-    except Exception as exc:
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=f"Could not generate cover artwork: {str(exc)[:200]}",
-        ) from exc
-
-    if not cover_url or not cover_key:
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail="The image provider could not generate artwork. Please try again, or upload your own image.",
-        )
-
-    result = CoverPreviewResponse(
-        cover_image_url=cover_url,
-        cover_image_key=cover_key,
-    )
-    return success_response("Cover artwork generated", status.HTTP_200_OK, result)
-
-
-# ---------------------------------------------------------------------------
 # Story generation (Confession / Meditation / Transformation)
 # ---------------------------------------------------------------------------
 
@@ -218,10 +151,6 @@ def preview_story_cover(
                                 "type": "string",
                                 "enum": ["ai_generated", "user_uploaded"],
                             },
-                            "preview_cover_key": {
-                                "type": "string",
-                                "description": "Key from POST /ai/story/cover-preview.",
-                            },
                             "image": {
                                 "type": "string",
                                 "format": "binary",
@@ -251,8 +180,8 @@ async def generate_story(
 
     Cover art is chosen on this same request:
     - JSON, or multipart without an `image` file → AI-generated artwork
-      (`image_mode` defaults to `ai_generated`). Pass `preview_cover_key` from
-      POST /ai/story/cover-preview to attach that image and skip a second draw.
+      (`image_mode` defaults to `ai_generated`). Artwork is drawn after the
+      story is written.
     - multipart/form-data with field `image` → the uploaded file becomes the
       cover immediately. `image_mode` is set to `user_uploaded` and no AI
       image is generated.
@@ -298,21 +227,10 @@ async def generate_story(
 
     cover_url = None
     cover_key = None
-    preview_attached = False
     if uploaded_image is not None:
         from app.services.service_member_story import MemberStoryService
 
         cover_url, cover_key = MemberStoryService.store_uploaded_image(uploaded_image)
-    elif request.preview_cover_key:
-        from app.utils.s3 import resolve_stored_image_key
-
-        cover_url, cover_key = resolve_stored_image_key(request.preview_cover_key)
-        if not cover_url or not cover_key:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail="Generate cover artwork on this form first, then submit.",
-            )
-        preview_attached = True
 
     member_audio_path = None
     if uploaded_audio is not None:
@@ -351,13 +269,6 @@ async def generate_story(
 
         from app.model.story import ImageSource
 
-        if uploaded_image is not None:
-            image_source = ImageSource.user_uploaded
-        elif preview_attached:
-            image_source = ImageSource.ai_generated
-        else:
-            image_source = None
-
         story = story_data.create_story(
             db=db,
             story_type=request.story_type,
@@ -377,7 +288,7 @@ async def generate_story(
             high_intensity=request.high_intensity,
             cover_image_url=cover_url,
             cover_image_key=cover_key,
-            image_source=image_source,
+            image_source=ImageSource.user_uploaded if cover_url else None,
             audio_path=member_audio_path,
         )
 
@@ -418,12 +329,12 @@ async def generate_story(
         return success_response("Story generation queued", status.HTTP_200_OK, response)
 
     except HTTPException:
-        if cover_key and not preview_attached:
+        if cover_key:
             from app.utils.s3 import delete_s3_object
             delete_s3_object(cover_key)
         raise
     except Exception as e:
-        if cover_key and not preview_attached:
+        if cover_key:
             from app.utils.s3 import delete_s3_object
             delete_s3_object(cover_key)
         raise HTTPException(
