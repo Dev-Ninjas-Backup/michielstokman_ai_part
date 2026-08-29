@@ -109,11 +109,17 @@ class Story(Base):
     # Snapshot of the user's profile context at generation time
     # Figma Inputs
     first_name = Column(String, nullable=True)
+    location = Column(String, nullable=True)
+    gender = Column(String, nullable=True)
+    occupation = Column(String, nullable=True)
+    age = Column(Integer, nullable=True)
     story_input = Column(Text, nullable=True)
     growth_areas = Column(JSONB, nullable=True) # list of strings
     life_phase = Column(String, nullable=True)
     tags = Column(JSONB, nullable=True)         # list of strings
     high_intensity = Column(Boolean, default=False, nullable=False)
+    # Juicy 2–4 sentence excerpt for the public details hero and listing cards.
+    hero_hook = Column(Text, nullable=True)
 
     # Figma Dashboard Metrics
     views_count = Column(Integer, default=0, nullable=False)

@@ -65,7 +65,15 @@ class StoryGenerateRequest(BaseModel):
     """
     story_type: StoryType = Field(..., description="Type of story: confession or meditation")
     title: Optional[str] = Field(None, description="Title of the submission")
-    first_name: Optional[str] = Field(None, description="User's first name")
+    first_name: Optional[str] = Field(None, description="Public display name / pseudonym")
+    location: Optional[str] = Field(
+        None, description="Place the story started or is set"
+    )
+    gender: Optional[str] = Field(
+        None, description="Public gender / identity line, free text"
+    )
+    occupation: Optional[str] = Field(None, description="Public occupation or role")
+    age: Optional[int] = Field(None, ge=1, le=120, description="Public age of the person in the piece")
     story_input: str = Field(..., description="The user's manual story or meditation script")
     
     growth_areas: List[str] = Field(
@@ -145,6 +153,16 @@ def _form_bool(form, name: str, default: bool = False) -> bool:
     return raw.strip().lower() in {"1", "true", "yes", "on"}
 
 
+def _form_int(form, name: str) -> Optional[int]:
+    raw = _form_value(form, name)
+    if raw is None:
+        return None
+    try:
+        return int(raw.strip())
+    except ValueError:
+        return None
+
+
 def _form_list(form, name: str) -> List[str]:
     getter = getattr(form, "getlist", None)
     raw_values = getter(name) if getter else [form.get(name)]
@@ -173,6 +191,10 @@ def _form_to_generate_dict(form) -> Dict[str, Any]:
         "story_type": _form_value(form, "story_type"),
         "title": _form_value(form, "title"),
         "first_name": _form_value(form, "first_name"),
+        "location": _form_value(form, "location"),
+        "gender": _form_value(form, "gender"),
+        "occupation": _form_value(form, "occupation"),
+        "age": _form_int(form, "age"),
         "story_input": _form_value(form, "story_input"),
         "growth_areas": _form_list(form, "growth_areas"),
         "life_phase": _form_value(form, "life_phase"),

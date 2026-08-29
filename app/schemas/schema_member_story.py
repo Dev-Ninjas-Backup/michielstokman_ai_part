@@ -104,6 +104,10 @@ class MemberStoryDetail(MemberStoryListItem):
         None, description="The member's own original submission, before AI processing"
     )
     first_name: Optional[str] = None
+    location: Optional[str] = None
+    gender: Optional[str] = None
+    occupation: Optional[str] = None
+    age: Optional[int] = None
     growth_areas: Optional[List[str]] = None
     life_phase: Optional[str] = None
     tags: Optional[List[str]] = None

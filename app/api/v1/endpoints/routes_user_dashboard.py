@@ -28,7 +28,7 @@ from app.schemas.schema_user_dashboard import DiscoveryFeedResponse, StoryFeedIt
 from app.services.service_liberation import LiberationService
 from app.model.story import GenerationStatus
 from app.utils.media import format_media_url
-from app.utils.text import build_excerpt
+from app.utils.text import story_card_excerpt
 
 router = APIRouter()
 
@@ -116,7 +116,7 @@ def get_discovery_feed(
         )
         feed_rating = round(float(rating_stats.avg_rating), 1) if rating_stats.avg_rating else (round(s.pulse_score / 20.0, 1) if (s.pulse_score and s.pulse_score > 0) else None)
 
-        excerpt = build_excerpt(s.story_text)
+        excerpt = story_card_excerpt(s)
 
         items.append(StoryFeedItem(
             id=str(s.id),
@@ -359,6 +359,11 @@ def get_story_detail(
         audio_path=format_media_url(story.audio_path),
         cover_image_url=format_media_url(cover_image_url),
         author_name=author_name,
+        location=story.location,
+        gender=story.gender,
+        occupation=story.occupation,
+        age=story.age,
+        hero_hook=story.hero_hook,
         voice_name=story.voice_name,
         track_id=story.track_id,
         high_intensity=story.high_intensity,
