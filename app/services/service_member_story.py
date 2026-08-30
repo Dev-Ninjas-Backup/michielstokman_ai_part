@@ -101,6 +101,10 @@ def _enum_value(value) -> Optional[str]:
     return value.value if hasattr(value, "value") else str(value)
 
 
+def _is_human_ready(story: Story) -> bool:
+    return _enum_value(story.submission_mode) == "human_ready"
+
+
 def _isoformat(value) -> Optional[str]:
     return value.isoformat() if value else None
 
@@ -141,6 +145,7 @@ def to_list_item(story: Story) -> MemberStoryListItem:
         generation_status=_enum_value(story.generation_status),
         moderation_status=_enum_value(story.moderation_status),
         submission_status=_enum_value(story.submission_status),
+        submission_mode=_enum_value(story.submission_mode) or "studio",
         has_social_intros=bool(story.social_intros),
         moderation_notes=story.moderation_notes,
         created_at=_isoformat(story.created_at),
@@ -507,6 +512,14 @@ class MemberStoryService:
         if payload.high_intensity is not None:
             story.high_intensity = payload.high_intensity
 
+        if _is_human_ready(story):
+            if payload.story_input is not None:
+                story.story_text = story.story_input
+            story.moderation_status = ModerationStatus.pending
+            db.commit()
+            db.refresh(story)
+            return story, None, story.voice_name, None
+
         voice_name, custom_voice_id = MemberStoryService._resolve_requested_voice(
             db, user, payload.voice_name, bool(payload.use_custom_voice)
         )
@@ -555,6 +568,31 @@ class MemberStoryService:
 
             profile = _get_profile(db, story_row.user_id) if story_row.user_id else None
             gender = profile.gender if profile else None
+
+            if _is_human_ready(story_row):
+                story_text = (story_row.story_input or "").strip()
+                if not story_text:
+                    raise ValueError("Fully narrated submissions need the finished text.")
+                story_text_db = re.sub(r'<break\s+time="[^"]+"\s*/>', '', story_text)
+                story_data.complete_story(
+                    db=db,
+                    story=story_row,
+                    story_text=story_text_db,
+                    title=None,
+                    audio_path=story_row.audio_path,
+                    audio_duration_seconds=story_row.audio_duration_seconds,
+                    alignment=story_row.alignment,
+                )
+                AIService.persist_hero_hook(story_row, story_text_db)
+                story_row.social_intros = None
+                story_row.social_intros_generated_at = None
+                if story_row.image_source != ImageSource.user_uploaded:
+                    try_generate_story_cover(db, story_row, image_prompt=None)
+                db.commit()
+                logger.info(
+                    f"[Regenerate {job_id}] Kept member narration for story {story_db_id}."
+                )
+                return
 
             request = StoryGenerateRequest(
                 story_type=StoryTypeSchema(story_row.story_type.value),
@@ -643,6 +681,12 @@ class MemberStoryService:
         """
         story = _require_story(db, user, story_id)
         _require_not_processing(story)
+
+        if _is_human_ready(story):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Fully narrated submissions keep the uploaded recording. Voice cannot be changed.",
+            )
 
         if not story.story_text:
             raise HTTPException(

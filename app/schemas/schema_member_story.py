@@ -78,6 +78,10 @@ class MemberStoryListItem(BaseModel):
     generation_status: str
     moderation_status: str
     submission_status: str
+    submission_mode: Optional[str] = Field(
+        None,
+        description="'studio' rewrites and narrates. 'human_ready' keeps submitted text and audio.",
+    )
     has_social_intros: bool = False
     moderation_notes: Optional[str] = None
     created_at: str
