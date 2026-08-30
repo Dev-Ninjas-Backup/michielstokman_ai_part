@@ -304,12 +304,101 @@ class AIService:
         story_row.hero_tagline = tagline
 
     @staticmethod
+    def _llm_text(response) -> str:
+        content = getattr(response, "content", None)
+        if content is None:
+            return ""
+        if isinstance(content, str):
+            return content
+        if isinstance(content, list):
+            parts = []
+            for block in content:
+                if isinstance(block, str):
+                    parts.append(block)
+                elif isinstance(block, dict):
+                    text = block.get("text")
+                    if isinstance(text, str):
+                        parts.append(text)
+                else:
+                    text = getattr(block, "text", None)
+                    if isinstance(text, str):
+                        parts.append(text)
+            return "".join(parts)
+        return str(content)
+
+    @staticmethod
     def _parse_json_object(raw: str) -> Dict[str, Any]:
-        text = (raw or "").strip()
+        text = (raw or "").strip().replace("\ufeff", "")
         if text.startswith("```"):
-            text = re.sub(r"^```(?:json)?\s*", "", text)
+            text = re.sub(r"^```(?:json)?\s*", "", text, flags=re.I)
             text = re.sub(r"\s*```$", "", text)
-        return json.loads(text.strip())
+        text = text.strip()
+        candidates = [text]
+        start = text.find("{")
+        end = text.rfind("}")
+        if start >= 0 and end > start:
+            candidates.append(text[start : end + 1])
+        last_err: Optional[Exception] = None
+        for candidate in candidates:
+            for payload in (candidate, re.sub(r",\s*([}\]])", r"\1", candidate)):
+                try:
+                    parsed = json.loads(payload)
+                    if isinstance(parsed, dict):
+                        return parsed
+                except json.JSONDecodeError as exc:
+                    last_err = exc
+        raise last_err or ValueError("No JSON object in model output")
+
+    @staticmethod
+    def _moods_from_labeled(raw: str) -> Dict[str, Any]:
+        tags: list[str] = []
+        growth: list[str] = []
+        life_phase = None
+        for line in (raw or "").splitlines():
+            stripped = line.strip().lstrip("-*• ")
+            if ":" not in stripped:
+                continue
+            key, value = stripped.split(":", 1)
+            key = re.sub(r"[^a-z_]", "", key.strip().lower().replace(" ", "_"))
+            value = value.strip().strip('"').strip("'")
+            parts = [part.strip() for part in re.split(r"[,;|/]", value) if part.strip()]
+            if key in {"tags", "tag", "themes", "moods"}:
+                tags = parts
+            elif key in {"growth_areas", "growth", "growth_area", "areas"}:
+                growth = parts
+            elif key in {"life_phase", "lifephase", "phase"}:
+                life_phase = value or None
+        return {
+            "tags": tags,
+            "growth_areas": growth,
+            "life_phase": life_phase,
+        }
+
+    @staticmethod
+    def _normalize_moods(parsed: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        tags = parsed.get("tags") or parsed.get("themes") or parsed.get("moods") or []
+        growth = parsed.get("growth_areas") or parsed.get("growth") or []
+        if isinstance(tags, str):
+            tags = [part.strip() for part in re.split(r"[,;]", tags) if part.strip()]
+        if isinstance(growth, str):
+            growth = [part.strip() for part in re.split(r"[,;]", growth) if part.strip()]
+        if not isinstance(tags, list):
+            tags = []
+        if not isinstance(growth, list):
+            growth = []
+        life_phase = parsed.get("life_phase") or parsed.get("phase")
+        if isinstance(life_phase, str):
+            life_phase = life_phase.strip() or None
+        else:
+            life_phase = None
+        result = {
+            "tags": [str(t).strip() for t in tags if str(t).strip()][:8],
+            "growth_areas": [str(g).strip() for g in growth if str(g).strip()][:4],
+            "life_phase": life_phase,
+        }
+        if not result["tags"] and not result["growth_areas"] and not result["life_phase"]:
+            return None
+        return result
 
     @staticmethod
     def generate_moods(
@@ -332,23 +421,25 @@ class AIService:
                 story_text=story_text.strip()[:8000],
             ).to_messages()
             response = llm.invoke(messages)
-            parsed = AIService._parse_json_object(response.content or "")
-            tags = parsed.get("tags") or []
-            growth = parsed.get("growth_areas") or []
-            if isinstance(tags, str):
-                tags = [part.strip() for part in tags.split(",") if part.strip()]
-            if isinstance(growth, str):
-                growth = [part.strip() for part in growth.split(",") if part.strip()]
-            life_phase = parsed.get("life_phase")
-            if isinstance(life_phase, str):
-                life_phase = life_phase.strip() or None
-            else:
-                life_phase = None
-            return {
-                "tags": [str(t).strip() for t in tags if str(t).strip()][:8],
-                "growth_areas": [str(g).strip() for g in growth if str(g).strip()][:4],
-                "life_phase": life_phase,
-            }
+            raw = AIService._llm_text(response)
+            parsed: Dict[str, Any] = {}
+            try:
+                parsed = AIService._parse_json_object(raw)
+            except Exception:
+                parsed = AIService._moods_from_labeled(raw)
+            if isinstance(parsed, dict):
+                parsed = {
+                    str(key).strip().lower().replace(" ", "_"): value
+                    for key, value in parsed.items()
+                }
+            moods = AIService._normalize_moods(parsed)
+            if moods:
+                return moods
+            labeled = AIService._normalize_moods(AIService._moods_from_labeled(raw))
+            if labeled:
+                return labeled
+            logger.warning("Mood suggestion empty. Raw: %s", (raw or "")[:400])
+            return None
         except Exception as exc:
             logger.warning("Mood suggestion failed: %s", exc, exc_info=True)
             return None

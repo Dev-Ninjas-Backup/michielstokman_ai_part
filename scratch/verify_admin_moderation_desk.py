@@ -325,6 +325,14 @@ r = client.post(
 )
 check("invalid suggest field 422", r.status_code == 422, f"{r.status_code} {r.text[:160]}")
 
+with patch("app.services.service_ai.get_story_llm", return_value=fake_llm("not json at all")):
+    r = client.post(
+        f"/v1/admin/moderation/story/{story_id}/suggest",
+        headers=admin_auth,
+        json={"field": "moods"},
+    )
+check("empty moods suggest is 502", r.status_code == 502, f"{r.status_code} {r.text[:200]}")
+
 r = client.post(
     f"/v1/admin/moderation/story/{human_id}/request-changes",
     headers=admin_auth,
