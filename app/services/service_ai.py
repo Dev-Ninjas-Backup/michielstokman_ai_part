@@ -14,6 +14,7 @@ import json
 
 logger = logging.getLogger(__name__)
 
+from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_core.prompts import (
     ChatPromptTemplate,
     SystemMessagePromptTemplate,
@@ -411,16 +412,18 @@ class AIService:
             return None
         try:
             llm = get_story_llm()
-            chat_prompt = ChatPromptTemplate.from_messages([
-                SystemMessagePromptTemplate.from_template(EDITORIAL_MOODS_SYSTEM),
-                HumanMessagePromptTemplate.from_template(EDITORIAL_MOODS_HUMAN),
+            # Do not use ChatPromptTemplate here: the JSON example braces are
+            # treated as template variables and the call fails before the LLM.
+            system = EDITORIAL_MOODS_SYSTEM.replace("{{", "{").replace("}}", "}")
+            human = (
+                EDITORIAL_MOODS_HUMAN.replace("{story_type}", story_type)
+                .replace("{title}", (title or "").strip() or "Untitled")
+                .replace("{story_text}", story_text.strip()[:8000])
+            )
+            response = llm.invoke([
+                SystemMessage(content=system),
+                HumanMessage(content=human),
             ])
-            messages = chat_prompt.format_prompt(
-                story_type=story_type,
-                title=(title or "").strip() or "Untitled",
-                story_text=story_text.strip()[:8000],
-            ).to_messages()
-            response = llm.invoke(messages)
             raw = AIService._llm_text(response)
             parsed: Dict[str, Any] = {}
             try:
