@@ -199,6 +199,7 @@ class StoryDetailUserResponse(BaseModel):
     avg_rating: Optional[float] = None
     avg_resonance: Optional[float] = None
     total_reflections: int = 0
+    tags: List[str] = []
     top_tags: List[str] = []
 
     @field_validator("audio_path", "cover_image_url", mode="after")

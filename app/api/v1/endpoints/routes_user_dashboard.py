@@ -7,6 +7,7 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 from sqlalchemy.sql import func
+from sqlalchemy.sql.elements import ColumnElement
 
 from app.core.db import get_db
 from app.core.responses import ApiResponse, success_response
@@ -32,6 +33,19 @@ from app.utils.text import story_card_excerpt
 
 router = APIRouter()
 
+FEED_SORTS = frozenset({"newest", "most_listened", "highest_rated"})
+
+
+def _as_str_list(value) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    return [str(part).strip() for part in value if str(part).strip()]
+
+
+def _jsonb_has_string(column, value: str) -> ColumnElement[bool]:
+    """True when a JSONB string array contains `value` as an element."""
+    return column.has_key(value) | column.contains([value])
+
 
 # ---------------------------------------------------------------------------
 # Discovery Feed
@@ -43,6 +57,11 @@ router = APIRouter()
 )
 def get_discovery_feed(
     story_type: Optional[List[str]] = Query(None, description="Filter by 'confession', 'meditation', or 'transformation' (can provide multiple)"),
+    sort: str = Query("newest", description="newest, most_listened, or highest_rated"),
+    hide_explicit: bool = Query(False),
+    growth_area: Optional[str] = Query(None),
+    tag: Optional[str] = Query(None),
+    limit: int = Query(20, ge=1, le=200),
     db: Session = Depends(get_db),
     current_user: Optional[User] = Depends(get_current_user_optional),
 ):
@@ -57,6 +76,10 @@ def get_discovery_feed(
         for t in story_type:
             requested_types.extend([item.strip() for item in t.split(",") if item.strip()])
 
+    sort_key = sort if sort in FEED_SORTS else "newest"
+    growth_filter = (growth_area or "").strip() or None
+    tag_filter = (tag or "").strip() or None
+
     from app.model.user import User
     from app.model.profile import UserProfile
     from app.model.story import Story
@@ -70,9 +93,18 @@ def get_discovery_feed(
         "total_stories_generated": story_count
     }
 
-    # 3. Fetch approved stories for the grid
+    rating_avg = (
+        db.query(
+            StoryFeedback.story_id.label("story_id"),
+            func.avg(StoryFeedback.star_rating).label("avg_rating"),
+        )
+        .group_by(StoryFeedback.story_id)
+        .subquery()
+    )
+
     query = (
-        db.query(story_data.Story)
+        db.query(story_data.Story, rating_avg.c.avg_rating)
+        .outerjoin(rating_avg, story_data.Story.id == rating_avg.c.story_id)
         .filter(story_data.Story.generation_status == GenerationStatus.completed)
         .filter(story_data.Story.moderation_status == ModerationStatus.approved)
         .filter(story_data.Story.submission_status != SubmissionStatus.withdrawn)
@@ -81,7 +113,30 @@ def get_discovery_feed(
     if requested_types:
         query = query.filter(story_data.Story.story_type.in_(requested_types))
 
-    stories = query.order_by(story_data.Story.created_at.desc()).limit(20).all()
+    if hide_explicit:
+        query = query.filter(story_data.Story.high_intensity.is_(False))
+
+    if growth_filter:
+        query = query.filter(_jsonb_has_string(story_data.Story.growth_areas, growth_filter))
+
+    if tag_filter:
+        query = query.filter(_jsonb_has_string(story_data.Story.tags, tag_filter))
+
+    if sort_key == "most_listened":
+        query = query.order_by(
+            story_data.Story.views_count.desc().nullslast(),
+            story_data.Story.created_at.desc(),
+        )
+    elif sort_key == "highest_rated":
+        query = query.order_by(
+            rating_avg.c.avg_rating.desc().nullslast(),
+            story_data.Story.pulse_score.desc().nullslast(),
+            story_data.Story.created_at.desc(),
+        )
+    else:
+        query = query.order_by(story_data.Story.created_at.desc())
+
+    rows = query.limit(limit).all()
 
     # 4. Fetch latest category images for fallbacks (cached for this request)
     from app.data import cover_image as cover_data
@@ -97,7 +152,7 @@ def get_discovery_feed(
     
     # 5. Process stories into feed items
     from app.utils.messages import STORY_UNTITLED
-    for s in stories:
+    for s, avg_rating in rows:
         s_type = s.story_type.value if s.story_type else "confession"
 
         # Public identity only — never fall back to email on listing cards.
@@ -105,14 +160,7 @@ def get_discovery_feed(
         if author_display and "@" in author_display:
             author_display = None
 
-        # Get actual average star rating from StoryFeedback
-        from app.model.feedback import StoryFeedback
-        rating_stats = (
-            db.query(func.avg(StoryFeedback.star_rating).label("avg_rating"))
-            .filter(StoryFeedback.story_id == s.id)
-            .first()
-        )
-        feed_rating = round(float(rating_stats.avg_rating), 1) if rating_stats.avg_rating else (round(s.pulse_score / 20.0, 1) if (s.pulse_score and s.pulse_score > 0) else None)
+        feed_rating = round(float(avg_rating), 1) if avg_rating is not None else None
 
         excerpt = story_card_excerpt(s)
 
@@ -134,6 +182,8 @@ def get_discovery_feed(
             age=s.age,
             audio_duration_seconds=s.audio_duration_seconds,
             is_explicit=bool(s.high_intensity),
+            tags=_as_str_list(s.tags)[:8],
+            growth_areas=_as_str_list(s.growth_areas)[:4],
         ))
 
     # 6. Inject the Liberation Journey cards (if not filtering or if specifically looking for journeys)
@@ -373,7 +423,7 @@ def get_story_detail(
         voice_name=story.voice_name,
         track_id=story.track_id,
         high_intensity=story.high_intensity,
-        is_explicit=False, # Defaulting to false as per previous discovery feed logic
+        is_explicit=bool(story.high_intensity),
         listened_count=story.views_count or 0,
         audio_duration_seconds=story.audio_duration_seconds,
         alignment=story.alignment,
@@ -381,6 +431,7 @@ def get_story_detail(
         avg_rating=avg_rating,
         avg_resonance=avg_resonance,
         total_reflections=total_reflections,
+        tags=_as_str_list(story.tags)[:8],
         top_tags=top_tags,
     )
     return success_response("Story details fetched", status.HTTP_200_OK, result)
