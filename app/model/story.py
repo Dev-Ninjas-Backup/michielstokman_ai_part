@@ -139,6 +139,8 @@ class Story(Base):
     hero_hook = Column(Text, nullable=True)
     # Short brush-stroke line for the details hero (title is the display fallback).
     hero_tagline = Column(Text, nullable=True)
+    # Admin-only editorial note from the moderation desk. Never public.
+    editorial_brief = Column(Text, nullable=True)
 
     # Figma Dashboard Metrics
     views_count = Column(Integer, default=0, nullable=False)

@@ -423,13 +423,20 @@ def get_moderation_stats(db: Session) -> dict:
     ).group_by(Story.moderation_status).all()
     return {str(status): count for status, count in stats}
 
-def approve_story(db: Session, story: Story, reviewed_by_id: str) -> Story:
-    """Mark story as approved."""
+def approve_story(
+    db: Session,
+    story: Story,
+    reviewed_by_id: str,
+    notes: Optional[str] = None,
+) -> Story:
+    """Mark story as approved. Optional notes are stored but not shown as a member fix-request."""
     from app.model.story import ModerationStatus
     from datetime import datetime, timezone
     story.moderation_status = ModerationStatus.approved
     story.moderation_reviewed_by = uuid.UUID(reviewed_by_id)
     story.moderation_reviewed_at = datetime.now(timezone.utc)
+    if notes is not None:
+        story.moderation_notes = notes.strip() or None
     db.commit()
     db.refresh(story)
     return story
@@ -446,15 +453,96 @@ def reject_story(db: Session, story: Story, reviewed_by_id: str, notes: Optional
     db.refresh(story)
     return story
 
-def update_story_details(db: Session, story: Story, title: Optional[str] = None, story_type: Optional[str] = None, story_text: Optional[str] = None) -> Story:
-    """Update story details (title, type, content)."""
+
+def request_story_changes(
+    db: Session,
+    story: Story,
+    reviewed_by_id: str,
+    notes: str,
+) -> Story:
+    """Keep the piece off the public feed and ask the member to revise."""
+    from app.model.story import ModerationStatus
+    from datetime import datetime, timezone
+    story.moderation_status = ModerationStatus.pending
+    story.moderation_reviewed_by = uuid.UUID(reviewed_by_id)
+    story.moderation_reviewed_at = datetime.now(timezone.utc)
+    story.moderation_notes = notes.strip()
+    db.commit()
+    db.refresh(story)
+    return story
+
+
+def _normalize_story_type(raw: str) -> str:
+    value = (raw or "").strip().lower()
+    if value in ("confession", "confessions"):
+        return "confession"
+    if value in ("meditation", "meditations"):
+        return "meditation"
+    if value in ("transformation", "journey"):
+        return "transformation"
+    return value
+
+
+def update_story_details(
+    db: Session,
+    story: Story,
+    title: Optional[str] = None,
+    story_type: Optional[str] = None,
+    story_text: Optional[str] = None,
+    hero_hook: Optional[str] = None,
+    hero_tagline: Optional[str] = None,
+    first_name: Optional[str] = None,
+    location: Optional[str] = None,
+    gender: Optional[str] = None,
+    sexual_orientation: Optional[str] = None,
+    occupation: Optional[str] = None,
+    age: Optional[int] = None,
+    tags: Optional[list] = None,
+    growth_areas: Optional[list] = None,
+    life_phase: Optional[str] = None,
+    high_intensity: Optional[bool] = None,
+    editorial_brief: Optional[str] = None,
+    voice_name: Optional[str] = None,
+    voice_id: Optional[str] = None,
+) -> Story:
+    """Update editorial fields. Never touches audio_path or story_input."""
     if title is not None:
         story.title = title
     if story_type is not None:
         from app.model.story import StoryType
-        story.story_type = StoryType(story_type)
+        story.story_type = StoryType(_normalize_story_type(story_type))
     if story_text is not None:
         story.story_text = story_text
+    if hero_hook is not None:
+        story.hero_hook = hero_hook
+    if hero_tagline is not None:
+        story.hero_tagline = hero_tagline
+    if first_name is not None:
+        story.first_name = first_name
+    if location is not None:
+        story.location = location
+    if gender is not None:
+        story.gender = gender
+    if sexual_orientation is not None:
+        story.sexual_orientation = sexual_orientation
+    if occupation is not None:
+        story.occupation = occupation
+    if age is not None:
+        story.age = age
+    if tags is not None:
+        story.tags = tags
+    if growth_areas is not None:
+        story.growth_areas = growth_areas
+    if life_phase is not None:
+        story.life_phase = life_phase
+    if high_intensity is not None:
+        story.high_intensity = high_intensity
+    if editorial_brief is not None:
+        story.editorial_brief = editorial_brief
+    if voice_name is not None:
+        story.voice_name = voice_name
+    if voice_id is not None:
+        story.voice_id = voice_id
     db.commit()
     db.refresh(story)
     return story

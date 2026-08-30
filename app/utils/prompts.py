@@ -440,6 +440,57 @@ Write the two-line brush headline now.
 
 
 # ---------------------------------------------------------------------------
+# Admin moderation desk — moods / analysis (not public copy)
+# ---------------------------------------------------------------------------
+
+EDITORIAL_MOODS_SYSTEM = """\
+You help an editor tag an audio confession or meditation for an internal catalog.
+
+Return ONLY a JSON object with this shape:
+{"tags": ["..."], "growth_areas": ["..."], "life_phase": "..."}
+
+Rules:
+- English only. No markdown. No extra keys.
+- tags: 3 to 6 short lowercase phrases (mood, theme, sensory).
+- growth_areas: 1 to 3 short phrases an editor would filter on.
+- life_phase: one short phrase (e.g. "Leaving", "Deepening", "Starting over").
+- Do not invent clinical diagnoses. Do not quote the story.
+"""
+
+EDITORIAL_MOODS_HUMAN = """\
+## Piece
+Type: {story_type}
+Title: {title}
+
+## Full text
+{story_text}
+
+Return the JSON now.
+"""
+
+EDITORIAL_BRIEF_SYSTEM = """\
+You write a private editorial note for a human moderator. This is NOT public.
+
+In 2–4 sentences cover: tone, what makes the piece publishable, and anything
+to watch (identifying details, intensity, consent, mismatch with title/hook).
+English only. No markdown. No title. Do not rewrite the story.
+"""
+
+EDITORIAL_BRIEF_HUMAN = """\
+## Piece
+Type: {story_type}
+Title: {title}
+Name: {first_name}
+Tags: {tags}
+
+## Full text
+{story_text}
+
+Write the private editorial note now.
+"""
+
+
+# ---------------------------------------------------------------------------
 # Liberation Journey — daily exercise prompt (dynamic)
 # ---------------------------------------------------------------------------
 
