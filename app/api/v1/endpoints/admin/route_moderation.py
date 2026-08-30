@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Body, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import Optional
 
@@ -7,18 +7,77 @@ from app.core.db import get_db
 from app.core.responses import ApiResponse, success_response
 from app.model.user import User
 from app.data import story as story_data
+from app.model.story import SubmissionMode
 from app.schemas.schema_story import (
     StoryDetailResponse,
     StoryListItemResponse,
     ModerationQueueResponse,
     UpdateStoryRequest,
+    ApproveStoryRequest,
     ApproveStoryResponse,
     RejectStoryRequest,
     RejectStoryResponse,
     DeleteStoryResponse,
+    SuggestFieldRequest,
+    SuggestFieldResponse,
+    RequestChangesRequest,
+    RequestChangesResponse,
 )
 
 router = APIRouter()
+
+
+def _enum_value(value) -> Optional[str]:
+    if value is None:
+        return None
+    return value.value if getattr(value, "value", None) else str(value)
+
+
+def to_story_detail(story) -> StoryDetailResponse:
+    author_name = story.user.email if story.user else "Admin"
+    return StoryDetailResponse(
+        id=story.id,
+        title=story.title or "Untitled",
+        story_type=str(story.story_type).replace("StoryType.", "").capitalize(),
+        story_text=story.story_text,
+        audio_path=story.audio_path,
+        author=author_name,
+        created_at=story.created_at.isoformat(),
+        moderation_status=str(story.moderation_status).replace("ModerationStatus.", ""),
+        moderation_notes=story.moderation_notes,
+        first_name=story.first_name,
+        location=story.location,
+        gender=story.gender,
+        sexual_orientation=story.sexual_orientation,
+        occupation=story.occupation,
+        age=story.age,
+        background=story.background,
+        personality=story.personality,
+        lifestyle=story.lifestyle,
+        situation=story.situation,
+        submission_mode=_enum_value(getattr(story, "submission_mode", None)),
+        hero_hook=story.hero_hook,
+        hero_tagline=story.hero_tagline,
+        editorial_brief=getattr(story, "editorial_brief", None),
+        story_input=story.story_input,
+        growth_areas=story.growth_areas,
+        life_phase=story.life_phase,
+        tags=story.tags,
+        high_intensity=bool(getattr(story, "high_intensity", False)),
+        voice_name=story.voice_name,
+        voice_id=story.voice_id,
+        cover_image_url=story.cover_image_url,
+    )
+
+
+def _require_story(db, story_id: str):
+    story = story_data.get_story_by_id(db, story_id)
+    if not story:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Story not found",
+        )
+    return story
 
 
 # ============================================================================
@@ -142,49 +201,12 @@ def get_story_details(
     Fetch full story details for review.
     Only accessible to admin users.
     """
-    story = story_data.get_story_by_id(db, story_id)
-    
-    if not story:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Story not found"
-        )
-    
-    author_name = story.user.email if story.user else "Admin"
-    
-    result = StoryDetailResponse(
-        id=story.id,
-        title=story.title or "Untitled",
-        story_type=str(story.story_type).replace("StoryType.", "").capitalize(),
-        story_text=story.story_text,
-        audio_path=story.audio_path,
-        author=author_name,
-        created_at=story.created_at.isoformat(),
-        moderation_status=str(story.moderation_status).replace("ModerationStatus.", ""),
-        moderation_notes=story.moderation_notes,
-        first_name=story.first_name,
-        location=story.location,
-        gender=story.gender,
-        sexual_orientation=story.sexual_orientation,
-        occupation=story.occupation,
-        age=story.age,
-        background=story.background,
-        personality=story.personality,
-        lifestyle=story.lifestyle,
-        situation=story.situation,
-        submission_mode=(
-            story.submission_mode.value
-            if getattr(story.submission_mode, "value", None)
-            else story.submission_mode
-        ),
-        hero_hook=story.hero_hook,
-        hero_tagline=story.hero_tagline,
-        story_input=story.story_input,
-        growth_areas=story.growth_areas,
-        life_phase=story.life_phase,
-        tags=story.tags,
+    story = _require_story(db, story_id)
+    return success_response(
+        "Story details fetched",
+        status.HTTP_200_OK,
+        to_story_detail(story),
     )
-    return success_response("Story details fetched", status.HTTP_200_OK, result)
 
 
 @router.put("/admin/moderation/story/{story_id}", response_model=ApiResponse[StoryDetailResponse])
@@ -198,63 +220,148 @@ def update_story_details(
     Update story details (title, type, content).
     Only accessible to admin users.
     """
-    story = story_data.get_story_by_id(db, story_id)
-    
-    if not story:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Story not found"
-        )
-    
-    # Update the story
+    story = _require_story(db, story_id)
+
+    voice_name = update_data.voice_name
+    voice_id = None
+    mode = _enum_value(getattr(story, "submission_mode", None))
+    if voice_name and mode == SubmissionMode.human_ready.value:
+        voice_name = None
+    elif voice_name:
+        from app.core.llm import ELEVENLABS_VOICES, canonical_voice_name
+        canonical = canonical_voice_name(voice_name)
+        if not canonical:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Unknown catalog voice",
+            )
+        voice_name = canonical
+        voice_id = ELEVENLABS_VOICES[canonical]
+
     story = story_data.update_story_details(
         db,
         story,
         title=update_data.title,
         story_type=update_data.story_type,
         story_text=update_data.story_text,
+        hero_hook=update_data.hero_hook,
+        hero_tagline=update_data.hero_tagline,
+        first_name=update_data.first_name,
+        location=update_data.location,
+        gender=update_data.gender,
+        sexual_orientation=update_data.sexual_orientation,
+        occupation=update_data.occupation,
+        age=update_data.age,
+        tags=update_data.tags,
+        growth_areas=update_data.growth_areas,
+        life_phase=update_data.life_phase,
+        high_intensity=update_data.high_intensity,
+        editorial_brief=update_data.editorial_brief,
+        voice_name=voice_name,
+        voice_id=voice_id,
     )
-    
-    author_name = story.user.email if story.user else "Admin"
-    
-    result = StoryDetailResponse(
-        id=story.id,
-        title=story.title or "Untitled",
-        story_type=str(story.story_type).replace("StoryType.", "").capitalize(),
-        story_text=story.story_text,
-        audio_path=story.audio_path,
-        author=author_name,
-        created_at=story.created_at.isoformat(),
-        moderation_status=str(story.moderation_status).replace("ModerationStatus.", ""),
-        moderation_notes=story.moderation_notes,
-        first_name=story.first_name,
-        location=story.location,
-        gender=story.gender,
-        sexual_orientation=story.sexual_orientation,
-        occupation=story.occupation,
-        age=story.age,
-        background=story.background,
-        personality=story.personality,
-        lifestyle=story.lifestyle,
-        situation=story.situation,
-        submission_mode=(
-            story.submission_mode.value
-            if getattr(story.submission_mode, "value", None)
-            else story.submission_mode
-        ),
-        hero_hook=story.hero_hook,
-        hero_tagline=story.hero_tagline,
-        story_input=story.story_input,
-        growth_areas=story.growth_areas,
-        life_phase=story.life_phase,
-        tags=story.tags,
+
+    return success_response(
+        "Story updated successfully",
+        status.HTTP_200_OK,
+        to_story_detail(story),
     )
-    return success_response("Story updated successfully", status.HTTP_200_OK, result)
+
+
+@router.post("/admin/moderation/story/{story_id}/suggest", response_model=ApiResponse[SuggestFieldResponse])
+def suggest_story_field(
+    story_id: str,
+    payload: SuggestFieldRequest,
+    current_user: User = Depends(get_current_admin_user),
+    db: Session = Depends(get_db),
+):
+    """
+    AI draft for one editorial field. Does not write the story row.
+    Admin Save (PUT) persists the chosen value.
+    """
+    from app.services.service_ai import AIService
+
+    story = _require_story(db, story_id)
+    mode = _enum_value(getattr(story, "submission_mode", None))
+    story_type = _enum_value(story.story_type) or "confession"
+    text = (story.story_text or story.story_input or "").strip()
+    field = payload.field
+
+    if field == "voice" and mode == SubmissionMode.human_ready.value:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Fully narrated stories keep the uploaded recording.",
+        )
+
+    if field in ("hook", "tagline", "moods", "analysis") and not text:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="This story has no text to suggest from.",
+        )
+
+    result = SuggestFieldResponse(field=field)
+
+    if field == "hook":
+        result.hero_hook = AIService.generate_hero_hook(
+            text, story_type=story_type, title=story.title
+        )
+    elif field == "tagline":
+        result.hero_tagline = AIService.generate_hero_tagline(
+            text, story_type=story_type, title=story.title
+        )
+    elif field == "moods":
+        moods = AIService.generate_moods(
+            text, story_type=story_type, title=story.title
+        ) or {}
+        result.tags = moods.get("tags")
+        result.growth_areas = moods.get("growth_areas")
+        result.life_phase = moods.get("life_phase")
+    elif field == "analysis":
+        result.editorial_brief = AIService.generate_editorial_brief(
+            text,
+            story_type=story_type,
+            title=story.title,
+            first_name=story.first_name,
+            tags=story.tags,
+        )
+    elif field == "voice":
+        name, voice_id, _custom = AIService.resolve_voice(
+            gender=story.gender,
+            text=text or story.title,
+        )
+        result.voice_name = name
+        result.voice_id = voice_id
+
+    return success_response("Suggestion generated", status.HTTP_200_OK, result)
+
+
+@router.post(
+    "/admin/moderation/story/{story_id}/request-changes",
+    response_model=ApiResponse[RequestChangesResponse],
+)
+def request_story_changes(
+    story_id: str,
+    payload: RequestChangesRequest,
+    current_user: User = Depends(get_current_admin_user),
+    db: Session = Depends(get_db),
+):
+    """Ask the member to revise. Stays pending — not on the public feed."""
+    story = _require_story(db, story_id)
+    story = story_data.request_story_changes(
+        db, story, str(current_user.id), notes=payload.reason
+    )
+    result = RequestChangesResponse(
+        message="Changes requested",
+        story_id=story.id,
+        status=str(story.moderation_status).replace("ModerationStatus.", ""),
+    )
+    return success_response("Changes requested", status.HTTP_200_OK, result)
 
 
 @router.post("/admin/moderation/story/{story_id}/approve", response_model=ApiResponse[ApproveStoryResponse])
 def approve_story(
     story_id: str,
+    payload: Optional[ApproveStoryRequest] = Body(default=None),
     current_user: User = Depends(get_current_admin_user),
     db: Session = Depends(get_db),
 ):
@@ -262,16 +369,15 @@ def approve_story(
     Approve a story for publication.
     Only accessible to admin users.
     """
-    story = story_data.get_story_by_id(db, story_id)
-    
-    if not story:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Story not found"
-        )
-    
+    story = _require_story(db, story_id)
+
     # Approve the story
-    story = story_data.approve_story(db, story, str(current_user.id))
+    story = story_data.approve_story(
+        db,
+        story,
+        str(current_user.id),
+        notes=payload.notes if payload else None,
+    )
     
     result = ApproveStoryResponse(
         message="Story approved successfully",
@@ -292,13 +398,7 @@ def reject_story(
     Reject a story with optional reason/notes.
     Only accessible to admin users.
     """
-    story = story_data.get_story_by_id(db, story_id)
-    
-    if not story:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Story not found"
-        )
+    story = _require_story(db, story_id)
     
     # Reject the story
     story = story_data.reject_story(
@@ -326,13 +426,7 @@ def delete_story(
     Permanently delete a story.
     Only accessible to admin users.
     """
-    story = story_data.get_story_by_id(db, story_id)
-    
-    if not story:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Story not found"
-        )
+    story = _require_story(db, story_id)
     
     story_id_to_return = story.id
     

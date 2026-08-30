@@ -34,12 +34,17 @@ class StoryDetailResponse(BaseModel):
     submission_mode: str | None = None
     hero_hook: str | None = None
     hero_tagline: str | None = None
+    editorial_brief: str | None = None
     story_input: str | None
     growth_areas: list[str] | None
     life_phase: str | None
     tags: list[str] | None
+    high_intensity: bool = False
+    voice_name: str | None = None
+    voice_id: str | None = None
+    cover_image_url: str | None = None
 
-    @field_validator("audio_path", mode="after")
+    @field_validator("audio_path", "cover_image_url", mode="after")
     @classmethod
     def format_media(cls, v):
         return format_media_url(v)
@@ -78,6 +83,67 @@ class UpdateStoryRequest(BaseModel):
     title: Optional[str] = None
     story_type: Optional[str] = None
     story_text: Optional[str] = None
+    hero_hook: Optional[str] = None
+    hero_tagline: Optional[str] = None
+    first_name: Optional[str] = None
+    location: Optional[str] = None
+    gender: Optional[str] = None
+    sexual_orientation: Optional[str] = None
+    occupation: Optional[str] = None
+    age: Optional[int] = None
+    tags: Optional[List[str]] = None
+    growth_areas: Optional[List[str]] = None
+    life_phase: Optional[str] = None
+    high_intensity: Optional[bool] = None
+    editorial_brief: Optional[str] = None
+    voice_name: Optional[str] = None
+
+
+class ApproveStoryRequest(BaseModel):
+    notes: Optional[str] = None
+
+
+class SuggestFieldRequest(BaseModel):
+    field: str
+
+    @field_validator("field")
+    @classmethod
+    def validate_field(cls, v: str) -> str:
+        allowed = {"hook", "tagline", "moods", "analysis", "voice"}
+        value = (v or "").strip().lower()
+        if value not in allowed:
+            raise ValueError(f"field must be one of {sorted(allowed)}")
+        return value
+
+
+class SuggestFieldResponse(BaseModel):
+    field: str
+    hero_hook: Optional[str] = None
+    hero_tagline: Optional[str] = None
+    tags: Optional[List[str]] = None
+    growth_areas: Optional[List[str]] = None
+    life_phase: Optional[str] = None
+    editorial_brief: Optional[str] = None
+    voice_name: Optional[str] = None
+    voice_id: Optional[str] = None
+
+
+class RequestChangesRequest(BaseModel):
+    reason: str
+
+    @field_validator("reason")
+    @classmethod
+    def reason_required(cls, v: str) -> str:
+        text = (v or "").strip()
+        if not text:
+            raise ValueError("reason is required")
+        return text
+
+
+class RequestChangesResponse(BaseModel):
+    message: str
+    story_id: UUID4
+    status: str
 
 
 class ApproveStoryResponse(BaseModel):
