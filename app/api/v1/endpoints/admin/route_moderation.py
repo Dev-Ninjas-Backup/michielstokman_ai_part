@@ -313,9 +313,17 @@ def suggest_story_field(
         moods = AIService.generate_moods(
             text, story_type=story_type, title=story.title
         ) or {}
-        result.tags = moods.get("tags")
-        result.growth_areas = moods.get("growth_areas")
-        result.life_phase = moods.get("life_phase")
+        tags = moods.get("tags") or []
+        growth = moods.get("growth_areas") or []
+        life_phase = moods.get("life_phase")
+        if not tags and not growth and not life_phase:
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail="Could not generate moods. Try again.",
+            )
+        result.tags = tags
+        result.growth_areas = growth
+        result.life_phase = life_phase
     elif field == "analysis":
         result.editorial_brief = AIService.generate_editorial_brief(
             text,
