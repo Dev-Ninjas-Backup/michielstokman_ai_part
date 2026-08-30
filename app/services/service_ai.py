@@ -9,7 +9,8 @@ Story.generation_status and Story.job_id — no separate in-memory store needed.
 import uuid
 import logging
 import re
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Dict, Any
+import json
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +41,10 @@ from app.utils.prompts import (
     HERO_HOOK_HUMAN,
     HERO_TAGLINE_SYSTEM,
     HERO_TAGLINE_HUMAN,
+    EDITORIAL_MOODS_SYSTEM,
+    EDITORIAL_MOODS_HUMAN,
+    EDITORIAL_BRIEF_SYSTEM,
+    EDITORIAL_BRIEF_HUMAN,
     build_story_system_template,
     build_user_context,
 )
@@ -297,6 +302,90 @@ class AIService:
             title=story_row.title,
         )
         story_row.hero_tagline = tagline
+
+    @staticmethod
+    def _parse_json_object(raw: str) -> Dict[str, Any]:
+        text = (raw or "").strip()
+        if text.startswith("```"):
+            text = re.sub(r"^```(?:json)?\s*", "", text)
+            text = re.sub(r"\s*```$", "", text)
+        return json.loads(text.strip())
+
+    @staticmethod
+    def generate_moods(
+        story_text: str,
+        story_type: str = "confession",
+        title: Optional[str] = None,
+    ) -> Optional[Dict[str, Any]]:
+        """Suggest tags, growth_areas, and life_phase. Returns None on failure."""
+        if not story_text or not story_text.strip():
+            return None
+        try:
+            llm = get_story_llm()
+            chat_prompt = ChatPromptTemplate.from_messages([
+                SystemMessagePromptTemplate.from_template(EDITORIAL_MOODS_SYSTEM),
+                HumanMessagePromptTemplate.from_template(EDITORIAL_MOODS_HUMAN),
+            ])
+            messages = chat_prompt.format_prompt(
+                story_type=story_type,
+                title=(title or "").strip() or "Untitled",
+                story_text=story_text.strip()[:8000],
+            ).to_messages()
+            response = llm.invoke(messages)
+            parsed = AIService._parse_json_object(response.content or "")
+            tags = parsed.get("tags") or []
+            growth = parsed.get("growth_areas") or []
+            if isinstance(tags, str):
+                tags = [part.strip() for part in tags.split(",") if part.strip()]
+            if isinstance(growth, str):
+                growth = [part.strip() for part in growth.split(",") if part.strip()]
+            life_phase = parsed.get("life_phase")
+            if isinstance(life_phase, str):
+                life_phase = life_phase.strip() or None
+            else:
+                life_phase = None
+            return {
+                "tags": [str(t).strip() for t in tags if str(t).strip()][:8],
+                "growth_areas": [str(g).strip() for g in growth if str(g).strip()][:4],
+                "life_phase": life_phase,
+            }
+        except Exception as exc:
+            logger.warning("Mood suggestion failed: %s", exc, exc_info=True)
+            return None
+
+    @staticmethod
+    def generate_editorial_brief(
+        story_text: str,
+        story_type: str = "confession",
+        title: Optional[str] = None,
+        first_name: Optional[str] = None,
+        tags: Optional[list] = None,
+    ) -> Optional[str]:
+        """Private admin analysis paragraph. Returns None on failure."""
+        if not story_text or not story_text.strip():
+            return None
+        try:
+            llm = get_story_llm()
+            chat_prompt = ChatPromptTemplate.from_messages([
+                SystemMessagePromptTemplate.from_template(EDITORIAL_BRIEF_SYSTEM),
+                HumanMessagePromptTemplate.from_template(EDITORIAL_BRIEF_HUMAN),
+            ])
+            messages = chat_prompt.format_prompt(
+                story_type=story_type,
+                title=(title or "").strip() or "Untitled",
+                first_name=(first_name or "").strip() or "—",
+                tags=", ".join(tags) if tags else "None",
+                story_text=story_text.strip()[:8000],
+            ).to_messages()
+            response = llm.invoke(messages)
+            brief = (response.content or "").strip()
+            if brief.startswith("```"):
+                brief = re.sub(r"^```(?:\w+)?\s*", "", brief)
+                brief = re.sub(r"\s*```$", "", brief)
+            return brief.strip() or None
+        except Exception as exc:
+            logger.warning("Editorial brief generation failed: %s", exc, exc_info=True)
+            return None
 
     @staticmethod
     def resolve_voice(
