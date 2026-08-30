@@ -21,6 +21,8 @@ class StoryFeedItem(BaseModel):
     age: Optional[int] = None
     audio_duration_seconds: Optional[int] = None
     is_explicit: bool = False
+    tags: List[str] = []
+    growth_areas: List[str] = []
 
 class HeroStats(BaseModel):
     total_users: int
