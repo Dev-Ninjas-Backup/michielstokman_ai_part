@@ -36,6 +36,12 @@ check("member story schema has no editorial_brief", "editorial_brief" not in mem
 check("update_story_details never assigns audio_path", "story.audio_path" not in update_fn)
 check("human_ready voice suggest is 409", "HTTP_409_CONFLICT" in route_src)
 check("AI moods helper exists", "def generate_moods" in ai_src)
+prompts_src = (ROOT / "app/utils/prompts.py").read_text()
+moods_system = prompts_src.split("EDITORIAL_MOODS_SYSTEM")[1].split("EDITORIAL_MOODS_HUMAN")[0]
+check(
+    "moods system prompt escapes JSON braces for LangChain",
+    '{{"tags"' in moods_system,
+)
 check("AI editorial brief helper exists", "def generate_editorial_brief" in ai_src)
 
 print("")

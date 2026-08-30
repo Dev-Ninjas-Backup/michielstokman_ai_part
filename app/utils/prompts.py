@@ -447,7 +447,7 @@ EDITORIAL_MOODS_SYSTEM = """\
 You help an editor tag an audio confession or meditation for an internal catalog.
 
 Return ONLY a JSON object with this shape:
-{"tags": ["..."], "growth_areas": ["..."], "life_phase": "..."}
+{{"tags": ["quiet", "winter"], "growth_areas": ["honesty"], "life_phase": "Leaving"}}
 
 Rules:
 - English only. No markdown. No extra keys.
