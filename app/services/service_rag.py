@@ -24,7 +24,7 @@ from sqlalchemy.sql import func
 from app.utils.prompts import BOOK_REC_SYSTEM, BOOK_REC_HUMAN
 from app.core.config import settings
 from app.core.llm import get_story_llm
-from app.model.story import Story, GenerationStatus, StoryType, ModerationStatus, SubmissionStatus
+from app.model.story import Story, GenerationStatus, SubmissionStatus
 from app.model.profile import UserProfile
 from app.schemas.schema_rag import (
     BookRecommendation,
@@ -106,8 +106,6 @@ def _build_document_text(story: Story) -> str:
         parts.append(f"Life Phase: {story.life_phase}")
     if story.growth_areas:
         parts.append(f"Growth Areas: {json.dumps(story.growth_areas)}")
-    if story.story_input:
-        parts.append(f"Original Input: {story.story_input}")
     if story.tags:
         parts.append(f"Tags: {json.dumps(story.tags)}")
     return "\n".join(parts)
@@ -167,7 +165,7 @@ class RAGService:
         stories = (
             db.query(Story)
             .filter(Story.generation_status == GenerationStatus.completed)
-            .filter(Story.moderation_status == ModerationStatus.approved)
+            .filter(Story.published_at.isnot(None))
             .filter(Story.submission_status != SubmissionStatus.withdrawn)
             .filter(Story.story_text.isnot(None))
             .all()
@@ -231,10 +229,10 @@ class RAGService:
         stories = (
             db.query(Story)
             .filter(Story.generation_status == GenerationStatus.completed)
-            .filter(Story.moderation_status == ModerationStatus.approved)
+            .filter(Story.published_at.isnot(None))
             .filter(Story.submission_status != SubmissionStatus.withdrawn)
             .filter(Story.story_text.isnot(None))
-            .filter(Story.created_at >= since)
+            .filter(Story.published_at >= since)
             .all()
         )
 
@@ -284,7 +282,7 @@ class RAGService:
             fallback_stories = (
                 db.query(Story)
                 .filter(Story.generation_status == GenerationStatus.completed)
-                .filter(Story.moderation_status == ModerationStatus.approved)
+                .filter(Story.published_at.isnot(None))
                 .order_by(func.random())
                 .limit(5)
                 .all()

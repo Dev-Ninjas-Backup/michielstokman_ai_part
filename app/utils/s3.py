@@ -37,7 +37,7 @@ def upload_audio_bytes_to_s3(audio_bytes: bytes, file_extension: str = "mp3") ->
             Bucket=bucket_name,
             Key=file_name,
             Body=audio_bytes,
-            ContentType="audio/mpeg",  # Change depending on extension if needed
+            ContentType={"mp3":"audio/mpeg","wav":"audio/wav","m4a":"audio/mp4","ogg":"audio/ogg"}.get(file_extension,"application/octet-stream"),
             # ACL='public-read' # Optional: if your bucket allows public ACLs
         )
         

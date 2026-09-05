@@ -966,6 +966,9 @@ class MemberStoryService:
         """
         story = _require_story(db, user, story_id)
 
+        if story.published_at is None or story.submission_status != SubmissionStatus.submitted:
+            raise HTTPException(409, "Only published stories can be shared")
+
         if not story.social_intros:
             story = MemberStoryService.generate_social_intros(db, user, story_id)
 
@@ -979,7 +982,7 @@ class MemberStoryService:
             cover_image_url=story.cover_image_url,
             audio_url=story.audio_path,
             audio_duration_seconds=story.audio_duration_seconds,
-            share_url=f"{settings.FRONTEND_URL}/stories/{story.id}",
+            share_url=f"{settings.FRONTEND_URL}/details/{story.id}",
             intros=SocialIntros(**story.social_intros),
             generated_at=_isoformat(story.social_intros_generated_at),
         )

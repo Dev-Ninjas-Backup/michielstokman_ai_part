@@ -13,7 +13,7 @@ from app.core.db import get_db
 from app.core.responses import ApiResponse, success_response
 from app.api.deps import get_current_user, get_current_user_optional, enforce_guest_story_limit
 from app.model.user import User
-from app.model.story import ModerationStatus, SubmissionStatus
+from app.model.story import SubmissionStatus
 from app.model.feedback import StoryFeedback
 from app.schemas.schema_rag import (
     BookRecommendationsResponse,
@@ -106,7 +106,7 @@ def get_discovery_feed(
         db.query(story_data.Story, rating_avg.c.avg_rating)
         .outerjoin(rating_avg, story_data.Story.id == rating_avg.c.story_id)
         .filter(story_data.Story.generation_status == GenerationStatus.completed)
-        .filter(story_data.Story.moderation_status == ModerationStatus.approved)
+        .filter(story_data.Story.published_at.isnot(None))
         .filter(story_data.Story.submission_status != SubmissionStatus.withdrawn)
     )
 
@@ -332,7 +332,7 @@ def get_story_detail(
 
     # Regular users can only see approved stories the author has not withdrawn
     if (
-        story.moderation_status != ModerationStatus.approved
+        story.published_at is None
         or story.submission_status == SubmissionStatus.withdrawn
     ):
         raise HTTPException(
@@ -396,13 +396,10 @@ def get_story_detail(
         except (ValueError, Exception):
             cover_image_url = None
 
-    # --- Resolve author name ---
+    # Public identity only — never fall back to profile true_name or login email.
     author_name = story.first_name
-    if not author_name and story.user and story.user.profile:
-        author_name = story.user.profile.true_name
-    
-    if not author_name and story.user:
-        author_name = story.user.email
+    if author_name and "@" in author_name:
+        author_name = None
 
     from app.utils.messages import STORY_UNTITLED
     result = StoryDetailUserResponse(

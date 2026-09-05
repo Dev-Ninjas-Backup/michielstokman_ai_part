@@ -35,7 +35,7 @@ def submit_story_feedback(
     """
     # Verify the story exists
     story = db.query(Story).filter(Story.id == story_id).first()
-    if not story:
+    if not story or story.published_at is None or story.submission_status.value != "submitted":
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Story not found.",

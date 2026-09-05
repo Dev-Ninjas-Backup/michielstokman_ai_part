@@ -110,6 +110,8 @@ def complete_story(
     alignment: Optional[list] = None,
 ) -> Story:
     """Updates a Story row with the generated text + audio and marks it completed."""
+    text_changed = (story.story_text or "") != (story_text or "")
+    audio_changed = audio_path is not None and audio_path != story.audio_path
     if title and title.strip():
         story.ai_generated_title = title.strip()
     sync_active_title(story)
@@ -120,6 +122,9 @@ def complete_story(
         story.audio_duration_seconds = audio_duration_seconds
     if alignment is not None:
         story.alignment = alignment
+    from app.utils.publication_status import refresh_asset_statuses
+
+    refresh_asset_statuses(story, force_content=text_changed, force_voice=audio_changed)
     db.commit()
     db.refresh(story)
     return story
@@ -256,6 +261,7 @@ def resubmit_story(db: Session, story: Story) -> Story:
     story.moderation_notes = None
     story.moderation_reviewed_by = None
     story.moderation_reviewed_at = None
+    story.published_at = None
     db.commit()
     db.refresh(story)
     return story
@@ -274,6 +280,7 @@ def start_regeneration(db: Session, story: Story, job_id: str) -> Story:
     story.moderation_notes = None
     story.moderation_reviewed_by = None
     story.moderation_reviewed_at = None
+    story.published_at = None
     story.regeneration_count = (story.regeneration_count or 0) + 1
     db.commit()
     db.refresh(story)
@@ -300,6 +307,9 @@ def set_story_audio(
     if alignment is not None:
         story.alignment = alignment
     story.generation_status = GenerationStatus.completed
+    from app.utils.publication_status import refresh_asset_statuses
+
+    refresh_asset_statuses(story, force_voice=True)
     db.commit()
     db.refresh(story)
     return story
@@ -316,6 +326,9 @@ def set_story_cover(
     story.cover_image_url = image_url
     story.cover_image_key = image_key
     story.image_source = source
+    from app.utils.publication_status import refresh_asset_statuses
+
+    refresh_asset_statuses(story, force_cover=True)
     db.commit()
     db.refresh(story)
     return story
@@ -432,7 +445,9 @@ def approve_story(
     """Mark story as approved. Optional notes are stored but not shown as a member fix-request."""
     from app.model.story import ModerationStatus
     from datetime import datetime, timezone
-    story.moderation_status = ModerationStatus.approved
+    # Approval is editorial only; publication requires the explicit publish endpoint.
+    from app.model.story import AssetReviewStatus
+    story.content_status = AssetReviewStatus.approved
     story.moderation_reviewed_by = uuid.UUID(reviewed_by_id)
     story.moderation_reviewed_at = datetime.now(timezone.utc)
     if notes is not None:
@@ -543,6 +558,16 @@ def update_story_details(
         story.voice_name = voice_name
     if voice_id is not None:
         story.voice_id = voice_id
+    from app.utils.publication_status import refresh_asset_statuses
+
+    refresh_asset_statuses(
+        story,
+        force_content=story_text is not None,
+        force_cover=any(
+            value is not None
+            for value in (title, first_name, location, gender, sexual_orientation, age, high_intensity)
+        ),
+    )
     db.commit()
     db.refresh(story)
     return story

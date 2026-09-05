@@ -11,7 +11,7 @@ from app.api.v1.endpoints import hello
 from app.api.v1.endpoints import routes_ai, routes_auth, routes_payment, routes_subscription, routes_profile
 from app.api.v1.endpoints import routes_user_dashboard, routes_feedback, routes_liberation, routes_liberation_catalog
 from app.api.v1.endpoints import routes_my_stories
-from app.api.v1.endpoints.admin import route_admin_dashboard, route_moderation, route_liberation_admin, route_admin_chat, route_photo_management, route_voice_review, route_billing_admin
+from app.api.v1.endpoints.admin import route_admin_dashboard, route_moderation, route_liberation_admin, route_admin_chat, route_photo_management, route_voice_review, route_billing_admin, route_publications
 from app.schemas.schema_system import HealthResponse
 
 app = FastAPI(
@@ -99,7 +99,6 @@ IMAGE_DIR = "media/images"
 os.makedirs(IMAGE_DIR, exist_ok=True)
 app.mount("/media/images", StaticFiles(directory=IMAGE_DIR), name="images")
 
-
 app.include_router(hello.router, prefix="/v1")
 app.include_router(routes_ai.router, prefix="/v1", tags=["AI"])
 app.include_router(routes_auth.router, prefix="/v1",tags=["Auth"])
@@ -117,6 +116,7 @@ app.include_router(routes_liberation_catalog.router, prefix="/v1")
 # Admin routes
 app.include_router(route_admin_dashboard.router, prefix="/v1", tags=["Admin"])
 app.include_router(route_moderation.router, prefix="/v1", tags=["Admin - Moderation"])
+app.include_router(route_publications.router, prefix="/v1", tags=["Admin - Publications"])
 app.include_router(route_liberation_admin.router, prefix="/v1")
 app.include_router(route_admin_chat.router, prefix="/v1", tags=["Admin - Metrics Chat"])
 app.include_router(route_photo_management.router, prefix="/v1", tags=["Admin - Photo Management"])

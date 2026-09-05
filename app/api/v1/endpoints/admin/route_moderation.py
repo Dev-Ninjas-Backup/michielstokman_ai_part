@@ -34,14 +34,16 @@ def _enum_value(value) -> Optional[str]:
 
 
 def to_story_detail(story) -> StoryDetailResponse:
-    author_name = story.user.email if story.user else "Admin"
+    author_name = None
+    if story.first_name and "@" not in story.first_name:
+        author_name = story.first_name.strip()
     return StoryDetailResponse(
         id=story.id,
         title=story.title or "Untitled",
         story_type=str(story.story_type).replace("StoryType.", "").capitalize(),
         story_text=story.story_text,
         audio_path=story.audio_path,
-        author=author_name,
+        author=author_name or "—",
         created_at=story.created_at.isoformat(),
         moderation_status=str(story.moderation_status).replace("ModerationStatus.", ""),
         moderation_notes=story.moderation_notes,
@@ -129,12 +131,12 @@ def get_moderation_queue(
             elif display_type == "Transformation":
                 display_type = "Journey"
 
-            # Get author name safely
-            author_name = "Admin"
-            if story.user:
-                author_name = story.user.email
+            # Public identity only — never the login email.
+            author_name = "—"
+            if story.first_name and "@" not in story.first_name:
+                author_name = story.first_name.strip()
             elif story.admin:
-                author_name = story.admin.email
+                author_name = "Admin"
 
             story_items.append(
                 StoryListItemResponse(
@@ -374,25 +376,12 @@ def approve_story(
     db: Session = Depends(get_db),
 ):
     """
-    Approve a story for publication.
-    Only accessible to admin users.
+    Approve no longer publishes. Use POST /v1/admin/publications/{id}/publish.
     """
-    story = _require_story(db, story_id)
-
-    # Approve the story
-    story = story_data.approve_story(
-        db,
-        story,
-        str(current_user.id),
-        notes=payload.notes if payload else None,
+    raise HTTPException(
+        status_code=status.HTTP_409_CONFLICT,
+        detail="Approving a story no longer publishes it. Approve content, cover, and voice in the publication workspace, then use Publish.",
     )
-    
-    result = ApproveStoryResponse(
-        message="Story approved successfully",
-        story_id=story.id,
-        status=str(story.moderation_status).replace("ModerationStatus.", ""),
-    )
-    return success_response("Story approved successfully", status.HTTP_200_OK, result)
 
 
 @router.post("/admin/moderation/story/{story_id}/reject", response_model=ApiResponse[RejectStoryResponse])
