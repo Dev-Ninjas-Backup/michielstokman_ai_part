@@ -56,17 +56,31 @@ class Settings:
         self.STRIPE_WEBHOOK_SECRET: str | None = os.getenv("STRIPE_WEBHOOK_SECRET")
 
         # Security / JWT
-        self.SECRET_KEY: str = os.getenv("SECRET_KEY", "dev_fallback_secret_key_change_in_prod")
+        self.APP_ENV: str = os.getenv("APP_ENV", os.getenv("ENVIRONMENT", "development")).lower()
+        self._is_production = self.APP_ENV in ("production", "prod")
+        secret_key = os.getenv("SECRET_KEY")
+        if not secret_key:
+            if self._is_production:
+                raise RuntimeError("SECRET_KEY must be set when APP_ENV is production")
+            secret_key = "dev_fallback_secret_key_change_in_prod"
+        self.SECRET_KEY: str = secret_key
         self.ALGORITHM: str = os.getenv("ALGORITHM", "HS256")
         self.ACCESS_TOKEN_EXPIRE_MINUTES: int = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "21600"))
         self.GUEST_TOKEN_EXPIRE_MINUTES: int = int(os.getenv("GUEST_TOKEN_EXPIRE_MINUTES", "1440"))
 
         # App Frontend / External
         self.FRONTEND_URL: str = os.getenv("FRONTEND_URL", "http://localhost:3000").rstrip("/")
-        self.BACKEND_URL: str = os.getenv("BACKEND_URL", "http://34.255.26.146:8000").rstrip("/")
+        self.BACKEND_URL: str = os.getenv("BACKEND_URL", "http://localhost:8000").rstrip("/")
         
         # Security: Allowed CORS origins (comma-separated string in .env)
-        self.ALLOWED_ORIGINS: list[str] = os.getenv("ALLOWED_ORIGINS", "*").split(",")
+        origins_raw = os.getenv("ALLOWED_ORIGINS")
+        if not origins_raw:
+            if self._is_production:
+                raise RuntimeError("ALLOWED_ORIGINS must be set when APP_ENV is production")
+            origins_raw = "http://localhost:3000"
+        self.ALLOWED_ORIGINS: list[str] = [origin.strip() for origin in origins_raw.split(",") if origin.strip()]
+        if self._is_production and "*" in self.ALLOWED_ORIGINS:
+            raise RuntimeError("ALLOWED_ORIGINS cannot include '*' when APP_ENV is production")
         
         # Social Auth
         self.GOOGLE_CLIENT_ID: str | None = os.getenv("GOOGLE_CLIENT_ID")

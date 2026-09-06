@@ -3,8 +3,10 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Request, Header, status
 from sqlalchemy.orm import Session
 
+from app.api.deps import get_current_user
 from app.core.db import get_db
 from app.core.responses import ApiResponse, success_response
+from app.model.user import User
 from app.schemas.schema_billing import (
     StartCheckoutRequest,
     StartCheckoutResponse,
@@ -17,10 +19,14 @@ router = APIRouter()
 
 
 @router.post("/payment/checkout/start", response_model=ApiResponse[StartCheckoutResponse])
-def start_checkout(payload: StartCheckoutRequest, db: Session = Depends(get_db)):
+def start_checkout(
+    payload: StartCheckoutRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     checkout = BillingService.start_checkout(
         db=db,
-        user_id=payload.user_id,
+        user_id=current_user.id,
         plan_id=payload.plan_id,
         journey_id=payload.journey_id,
         journey_code=payload.journey_code,
@@ -48,6 +54,12 @@ async def payment_webhook(
 
 
 @router.get("/payment/history/{user_id}", response_model=ApiResponse[list[PaymentHistoryItem]])
-def payment_history(user_id: UUID, db: Session = Depends(get_db)):
-    history = BillingService.payment_history(db=db, user_id=user_id)
+def payment_history(
+    user_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    # Path user_id is ignored so callers cannot read another user's history.
+    _ = user_id
+    history = BillingService.payment_history(db=db, user_id=current_user.id)
     return success_response("Payment history fetched successfully", status.HTTP_200_OK, history)

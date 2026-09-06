@@ -50,6 +50,19 @@ class SubmissionMode(str, enum.Enum):
     human_ready = "human_ready"
 
 
+class AssetReviewStatus(str, enum.Enum):
+    """Per-asset publication review state (content, cover, voice)."""
+    missing = "missing"
+    pending = "pending"
+    in_progress = "in_progress"
+    ready_for_review = "ready_for_review"
+    approved = "approved"
+    rejected = "rejected"
+
+
+ASSET_REVIEW_STATUS = SAEnum(AssetReviewStatus, name="assetreviewstatus")
+
+
 class Story(Base):
     __tablename__ = "stories"
 
@@ -201,6 +214,27 @@ class Story(Base):
         index=True,
     )
     moderation_reviewed_at = Column(DateTime, nullable=True)
+
+    content_status = Column(
+        ASSET_REVIEW_STATUS,
+        nullable=False,
+        default=AssetReviewStatus.pending,
+        server_default="pending",
+    )
+    cover_status = Column(
+        ASSET_REVIEW_STATUS,
+        nullable=False,
+        default=AssetReviewStatus.missing,
+        server_default="missing",
+    )
+    voice_status = Column(
+        ASSET_REVIEW_STATUS,
+        nullable=False,
+        default=AssetReviewStatus.missing,
+        server_default="missing",
+    )
+    voice_not_required = Column(Boolean, default=False, nullable=False, server_default="false")
+    published_at = Column(DateTime, nullable=True)
 
     # Timestamps
     created_at = Column(

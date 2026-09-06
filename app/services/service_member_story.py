@@ -69,6 +69,12 @@ from app.utils.story_image_prompt import try_generate_story_cover
 logger = logging.getLogger(__name__)
 
 STORY_REFERENCE_PREFIX = "TTL"
+
+
+def public_story_share_url(story_id) -> str:
+    return f"{settings.FRONTEND_URL}/details/{story_id}"
+
+
 DEFAULT_VOICE_NAME = "Sophia"
 
 ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp"}
@@ -979,7 +985,7 @@ class MemberStoryService:
             cover_image_url=story.cover_image_url,
             audio_url=story.audio_path,
             audio_duration_seconds=story.audio_duration_seconds,
-            share_url=f"{settings.FRONTEND_URL}/stories/{story.id}",
+            share_url=public_story_share_url(story.id),
             intros=SocialIntros(**story.social_intros),
             generated_at=_isoformat(story.social_intros_generated_at),
         )

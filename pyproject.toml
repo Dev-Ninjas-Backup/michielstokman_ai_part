@@ -26,3 +26,13 @@ dependencies = [
     "uvicorn[standard]>=0.42.0",
     "Pillow>=10.2.0",
 ]
+
+[project.optional-dependencies]
+dev = [
+    "httpx>=0.28.0",
+    "pytest>=8.0.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
