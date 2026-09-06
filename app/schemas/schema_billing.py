@@ -19,7 +19,7 @@ class SubscriptionPlanResponse(BaseModel):
 
 
 class StartCheckoutRequest(BaseModel):
-    user_id: UUID4
+    user_id: UUID4 | None = None
     plan_id: UUID4 | None = None
     journey_id: UUID4 | None = None
     journey_code: str | None = None
@@ -78,7 +78,7 @@ class SubscriptionStatusResponse(BaseModel):
 
 
 class CancelSubscriptionRequest(BaseModel):
-    user_id: UUID4
+    user_id: UUID4 | None = None
 
 
 class CancelSubscriptionResponse(BaseModel):

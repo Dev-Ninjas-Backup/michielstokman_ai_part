@@ -8,7 +8,7 @@ from app.core.responses import ApiResponse, success_response
 from app.schemas.user import UserCreate, UserLogin, SocialLoginRequest, Token
 from app.services.service_auth import register_new_user, authenticate_user, signout_user, authenticate_social_user
 from app.services.service_profile import get_current_user_profile
-from app.api.deps import get_current_user
+from app.api.deps import get_current_user, refresh_access_token
 from app.model.user import User
 from app.schemas.profile import UserProfileResponse
 from app.utils.messages import (
@@ -222,18 +222,23 @@ def get_auth_profile(
 
 
 @router.post("/auth/refresh")
-def refresh_token(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def refresh_token(
+    authorization: str | None = Header(None),
+    db: Session = Depends(get_db),
+):
     """
-    Returns a fresh JWT access token for the currently authenticated user.
+    Returns a fresh JWT access token for the current session.
+
+    Send the existing access token as `Authorization: Bearer <token>`.
+    The token may be expired by up to 7 days; revoked tokens cannot refresh.
     """
-    from app.core.config import settings
-    from app.core.security import create_access_token
-    access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-    access_token = create_access_token(
-        data={"sub": str(current_user.id)},
-        user_token_version=current_user.token_version,
-        expires_delta=access_token_expires,
-    )
+    if not authorization or len(authorization.split()) != 2 or authorization.split()[0].lower() != "bearer":
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not authenticated",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    access_token = refresh_access_token(db, authorization.split()[1])
     return {
         "status": status.HTTP_200_OK,
         "success": True,

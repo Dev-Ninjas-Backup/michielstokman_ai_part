@@ -1,3 +1,4 @@
+from datetime import datetime, timedelta, timezone
 from typing import Generator, Optional
 from fastapi import Depends, HTTPException, status, Request
 from fastapi.security import OAuth2PasswordBearer
@@ -7,10 +8,84 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.db import get_db
+from app.core.security import create_access_token
 from app.data.user import get_user_by_id
 from app.model.user import User
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"/v1/login")
+
+TOKEN_INVALIDATED_DETAIL = "Token has been invalidated. Please login again."
+
+
+def _assert_token_version(payload: dict, user: User) -> None:
+    """Reject JWTs whose version no longer matches User.token_version (sign-out)."""
+    if user.token_version != payload.get("version"):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=TOKEN_INVALIDATED_DETAIL,
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+
+def refresh_access_token(db: Session, token: str) -> str:
+    """
+    Issue a new access token from an existing JWT.
+
+    Signature and token_version are required. Expiry is allowed within a 7-day
+    grace window so the frontend can rotate a near-expired or just-expired token
+    without a separate refresh-token family.
+    """
+    try:
+        payload = jwt.decode(
+            token,
+            settings.SECRET_KEY,
+            algorithms=[settings.ALGORITHM],
+            options={"verify_exp": False},
+        )
+    except jwt.InvalidTokenError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Could not validate credentials",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    user_id = payload.get("sub")
+    if not user_id:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Could not validate credentials",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    exp = payload.get("exp")
+    if exp is not None:
+        expired_at = datetime.fromtimestamp(exp, tz=timezone.utc)
+        if datetime.now(timezone.utc) - expired_at > timedelta(days=7):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Token is too old to refresh. Please login again.",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+
+    if payload.get("is_guest"):
+        return create_access_token(
+            data={"sub": str(user_id), "is_guest": True},
+            user_token_version=0,
+            expires_delta=timedelta(minutes=settings.GUEST_TOKEN_EXPIRE_MINUTES),
+        )
+
+    user = get_user_by_id(db, user_id=user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    if not user.is_active:
+        raise HTTPException(status_code=400, detail="Inactive user")
+    _assert_token_version(payload, user)
+    return create_access_token(
+        data={"sub": str(user.id)},
+        user_token_version=user.token_version,
+        expires_delta=timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES),
+    )
+
 
 def get_current_user(
     db: Session = Depends(get_db),
@@ -32,6 +107,8 @@ def get_current_user(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="This feature requires a registered account. Please sign up or log in.",
             )
+    except HTTPException:
+        raise
     except (jwt.PyJWTError, ValidationError):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -43,6 +120,7 @@ def get_current_user(
         raise HTTPException(status_code=404, detail="User not found")
     if not user.is_active:
         raise HTTPException(status_code=400, detail="Inactive user")
+    _assert_token_version(payload, user)
     return user
 
 
@@ -85,6 +163,7 @@ def get_current_user_optional(
         raise HTTPException(status_code=404, detail="User not found")
     if not user.is_active:
         raise HTTPException(status_code=400, detail="Inactive user")
+    _assert_token_version(payload, user)
     return user
 
 
@@ -173,6 +252,7 @@ def get_current_user_or_guest(
         raise HTTPException(status_code=404, detail="User not found")
     if not user.is_active:
         raise HTTPException(status_code=400, detail="Inactive user")
+    _assert_token_version(payload, user)
     return {"user": user, "is_guest": False, "guest_id": None}
 
 

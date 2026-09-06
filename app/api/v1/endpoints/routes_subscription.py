@@ -35,6 +35,11 @@ def get_subscription_status(
 
 
 @router.post("/subscription/cancel", response_model=ApiResponse[CancelSubscriptionResponse])
-def cancel_subscription(payload: CancelSubscriptionRequest, db: Session = Depends(get_db)):
-    result = BillingService.cancel_user_subscription(db=db, user_id=payload.user_id)
+def cancel_subscription(
+    payload: CancelSubscriptionRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    _ = payload
+    result = BillingService.cancel_user_subscription(db=db, user_id=current_user.id)
     return success_response("Subscription cancellation processed", status.HTTP_200_OK, result)

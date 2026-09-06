@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from app.core.db import get_db
 from app.core.responses import ApiResponse, success_response
 from app.api.deps import get_current_admin_user, get_current_user
+from app.core.rate_limit import rate_limit_public_ai
 from app.model.user import User
 import app.data.story as story_data
 import app.data.credit as credit_data
@@ -43,6 +44,7 @@ router = APIRouter()
 async def ai_search(
     query: str = Query(None, alias="q", description="The user's query about how they feel"),
     q: str = Query(None, description="Alias: same as 'query' — the user's query"),
+    _: None = Depends(rate_limit_public_ai),
 ):
     """
     Takes a natural language query and returns the top 5 track IDs
@@ -63,7 +65,10 @@ async def ai_search(
 # ---------------------------------------------------------------------------
 
 @router.post("/ai/resonance", response_model=ApiResponse[ResonanceResponse])
-async def generate_resonance_question(request: ResonanceRequest):
+async def generate_resonance_question(
+    request: ResonanceRequest,
+    _: None = Depends(rate_limit_public_ai),
+):
     """
     Takes track logic and user emotional sliders and generates a deeply
     reflective journaling question via SuperGrok.
