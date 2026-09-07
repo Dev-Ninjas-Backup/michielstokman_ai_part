@@ -8,7 +8,7 @@ import uuid
 from datetime import datetime, timezone
 from sqlalchemy import Column, String, Text, Float, DateTime, ForeignKey, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID, ARRAY
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import backref, relationship
 from app.core.db import Base
 
 
@@ -54,7 +54,17 @@ class StoryFeedback(Base):
     )
 
     # Relationships
-    story = relationship("Story", backref="feedback_entries")
+    # DB already has ON DELETE CASCADE. Without passive_deletes, SQLAlchemy loads
+    # feedback_entries on story delete and tries to NULL story_id — which 500s
+    # because the column is NOT NULL (admin DELETE /v1/admin/moderation/story/{id}).
+    story = relationship(
+        "Story",
+        backref=backref(
+            "feedback_entries",
+            cascade="all, delete-orphan",
+            passive_deletes=True,
+        ),
+    )
     user = relationship("User", backref="story_feedback")
 
     # One feedback per user per story

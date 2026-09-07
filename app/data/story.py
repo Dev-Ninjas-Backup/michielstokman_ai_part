@@ -861,7 +861,17 @@ def delete_story(db: Session, story: Story) -> None:
     import os
     logger = logging.getLogger(__name__)
 
+    from app.model.feedback import StoryFeedback
+
     audio_path: str | None = story.audio_path
+    story_pk = story.id
+
+    # Remove dependent feedback first. The FK has ON DELETE CASCADE, but without an
+    # explicit delete (or relationship passive_deletes) SQLAlchemy loads children and
+    # attempts to NULL story_id — which fails because the column is NOT NULL.
+    db.query(StoryFeedback).filter(StoryFeedback.story_id == story_pk).delete(
+        synchronize_session="fetch"
+    )
 
     # ── 1. Delete the DB row first so the story is gone even if file cleanup fails ──
     db.delete(story)
