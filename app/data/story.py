@@ -856,7 +856,7 @@ def update_story_details(
     return story
 
 def delete_story(db: Session, story: Story) -> None:
-    """Permanently delete a story and its associated audio file from S3 or local disk."""
+    """Permanently delete a story, its feedback, and best-effort media (audio + cover)."""
     import logging
     import os
     logger = logging.getLogger(__name__)
@@ -864,6 +864,7 @@ def delete_story(db: Session, story: Story) -> None:
     from app.model.feedback import StoryFeedback
 
     audio_path: str | None = story.audio_path
+    cover_key: str | None = story.cover_image_key
     story_pk = story.id
 
     # Remove dependent feedback first. The FK has ON DELETE CASCADE, but without an
@@ -877,7 +878,15 @@ def delete_story(db: Session, story: Story) -> None:
     db.delete(story)
     db.commit()
 
-    # ── 2. Best-effort file cleanup ───────────────────────────────────────────────
+    # ── 2. Best-effort media cleanup ──────────────────────────────────────────────
+    if cover_key:
+        try:
+            from app.utils.s3 import delete_s3_object
+
+            delete_s3_object(cover_key)
+        except Exception as exc:  # noqa: BLE001 — story row is already gone
+            logger.warning("Could not delete cover '%s': %s", cover_key, exc)
+
     if not audio_path:
         return
 

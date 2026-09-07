@@ -24,21 +24,45 @@ class User(Base):
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
     last_login = Column(DateTime, nullable=True)
 
-    # Relationship to handle OAuth accounts (Option 2 approach)
-    oauth_accounts = relationship("UserOAuthAccount", back_populates="user", cascade="all, delete-orphan")
-    subscriptions = relationship("UserSubscription", back_populates="user", cascade="all, delete-orphan")
-    payments = relationship("PaymentTransaction", back_populates="user", cascade="all, delete-orphan")
-
-    
-    # Relationship to handle UserProfile
-    profile = relationship("UserProfile", back_populates="user", uselist=False, cascade="all, delete-orphan")
+    # Owned rows: DB ON DELETE CASCADE + passive_deletes so SQLAlchemy does not
+    # try to NULL NOT NULL child FKs on hard delete.
+    oauth_accounts = relationship(
+        "UserOAuthAccount",
+        back_populates="user",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+    subscriptions = relationship(
+        "UserSubscription",
+        back_populates="user",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+    payments = relationship(
+        "PaymentTransaction",
+        back_populates="user",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+    profile = relationship(
+        "UserProfile",
+        back_populates="user",
+        uselist=False,
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
 
 
 class UserOAuthAccount(Base):
     __tablename__ = "user_oauth_accounts"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, index=True)
+    user_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
     provider = Column(String, nullable=False)  # e.g., 'google', 'apple', 'github'
     provider_account_id = Column(String, nullable=False)  # e.g., the unique ID provided by Google
     

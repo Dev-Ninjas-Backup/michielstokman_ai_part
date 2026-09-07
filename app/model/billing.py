@@ -51,7 +51,12 @@ class UserSubscription(Base):
     __tablename__ = "user_subscriptions"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), index=True, nullable=False)
+    user_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        index=True,
+        nullable=False,
+    )
     plan_id = Column(UUID(as_uuid=True), ForeignKey("subscription_plans.id"), index=True, nullable=False)
     status = Column(Enum(SubscriptionStatus), default=SubscriptionStatus.active, nullable=False)
     provider_customer_id = Column(String, nullable=True)
@@ -81,7 +86,12 @@ class PaymentTransaction(Base):
     __tablename__ = "payment_transactions"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), index=True, nullable=False)
+    user_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        index=True,
+        nullable=False,
+    )
     plan_id = Column(UUID(as_uuid=True), ForeignKey("subscription_plans.id"), index=True, nullable=False)
     subscription_id = Column(UUID(as_uuid=True), ForeignKey("user_subscriptions.id"), index=True, nullable=True)
     provider = Column(String, default="mockpay", nullable=False)

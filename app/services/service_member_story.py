@@ -429,11 +429,6 @@ class MemberStoryService:
     def delete_story(db: Session, user: User, story_id: str) -> str:
         story = _require_story(db, user, story_id)
         _require_not_processing(story)
-
-        if story.cover_image_key:
-            from app.utils.s3 import delete_s3_object
-            delete_s3_object(story.cover_image_key)
-
         story_data.delete_story(db, story)
         return story_id
 
