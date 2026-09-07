@@ -1,0 +1,41 @@
+name: Backdoor Scan
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out the code
+        uses: actions/checkout@v6
+
+      - name: Reject editor auto-run configuration
+        run: |
+          # A planted .vscode task with runOn=folderOpen executes as soon as the
+          # repo is opened, and allowAutomaticTasks suppresses the confirmation
+          # prompt. Neither has a legitimate use here.
+          if [ -d .vscode ] && grep -rInE 'folderOpen|allowAutomaticTasks' .vscode; then
+            echo "::error::Editor auto-run configuration found under .vscode"
+            exit 1
+          fi
+
+      - name: Reject executable payloads disguised as assets
+        run: |
+          # Fonts and images must be binary. A text file behind one of these
+          # extensions is how the earlier backdoor smuggled in its JS payload.
+          disguised=0
+          while IFS= read -r path; do
+            case "$(file -b "$path")" in
+              *text*)
+                echo "::error file=$path::Asset is text, not binary"
+                disguised=1
+                ;;
+            esac
+          done < <(git ls-files -- '*.woff' '*.woff2' '*.ttf' '*.eot' '*.png' '*.jpg' '*.jpeg' '*.gif' '*.ico')
+          exit $disguised
