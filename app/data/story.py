@@ -120,6 +120,19 @@ def complete_story(
         story.audio_duration_seconds = audio_duration_seconds
     if alignment is not None:
         story.alignment = alignment
+
+    from app.model.story import AssetReviewStatus
+
+    if audio_path:
+        # Newly generated narration still needs a listen.
+        story.voice_status = AssetReviewStatus.ready_for_review
+    # Only nudge the text forward if nobody has ruled on it yet — this runs again
+    # on admin re-narration and must not undo an approval.
+    if asset_status_value(story.content_status) in ("missing", "pending") and (
+        story_text or ""
+    ).strip():
+        story.content_status = AssetReviewStatus.ready_for_review
+
     db.commit()
     db.refresh(story)
     return story
@@ -291,6 +304,8 @@ def set_story_audio(
     alignment: Optional[list] = None,
 ) -> Story:
     """Replaces the narration on an existing story (used when re-narrating)."""
+    from app.model.story import AssetReviewStatus
+
     story.audio_path = audio_path
     story.voice_name = voice_name
     story.voice_id = voice_id
@@ -300,6 +315,10 @@ def set_story_audio(
     if alignment is not None:
         story.alignment = alignment
     story.generation_status = GenerationStatus.completed
+    # Fresh narration has not been approved yet.
+    story.voice_status = (
+        AssetReviewStatus.ready_for_review if audio_path else AssetReviewStatus.missing
+    )
     db.commit()
     db.refresh(story)
     return story
@@ -313,9 +332,15 @@ def set_story_cover(
     source,
 ) -> Story:
     """Points a story at a new cover image and records where it came from."""
+    from app.model.story import AssetReviewStatus
+
     story.cover_image_url = image_url
     story.cover_image_key = image_key
     story.image_source = source
+    # A new image has not been looked at yet, so it goes back for review.
+    story.cover_status = (
+        AssetReviewStatus.ready_for_review if image_url else AssetReviewStatus.missing
+    )
     db.commit()
     db.refresh(story)
     return story
@@ -366,50 +391,209 @@ def get_stories_by_type_today(db: Session) -> dict:
 
 # Moderation functions
 
-def get_moderation_stories(db: Session, limit: int = 20, offset: int = 0, status_filter: Optional[str] = None, search: Optional[str] = None) -> list[Story]:
-    """Get all stories for moderation, optionally filtered by status and search."""
-    from app.model.story import ModerationStatus, SubmissionStatus
+# ---------------------------------------------------------------------------
+# Publication status
+#
+# A publication is one record made of three assets: written content, story card
+# and voice. `publication_status` is the single rung the dashboard shows for the
+# record as a whole, derived from the three per-asset columns. The Python and SQL
+# forms below must agree — one drives the payload, the other drives filtering and
+# sorting, which has to happen in SQL for pagination to be correct.
+# ---------------------------------------------------------------------------
+
+ASSET_FIELDS = {
+    "content": "content_status",
+    "cover": "cover_status",
+    "voice": "voice_status",
+}
+
+
+def asset_status_value(value) -> str:
+    """Asset columns come back as an Enum from the ORM and a str from raw SQL."""
+    return getattr(value, "value", None) or str(value or "")
+
+
+def _required_asset_values(story: Story) -> list[str]:
+    required = [story.content_status, story.cover_status]
+    if not story.voice_not_required:
+        required.append(story.voice_status)
+    return [asset_status_value(value) for value in required]
+
+
+def publication_status(story: Story) -> str:
+    """Derive the overall rung for one story. Mirrors `publication_status_expr()`."""
+    from app.model.story import ModerationStatus
+
+    if story.moderation_status == ModerationStatus.rejected:
+        return "rejected"
+    if story.published_at is not None:
+        return "published"
+
+    values = _required_asset_values(story)
+    if all(value == "approved" for value in values):
+        return "ready_for_review"
+    if any(value == "missing" for value in values):
+        return "missing"
+    if any(value in ("approved", "in_progress") for value in values):
+        return "in_progress"
+    if story.moderation_status == ModerationStatus.flagged:
+        return "ready_for_review"
+    return "pending"
+
+
+def publish_blockers(story: Story) -> list[str]:
+    """Reasons this publication may not go live. Empty list means publishable."""
+    from app.model.story import ModerationStatus
+
+    if story.published_at is not None:
+        return ["Already published"]
+    if story.moderation_status == ModerationStatus.rejected:
+        return ["This publication was rejected"]
+
+    blockers: list[str] = []
+    if asset_status_value(story.content_status) != "approved":
+        blockers.append("Written content is not approved")
+    if asset_status_value(story.cover_status) != "approved":
+        blockers.append("Story card is not approved")
+    if not story.voice_not_required and asset_status_value(story.voice_status) != "approved":
+        blockers.append("Voice is not approved")
+    return blockers
+
+
+def publication_status_expr():
+    """SQL twin of `publication_status()`, for filtering and sorting."""
+    from sqlalchemy import and_, case, literal, or_
+    from app.model.story import AssetReviewStatus, ModerationStatus
+
+    counts_voice = Story.voice_not_required.is_(False)
+    in_flight = [AssetReviewStatus.approved, AssetReviewStatus.in_progress]
+
+    all_approved = and_(
+        Story.content_status == AssetReviewStatus.approved,
+        Story.cover_status == AssetReviewStatus.approved,
+        or_(
+            Story.voice_not_required.is_(True),
+            Story.voice_status == AssetReviewStatus.approved,
+        ),
+    )
+    any_missing = or_(
+        Story.content_status == AssetReviewStatus.missing,
+        Story.cover_status == AssetReviewStatus.missing,
+        and_(counts_voice, Story.voice_status == AssetReviewStatus.missing),
+    )
+    any_in_flight = or_(
+        Story.content_status.in_(in_flight),
+        Story.cover_status.in_(in_flight),
+        and_(counts_voice, Story.voice_status.in_(in_flight)),
+    )
+
+    return case(
+        (Story.moderation_status == ModerationStatus.rejected, literal("rejected")),
+        (Story.published_at.isnot(None), literal("published")),
+        (all_approved, literal("ready_for_review")),
+        (any_missing, literal("missing")),
+        (any_in_flight, literal("in_progress")),
+        (Story.moderation_status == ModerationStatus.flagged, literal("ready_for_review")),
+        else_=literal("pending"),
+    )
+
+
+SORT_OPTIONS = {
+    "submitted_desc": lambda: Story.created_at.desc(),
+    "submitted_asc": lambda: Story.created_at.asc(),
+    "updated_desc": lambda: Story.updated_at.desc(),
+    "updated_asc": lambda: Story.updated_at.asc(),
+}
+
+
+def _moderation_query(
+    db: Session,
+    status_filter: Optional[str] = None,
+    search: Optional[str] = None,
+    story_type: Optional[str] = None,
+    missing: Optional[list[str]] = None,
+    publication_status_filter: Optional[str] = None,
+):
+    """Shared filter chain so the list and its count can never disagree."""
+    from app.model.story import (
+        AssetReviewStatus,
+        ModerationStatus,
+        StoryType,
+        SubmissionStatus,
+    )
     from app.model.user import User
-    
+
     query = db.query(Story).filter(
         Story.generation_status == GenerationStatus.completed,
         Story.submission_status != SubmissionStatus.withdrawn,
     )
-    
-    if status_filter and status_filter.lower() != 'all':
+
+    if status_filter and status_filter.lower() != "all":
         query = query.filter(Story.moderation_status == ModerationStatus(status_filter.lower()))
-        
+
+    if story_type and story_type.lower() != "all":
+        query = query.filter(Story.story_type == StoryType(_normalize_story_type(story_type)))
+
+    for asset in missing or []:
+        field = ASSET_FIELDS.get(asset.strip().lower())
+        if field:
+            query = query.filter(getattr(Story, field) == AssetReviewStatus.missing)
+
+    if publication_status_filter and publication_status_filter.lower() != "all":
+        query = query.filter(publication_status_expr() == publication_status_filter.lower())
+
     if search:
         search_term = f"%{search}%"
         query = query.outerjoin(User, Story.user_id == User.id).filter(
-            (Story.title.ilike(search_term)) | 
-            (User.email.ilike(search_term))
+            (Story.title.ilike(search_term))
+            | (Story.first_name.ilike(search_term))
+            | (User.email.ilike(search_term))
         )
-        
-    return query.order_by(Story.created_at.desc()).offset(offset).limit(limit).all()
+
+    return query
 
 
-def count_moderation_stories(db: Session, status_filter: Optional[str] = None, search: Optional[str] = None) -> int:
-    """Count stories for moderation, optionally filtered by status and search."""
-    from app.model.story import ModerationStatus, SubmissionStatus
-    from app.model.user import User
-    
-    query = db.query(Story).filter(
-        Story.generation_status == GenerationStatus.completed,
-        Story.submission_status != SubmissionStatus.withdrawn,
+def get_moderation_stories(
+    db: Session,
+    limit: int = 20,
+    offset: int = 0,
+    status_filter: Optional[str] = None,
+    search: Optional[str] = None,
+    story_type: Optional[str] = None,
+    missing: Optional[list[str]] = None,
+    publication_status_filter: Optional[str] = None,
+    sort: Optional[str] = None,
+) -> list[Story]:
+    """Get all stories for moderation, optionally filtered, sorted and paginated."""
+    query = _moderation_query(
+        db,
+        status_filter=status_filter,
+        search=search,
+        story_type=story_type,
+        missing=missing,
+        publication_status_filter=publication_status_filter,
     )
-    
-    if status_filter and status_filter.lower() != 'all':
-        query = query.filter(Story.moderation_status == ModerationStatus(status_filter.lower()))
-        
-    if search:
-        search_term = f"%{search}%"
-        query = query.outerjoin(User, Story.user_id == User.id).filter(
-            (Story.title.ilike(search_term)) | 
-            (User.email.ilike(search_term))
-        )
-        
-    return query.count()
+    order_by = SORT_OPTIONS.get((sort or "").lower(), SORT_OPTIONS["submitted_desc"])
+    return query.order_by(order_by()).offset(offset).limit(limit).all()
+
+
+def count_moderation_stories(
+    db: Session,
+    status_filter: Optional[str] = None,
+    search: Optional[str] = None,
+    story_type: Optional[str] = None,
+    missing: Optional[list[str]] = None,
+    publication_status_filter: Optional[str] = None,
+) -> int:
+    """Count stories matching the same filters as `get_moderation_stories`."""
+    return _moderation_query(
+        db,
+        status_filter=status_filter,
+        search=search,
+        story_type=story_type,
+        missing=missing,
+        publication_status_filter=publication_status_filter,
+    ).count()
 
 def get_moderation_stats(db: Session) -> dict:
     """Get counts of stories by moderation status."""
@@ -430,25 +614,34 @@ def approve_story(
     notes: Optional[str] = None,
 ) -> Story:
     """Mark story as approved. Optional notes are stored but not shown as a member fix-request."""
-    from app.model.story import ModerationStatus
+    from app.model.story import AssetReviewStatus, ModerationStatus
     from datetime import datetime, timezone
+    now = datetime.now(timezone.utc)
     story.moderation_status = ModerationStatus.approved
     story.moderation_reviewed_by = uuid.UUID(reviewed_by_id)
-    story.moderation_reviewed_at = datetime.now(timezone.utc)
+    story.moderation_reviewed_at = now
     if notes is not None:
         story.moderation_notes = notes.strip() or None
+    # This is the legacy one-shot approval: it puts the story on the public feed,
+    # so record it as published and approved so the dashboard agrees.
+    story.content_status = AssetReviewStatus.approved
+    if story.published_at is None:
+        story.published_at = now
     db.commit()
     db.refresh(story)
     return story
 
 def reject_story(db: Session, story: Story, reviewed_by_id: str, notes: Optional[str] = None) -> Story:
     """Mark story as rejected with optional notes."""
-    from app.model.story import ModerationStatus
+    from app.model.story import AssetReviewStatus, ModerationStatus
     from datetime import datetime, timezone
     story.moderation_status = ModerationStatus.rejected
     story.moderation_reviewed_by = uuid.UUID(reviewed_by_id)
     story.moderation_reviewed_at = datetime.now(timezone.utc)
     story.moderation_notes = notes
+    story.content_status = AssetReviewStatus.rejected
+    # A rejected piece is not live, so it must not read as published.
+    story.published_at = None
     db.commit()
     db.refresh(story)
     return story
@@ -461,12 +654,89 @@ def request_story_changes(
     notes: str,
 ) -> Story:
     """Keep the piece off the public feed and ask the member to revise."""
-    from app.model.story import ModerationStatus
+    from app.model.story import AssetReviewStatus, ModerationStatus
     from datetime import datetime, timezone
     story.moderation_status = ModerationStatus.pending
     story.moderation_reviewed_by = uuid.UUID(reviewed_by_id)
     story.moderation_reviewed_at = datetime.now(timezone.utc)
     story.moderation_notes = notes.strip()
+    # Waiting on the member again, so the text is no longer review-ready.
+    story.content_status = AssetReviewStatus.pending
+    story.published_at = None
+    db.commit()
+    db.refresh(story)
+    return story
+
+
+def set_asset_status(
+    db: Session,
+    story: Story,
+    asset: str,
+    status,
+    reviewed_by_id: Optional[str] = None,
+    notes: Optional[str] = None,
+) -> Story:
+    """Set one of content_status / cover_status / voice_status."""
+    from datetime import datetime, timezone
+
+    field = ASSET_FIELDS.get(asset)
+    if not field:
+        raise ValueError(f"unknown asset '{asset}'")
+
+    setattr(story, field, status)
+    if reviewed_by_id:
+        story.moderation_reviewed_by = uuid.UUID(reviewed_by_id)
+        story.moderation_reviewed_at = datetime.now(timezone.utc)
+    if notes is not None:
+        story.moderation_notes = notes.strip() or None
+    db.commit()
+    db.refresh(story)
+    return story
+
+
+def set_voice_requirement(db: Session, story: Story, not_required: bool) -> Story:
+    """Flag a publication as intentionally having no voice."""
+    from app.model.story import AssetReviewStatus
+
+    story.voice_not_required = bool(not_required)
+    if not_required and asset_status_value(story.voice_status) == "missing":
+        # Nothing is outstanding once voice is deliberately dropped.
+        story.voice_status = AssetReviewStatus.approved
+    db.commit()
+    db.refresh(story)
+    return story
+
+
+def publish_story(db: Session, story: Story, reviewed_by_id: str) -> Story:
+    """Take an approved record live. Caller must check `publish_blockers` first."""
+    from app.model.story import ModerationStatus
+    from datetime import datetime, timezone
+
+    now = datetime.now(timezone.utc)
+    story.moderation_status = ModerationStatus.approved
+    story.published_at = now
+    story.moderation_reviewed_by = uuid.UUID(reviewed_by_id)
+    story.moderation_reviewed_at = now
+    db.commit()
+    db.refresh(story)
+    return story
+
+
+def mark_voice_regenerating(db: Session, story: Story) -> Story:
+    """Show the voice as being worked on while a background job runs."""
+    from app.model.story import AssetReviewStatus
+
+    story.voice_status = AssetReviewStatus.in_progress
+    db.commit()
+    db.refresh(story)
+    return story
+
+
+def mark_cover_regenerating(db: Session, story: Story) -> Story:
+    """Show the story card as being worked on while a background job runs."""
+    from app.model.story import AssetReviewStatus
+
+    story.cover_status = AssetReviewStatus.in_progress
     db.commit()
     db.refresh(story)
     return story
@@ -493,6 +763,8 @@ def update_story_details(
     hero_tagline: Optional[str] = None,
     first_name: Optional[str] = None,
     location: Optional[str] = None,
+    city: Optional[str] = None,
+    country: Optional[str] = None,
     gender: Optional[str] = None,
     sexual_orientation: Optional[str] = None,
     occupation: Optional[str] = None,
@@ -504,14 +776,22 @@ def update_story_details(
     editorial_brief: Optional[str] = None,
     voice_name: Optional[str] = None,
     voice_id: Optional[str] = None,
+    voice_not_required: Optional[bool] = None,
 ) -> Story:
     """Update editorial fields. Never touches audio_path or story_input."""
+    from app.model.story import AssetReviewStatus
+
     if title is not None:
         story.title = title
     if story_type is not None:
         from app.model.story import StoryType
         story.story_type = StoryType(_normalize_story_type(story_type))
     if story_text is not None:
+        # Editing the text invalidates an existing verdict on it.
+        if story_text != (story.story_text or "") and asset_status_value(
+            story.content_status
+        ) in ("approved", "rejected"):
+            story.content_status = AssetReviewStatus.ready_for_review
         story.story_text = story_text
     if hero_hook is not None:
         story.hero_hook = hero_hook
@@ -521,6 +801,15 @@ def update_story_details(
         story.first_name = first_name
     if location is not None:
         story.location = location
+    if city is not None:
+        story.city = city.strip() or None
+    if country is not None:
+        story.country = country.strip() or None
+    if city is not None or country is not None:
+        # Keep the legacy single-string column in step; public responses read it.
+        story.location = ", ".join(
+            part for part in [(story.city or "").strip(), (story.country or "").strip()] if part
+        ) or None
     if gender is not None:
         story.gender = gender
     if sexual_orientation is not None:
@@ -543,6 +832,10 @@ def update_story_details(
         story.voice_name = voice_name
     if voice_id is not None:
         story.voice_id = voice_id
+    if voice_not_required is not None:
+        story.voice_not_required = bool(voice_not_required)
+        if voice_not_required and asset_status_value(story.voice_status) == "missing":
+            story.voice_status = AssetReviewStatus.approved
     db.commit()
     db.refresh(story)
     return story

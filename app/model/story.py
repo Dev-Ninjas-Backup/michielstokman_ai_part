@@ -128,7 +128,11 @@ class Story(Base):
     # Snapshot of the user's profile context at generation time
     # Figma Inputs
     first_name = Column(String, nullable=True)
+    # `location` is the legacy single-string form kept in sync with city/country so
+    # existing public responses keep working.
     location = Column(String, nullable=True)
+    city = Column(String, nullable=True)
+    country = Column(String, nullable=True)
     gender = Column(String, nullable=True)
     sexual_orientation = Column(String, nullable=True)
     occupation = Column(String, nullable=True)

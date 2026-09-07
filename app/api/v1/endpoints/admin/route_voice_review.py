@@ -132,11 +132,13 @@ def regenerate_voice(
     if not story.story_text:
         raise HTTPException(status_code=400, detail="Story has no text to generate audio from.")
 
-    from app.model.story import GenerationStatus
+    from app.model.story import AssetReviewStatus, GenerationStatus
     import uuid
     new_job_id = str(uuid.uuid4())
     story.generation_status = GenerationStatus.processing
     story.job_id = new_job_id
+    # Show the publications dashboard that narration is being worked on.
+    story.voice_status = AssetReviewStatus.in_progress
     db.commit()
 
     # Define a simple background task to regenerate audio and save it
