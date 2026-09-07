@@ -9,6 +9,7 @@ from typing import Optional
 from sqlalchemy.orm import Session
 
 from app.model.story import Story, StoryType, GenerationStatus, SubmissionMode
+from app.utils.location import join_location, split_location
 from app.utils.story_title import sync_active_title
 
 
@@ -21,6 +22,8 @@ def create_story(
     title: Optional[str] = None,
     first_name: Optional[str] = None,
     location: Optional[str] = None,
+    city: Optional[str] = None,
+    country: Optional[str] = None,
     gender: Optional[str] = None,
     sexual_orientation: Optional[str] = None,
     occupation: Optional[str] = None,
@@ -59,6 +62,16 @@ def create_story(
         submitted_text if (mode_value == "human_ready" or audio_path) else None
     )
 
+    resolved_city = city.strip() if city and str(city).strip() else None
+    resolved_country = country.strip() if country and str(country).strip() else None
+    resolved_location = location.strip() if location and str(location).strip() else None
+    # Prefer explicit city/country; otherwise split a legacy single location string
+    # so the admin dashboard never opens with empty place fields.
+    if (resolved_city or resolved_country) and not resolved_location:
+        resolved_location = join_location(resolved_city, resolved_country)
+    elif resolved_location and not resolved_city and not resolved_country:
+        resolved_city, resolved_country = split_location(resolved_location)
+
     story = Story(
         story_type=story_type,
         job_id=job_id,
@@ -69,7 +82,9 @@ def create_story(
         member_title=title.strip() if title and title.strip() else None,
         use_ai_title=False,
         first_name=first_name,
-        location=location,
+        location=resolved_location,
+        city=resolved_city,
+        country=resolved_country,
         gender=gender,
         sexual_orientation=sexual_orientation,
         occupation=occupation,
@@ -799,17 +814,17 @@ def update_story_details(
         story.hero_tagline = hero_tagline
     if first_name is not None:
         story.first_name = first_name
-    if location is not None:
-        story.location = location
+    if location is not None and city is None and country is None:
+        # Legacy callers that still PUT `location` alone: store it and split.
+        story.location = location.strip() or None
+        story.city, story.country = split_location(story.location)
     if city is not None:
         story.city = city.strip() or None
     if country is not None:
         story.country = country.strip() or None
     if city is not None or country is not None:
         # Keep the legacy single-string column in step; public responses read it.
-        story.location = ", ".join(
-            part for part in [(story.city or "").strip(), (story.country or "").strip()] if part
-        ) or None
+        story.location = join_location(story.city, story.country)
     if gender is not None:
         story.gender = gender
     if sexual_orientation is not None:

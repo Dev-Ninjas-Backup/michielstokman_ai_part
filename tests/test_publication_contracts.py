@@ -191,3 +191,15 @@ def test_queue_row_describes_the_whole_publication():
 def test_story_model_declares_city_and_country():
     assert "city" in Story.__table__.columns
     assert "country" in Story.__table__.columns
+
+
+def test_split_location_uses_the_last_comma():
+    from app.utils.location import join_location, split_location
+
+    assert split_location("Amsterdam, Netherlands") == ("Amsterdam", "Netherlands")
+    assert split_location("Brooklyn, New York, USA") == ("Brooklyn, New York", "USA")
+    assert split_location("Lisbon") == ("Lisbon", None)
+    assert split_location("  ") == (None, None)
+    assert join_location("Amsterdam", "Netherlands") == "Amsterdam, Netherlands"
+    assert join_location("Lisbon", None) == "Lisbon"
+    assert join_location("", "") is None
