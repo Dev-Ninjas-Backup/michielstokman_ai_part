@@ -2,7 +2,7 @@ import json
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 # ---------------------------------------------------------------------------
@@ -73,8 +73,10 @@ class StoryGenerateRequest(BaseModel):
     title: Optional[str] = Field(None, description="Title of the submission")
     first_name: Optional[str] = Field(None, description="Public display name / pseudonym")
     location: Optional[str] = Field(
-        None, description="Place the story started or is set"
+        None, description="Legacy single-string place. Prefer city + country."
     )
+    city: Optional[str] = Field(None, description="City or place the story is set")
+    country: Optional[str] = Field(None, description="Country the story is set in")
     gender: Optional[str] = Field(
         None, description="Public gender / identity line, free text"
     )
@@ -155,6 +157,25 @@ class StoryGenerateRequest(BaseModel):
             )
         return canonical
 
+    @model_validator(mode="after")
+    def sync_place_fields(self) -> "StoryGenerateRequest":
+        """Keep location and city/country aligned whichever the client sent."""
+        from app.utils.location import join_location, split_location
+
+        city = (self.city or "").strip() or None
+        country = (self.country or "").strip() or None
+        location = (self.location or "").strip() or None
+
+        if (city or country) and not location:
+            location = join_location(city, country)
+        elif location and not city and not country:
+            city, country = split_location(location)
+
+        self.city = city
+        self.country = country
+        self.location = location
+        return self
+
     @classmethod
     def from_multipart(cls, form) -> "StoryGenerateRequest":
         """Builds a request from a multipart form so the image can travel with it."""
@@ -216,6 +237,8 @@ def _form_to_generate_dict(form) -> Dict[str, Any]:
         "title": _form_value(form, "title"),
         "first_name": _form_value(form, "first_name"),
         "location": _form_value(form, "location"),
+        "city": _form_value(form, "city"),
+        "country": _form_value(form, "country"),
         "gender": _form_value(form, "gender"),
         "sexual_orientation": _form_value(form, "sexual_orientation"),
         "occupation": _form_value(form, "occupation"),
