@@ -397,12 +397,11 @@ def get_story_detail(
             cover_image_url = None
 
     # --- Resolve author name ---
-    author_name = story.first_name
-    if not author_name and story.user and story.user.profile:
-        author_name = story.user.profile.true_name
-    
-    if not author_name and story.user:
-        author_name = story.user.email
+    # Public identity only. The author's real name and email are contact details:
+    # they stay in the admin workspace and must never reach a public response.
+    author_name = (story.first_name or "").strip() or None
+    if author_name and "@" in author_name:
+        author_name = None
 
     from app.utils.messages import STORY_UNTITLED
     result = StoryDetailUserResponse(
