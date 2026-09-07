@@ -82,8 +82,13 @@ class LiberationDefinition(Base):
     what_to_expect = Column(JSON, nullable=True)     # List of bullet points
     setup_instructions = Column(JSON, nullable=True) # "Before You Begin" items
 
-    # Who created it
-    created_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, index=True)
+    # Who created it — nullable so hard-deleting an admin does not wipe the catalog
+    created_by = Column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
     is_admin_created = Column(Boolean, default=False, nullable=False)
 
     # Moderation (user submissions start as "pending")
@@ -91,7 +96,11 @@ class LiberationDefinition(Base):
         Enum(DefinitionStatus), default=DefinitionStatus.pending, nullable=False
     )
     moderation_notes = Column(Text, nullable=True)
-    reviewed_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    reviewed_by = Column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+    )
     reviewed_at = Column(DateTime, nullable=True)
 
     is_active = Column(Boolean, default=True, nullable=False)   # Admin can deactivate
@@ -152,7 +161,12 @@ class UserJourney(Base):
     __tablename__ = "user_journeys"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, index=True)
+    user_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
 
     # Links back to the product catalog
     definition_id = Column(

@@ -65,7 +65,14 @@ class StoryFeedback(Base):
             passive_deletes=True,
         ),
     )
-    user = relationship("User", backref="story_feedback")
+    user = relationship(
+        "User",
+        backref=backref(
+            "story_feedback",
+            cascade="all, delete-orphan",
+            passive_deletes=True,
+        ),
+    )
 
     # One feedback per user per story
     __table_args__ = (

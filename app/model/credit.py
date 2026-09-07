@@ -10,7 +10,7 @@ import uuid
 from datetime import datetime, timezone
 from sqlalchemy import Column, Integer, DateTime, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import backref, relationship
 from app.core.db import Base
 
 
@@ -54,5 +54,8 @@ class UserCredit(Base):
         nullable=False,
     )
 
-    # Relationship
-    user = relationship("User", backref="credits")
+    # Relationship — DB CASCADE; passive_deletes avoids NULL-out on user wipe
+    user = relationship(
+        "User",
+        backref=backref("credits", cascade="all, delete-orphan", passive_deletes=True, uselist=False),
+    )
