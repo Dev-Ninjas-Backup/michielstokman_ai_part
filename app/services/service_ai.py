@@ -48,6 +48,7 @@ from app.utils.prompts import (
     EDITORIAL_BRIEF_HUMAN,
     build_story_system_template,
     build_user_context,
+    cover_identity_template_vars,
 )
 from app.utils.text import build_excerpt
 
@@ -163,6 +164,8 @@ class AIService:
         elif "male" in gender_lower or "man" in gender_lower:
             return random.choice(MALE_VOICES)
         else:
+            # Empty / unspecified gender: mixed pool. Independent of story
+            # PERSPECTIVE, which is now unspecified instead of default-female.
             all_options = FEMALE_VOICES + MALE_VOICES
             return random.choice(all_options)
 
@@ -186,6 +189,9 @@ class AIService:
         formatted_messages = chat_prompt.format_prompt(
             user_context=user_context,
             story_type=request.story_type.value,
+            **cover_identity_template_vars(
+                request.first_name, request.gender, request.location
+            ),
         ).to_messages()
 
         response = llm.invoke(formatted_messages)
@@ -607,12 +613,16 @@ class AIService:
 
             gender = None
             custom_voice_id = None
+            if story_row:
+                # Per-story identity, not the member's saved profile. SubmitWizard
+                # usually sends voice_name, so live TTS is unchanged. API/bulk jobs
+                # that omit both voice_name and gender now get unspecified PERSPECTIVE
+                # (not a silent female default); auto voice pick stays a mixed pool.
+                gender = story_row.gender or getattr(request, "gender", None)
             if story_row and story_row.user_id:
                 profile_row = db.query(UserProfile).filter(UserProfile.user_id == story_row.user_id).first()
-                if profile_row:
-                    gender = profile_row.gender
-                    if getattr(request, "use_custom_voice", False):
-                        custom_voice_id = profile_row.custom_voice_id
+                if profile_row and getattr(request, "use_custom_voice", False):
+                    custom_voice_id = profile_row.custom_voice_id
 
             keep_submitted = AIService._keep_submitted_narration(request, story_row)
 
@@ -745,6 +755,8 @@ class AIService:
             )
 
             # 2. Call AIService.generate_and_voice_story(request)
+            # Intentional: bulk jobs omit gender, so PERSPECTIVE is unspecified
+            # (no longer a silent female default). TTS auto-pick is unchanged.
             (
                 title, story_text, audio_path, voice_name,
                 image_prompt, alignment, voice_id, uses_custom_voice,

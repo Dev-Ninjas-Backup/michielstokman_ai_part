@@ -135,11 +135,28 @@ def compose_cover_image(
     final_img.save(out_io, format="JPEG", quality=90)
     return out_io.getvalue()
 
+def prepend_cover_identity_lock(
+    prompt: str,
+    *,
+    author_name: str,
+    gender: str | None,
+) -> str:
+    """Prefix the DALL-E prompt with a short identity lock Grok cannot overwrite."""
+    name = (author_name or "").strip() or "the author"
+    gender_label = (gender or "").strip() or "person"
+    lock = f"The person depicted MUST be {name}, a {gender_label}."
+    stripped = (prompt or "").strip()
+    if stripped.startswith("The person depicted MUST be "):
+        return stripped
+    return f"{lock} {stripped}".strip()
+
+
 def generate_ai_cover_image(
     title: str,
     story_type: str,
     author_name: str,
-    image_prompt: str
+    image_prompt: str,
+    gender: str | None = None,
 ) -> tuple[str, str] | tuple[None, None]:
     """
     Calls DALL-E 3 to generate the background image, applies the Pillow overlay,
@@ -162,8 +179,14 @@ def generate_ai_cover_image(
         subtitle = f"A meditation by {cleaned_author}"
     else:
         subtitle = f"A journey by {cleaned_author}"
+
+    dalle_prompt = prepend_cover_identity_lock(
+        image_prompt,
+        author_name=cleaned_author,
+        gender=gender,
+    )
         
-    logger.info(f"Generating OpenAI background for '{cleaned_title}' using model {settings.OPENAI_IMAGE_MODEL}. Prompt: {image_prompt}")
+    logger.info(f"Generating OpenAI background for '{cleaned_title}' using model {settings.OPENAI_IMAGE_MODEL}. Prompt: {dalle_prompt}")
     
     try:
         url = "https://api.openai.com/v1/images/generations"
@@ -177,7 +200,7 @@ def generate_ai_cover_image(
         
         payload = {
             "model": model,
-            "prompt": image_prompt,
+            "prompt": dalle_prompt,
             "n": 1,
             "size": size
         }

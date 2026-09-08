@@ -40,7 +40,7 @@ Rule 5: Use the chosen choices explicitly, but never force them — let them flo
 Rule 6: Length between 800-2400 words, with full sentences of at least 8 words (max 4% shorter), alternating raw and soft.
 Rule 7: No moralizing, stay neutral about gender, age or choices.
 Rule 8: Avoid repetition.
-Rule 9: Use different first names. Use all target countries (Europe, Africa, the Americas, Russia, India, Middle East, Asia, but not China. South Korea, no North Korea).
+Rule 9: In the story narrative only, other characters may use varied first names and settings across Europe, Africa, the Americas, Russia, India, Middle East, Asia (not China; South Korea, not North Korea). This does not apply to the cover art author-name tape, which must always use the real submitted name from the User Profile Block.
 Rule 10: Use good sentences like a writer. It is not poetry. Not AI.
 Rule 11: Describe the setting. Keep physical accuracy of the sequence of locations and actions in mind and make it neat.
 Rule 12: A story may be quite spicy. Change is always scary. Not every story has to be a breakthrough in the literal sense. A breakthrough in thinking and seeing is also great.
@@ -191,7 +191,7 @@ STORY_HUMAN_TEMPLATE = (
     "   - Top left: purple tape label saying 'TRANSFORMATION' in white letters.\n"
     "   - Center-left: large 3D block letters for the title '[INSERT GENERATED TITLE HERE]' featuring periwinkle/white faces and deep violet-purple drop-shadows.\n"
     "   - Right side: a vertical rectangular photo of the narrator styled in a deep purple duotone filter, taped down with masking tape. The scene must dynamically depict the narrator in an emotional, free, and highly sensual moment of release and self-realization. You MUST NOT describe more than one character. Keep the portrait or photo strictly singular, depicting only the narrator alone. Never include multiple people, couples, or physical interactions between characters. Write a detailed description of this scene, selecting from these highly sensual, liberating concepts based on the transformation: (1) a person standing tall with their head tilted back, eyes closed, hair flowing dynamically in the wind, holding a sheer, flowing purple fabric or robe that blows dramatically around their body against a cloudy sunset sky; or (2) a person dancing freely in warm evening sunset light, back arched, arms outstretched, wearing a thin, flowing lavender dress, capturing a powerful feeling of physical liberation, sensory awakening, and self-acceptance. Ensure the description uses highly evocative, sensory, and artistic descriptors (e.g., arched back, sheer flowing fabric, wind-blown hair, head tilted back, dramatic sunset, purple duotone filter, high-contrast soft shadows) to capture a highly sensual, raw, and liberating mood while keeping it fully compliant with safety filters.\n"
-    "Write the prompt as a single continuous paragraph, dynamically substituting the actual generated title, the author name, their gender, and their country. Do not include any words that might trigger safety moderation filters. Specifically, you MUST NEVER use these banned words: \"sensual\", \"passionate\", \"passion\", \"erotic\", \"desire\", \"alluring\", \"ecstasy\", \"explicit\". Describe the mood and visual scene using purely safe, aesthetic, and atmospheric terms instead (e.g., \"candid capture\", \"warm candlelit glow\", \"glowing warm lighting\", \"soft shadows\", \"closed eyes\", \"head tilted back\", \"messy hair\", \"deep focus\"). Keep the prompt under 120 words.]\n"
+    "Write the prompt as a single continuous paragraph, dynamically substituting the actual generated title. The tape text MUST read exactly: {cover_author_name}. The portrait MUST depict a {cover_gender} person. The setting should match {cover_location}. Never invent a different author name. Do not include any words that might trigger safety moderation filters. Specifically, you MUST NEVER use these banned words: \"sensual\", \"passionate\", \"passion\", \"erotic\", \"desire\", \"alluring\", \"ecstasy\", \"explicit\". Describe the mood and visual scene using purely safe, aesthetic, and atmospheric terms instead (e.g., \"candid capture\", \"warm candlelit glow\", \"glowing warm lighting\", \"soft shadows\", \"closed eyes\", \"head tilted back\", \"messy hair\", \"deep focus\"). Keep the prompt under 120 words.]\n"
     "STORY:\n"
     "[The full text of the story here]"
 )
@@ -223,7 +223,14 @@ def build_story_system_template(story_type: StoryType, gender: Optional[str] = N
         elif story_type == StoryType.meditation:
             instruction = instruction.replace("guide her", "guide him").replace("her current", "his current")
     else:
-        perspective = "PERSPECTIVE: Write this content from the perspective of a wise, warm, deeply understanding woman. All pronouns, thoughts, and emotions must reflect a female narrator."
+        # Unspecified: do not silently default to a woman. TTS auto-pick is
+        # independent (select_voice_by_gender still uses a mixed pool).
+        perspective = (
+            "PERSPECTIVE: Write this content from a wise, warm, deeply understanding narrator. "
+            "Do not assume the narrator is a woman or a man. Match pronouns to the User Profile "
+            "Block when gender is given there; if gender is unspecified, keep the narrator's "
+            "gender unspecified and avoid gendered defaults."
+        )
 
     return (
         f"{perspective}\n\n"
@@ -231,6 +238,19 @@ def build_story_system_template(story_type: StoryType, gender: Optional[str] = N
         f"{instruction}\n\n"
         f"{USER_CONTEXT_INJECTION}"
     )
+
+
+def cover_identity_template_vars(
+    first_name: Optional[str] = None,
+    gender: Optional[str] = None,
+    location: Optional[str] = None,
+) -> dict[str, str]:
+    """Values bound into STORY_HUMAN_TEMPLATE IMAGE_PROMPT and P2 art direction."""
+    return {
+        "cover_author_name": (first_name or "").strip() or "Anonymous",
+        "cover_gender": (gender or "").strip() or "unspecified",
+        "cover_location": (location or "").strip() or "unspecified",
+    }
 
 
 # ---------------------------------------------------------------------------
