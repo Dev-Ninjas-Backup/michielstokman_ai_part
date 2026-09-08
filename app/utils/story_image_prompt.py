@@ -39,10 +39,13 @@ def substitute_cover_placeholders(
     return result.strip()
 
 
-def _cover_art_direction() -> str:
-    from app.utils.prompts import STORY_HUMAN_TEMPLATE
+def _cover_art_direction(story: Story) -> str:
+    from app.utils.prompts import STORY_HUMAN_TEMPLATE, cover_identity_template_vars
 
-    return STORY_HUMAN_TEMPLATE.split("IMAGE_PROMPT:", 1)[1].split("STORY:", 1)[0].strip()
+    raw = STORY_HUMAN_TEMPLATE.split("IMAGE_PROMPT:", 1)[1].split("STORY:", 1)[0].strip()
+    return raw.format(
+        **cover_identity_template_vars(story.first_name, story.gender, story.location)
+    )
 
 
 def build_image_prompt_from_story(story: Story) -> str:
@@ -70,19 +73,27 @@ def build_image_prompt_from_story(story: Story) -> str:
         f"Situation: {story.situation or 'unspecified'}\n"
         f"Themes/tags: {tags or 'none'}\n"
         f"Growth areas: {growth or 'none'}\n\n"
-        f"Art direction:\n{_cover_art_direction()}\n\n"
+        f"Art direction:\n{_cover_art_direction(story)}\n\n"
         f"Member's original submission:\n{input_excerpt}\n\n"
         f"Narrated story:\n{excerpt}\n\n"
         "The cover scene must visually reflect THIS specific story — its setting, "
-        "mood, and symbols. Do not describe a generic stock scene."
+        "mood, and symbols. Do not describe a generic stock scene. "
+        f"The tape text MUST read exactly: {story.first_name or 'Anonymous'}. "
+        f"The portrait MUST depict a {story.gender or 'unspecified'} person."
     )
     return response.content.strip()
 
 
-def resolve_image_prompt(story: Story, generated_prompt: Optional[str]) -> Optional[str]:
+def resolve_image_prompt(
+    story: Story,
+    generated_prompt: Optional[str],
+    *,
+    force_rebuild: bool = False,
+) -> Optional[str]:
     """
-    Prefer the IMAGE_PROMPT from story generation; otherwise build one from the
-    finished story so covers are not identical across the library.
+    Prefer the IMAGE_PROMPT from story generation; otherwise reuse a stored
+    prompt; otherwise build one from the finished story so covers are not
+    identical across the library.
     """
     title = story.title or story.member_title or "Untitled"
     author = story.first_name or "Anonymous"
@@ -90,6 +101,10 @@ def resolve_image_prompt(story: Story, generated_prompt: Optional[str]) -> Optio
     generated = (generated_prompt or "").strip()
     if generated:
         return substitute_cover_placeholders(generated, title=title, author_name=author)
+
+    stored = (getattr(story, "image_prompt", None) or "").strip()
+    if stored and not force_rebuild:
+        return substitute_cover_placeholders(stored, title=title, author_name=author)
 
     if not (story.story_text or "").strip():
         return None
@@ -126,6 +141,7 @@ def try_generate_story_cover(
     image_prompt: Optional[str],
     allow_admin_fallback: bool = True,
     replace_member_cover: bool = False,
+    force_rebuild: bool = False,
 ) -> None:
     """
     Generate a unique AI cover for a story.
@@ -133,6 +149,7 @@ def try_generate_story_cover(
     During automatic story generation, member uploads are left untouched.
     When the member explicitly requests artwork generation, set
     ``replace_member_cover=True`` so AI art can replace a prior upload.
+    ``force_rebuild=True`` skips a stored P1 prompt and runs P2.
     """
     from app.utils.image_generator import generate_ai_cover_image
     from app.utils.s3 import delete_s3_object
@@ -149,11 +166,15 @@ def try_generate_story_cover(
             _apply_admin_default_cover(db, story)
         return
 
-    resolved_prompt = resolve_image_prompt(story, image_prompt)
+    resolved_prompt = resolve_image_prompt(
+        story, image_prompt, force_rebuild=force_rebuild
+    )
     if not resolved_prompt:
         if allow_admin_fallback:
             _apply_admin_default_cover(db, story)
         return
+
+    story.image_prompt = resolved_prompt
 
     previous_key = story.cover_image_key
     cover_url, cover_key = generate_ai_cover_image(
@@ -161,6 +182,7 @@ def try_generate_story_cover(
         story_type=story.story_type.value,
         author_name=story.first_name or "Anonymous",
         image_prompt=resolved_prompt,
+        gender=story.gender,
     )
     if cover_url:
         story.cover_image_url = cover_url
@@ -231,6 +253,7 @@ def cover_regeneration_worker(story_ids: list[str]) -> None:
                     image_prompt=None,
                     allow_admin_fallback=False,
                     replace_member_cover=False,
+                    # Reuse a stored P1 prompt when present (cost); identity lock still applies.
                 )
                 db.commit()
                 logger.info(

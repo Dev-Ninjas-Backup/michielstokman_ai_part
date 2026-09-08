@@ -760,6 +760,7 @@ def _regenerate_cover_worker(story_id: str) -> None:
                 allow_admin_fallback=False,
                 # The admin asked for this one by hand, so a member upload may go.
                 replace_member_cover=True,
+                force_rebuild=True,
             )
         except Exception as exc:
             logger.error("Cover regen failed for story %s: %s", story_id, exc, exc_info=True)

@@ -567,8 +567,7 @@ class MemberStoryService:
                 logger.error(f"[Regenerate {job_id}] Story {story_db_id} not found.")
                 return
 
-            profile = _get_profile(db, story_row.user_id) if story_row.user_id else None
-            gender = profile.gender if profile else None
+            gender = story_row.gender
 
             if _is_human_ready(story_row):
                 story_text = (story_row.story_input or "").strip()
@@ -588,7 +587,13 @@ class MemberStoryService:
                 story_row.social_intros = None
                 story_row.social_intros_generated_at = None
                 if story_row.image_source != ImageSource.user_uploaded:
-                    try_generate_story_cover(db, story_row, image_prompt=None)
+                    # No P1 prompt for uploaded narration — always rebuild via P2.
+                    try_generate_story_cover(
+                        db,
+                        story_row,
+                        image_prompt=None,
+                        force_rebuild=True,
+                    )
                 db.commit()
                 logger.info(
                     f"[Regenerate {job_id}] Kept member narration for story {story_db_id}."
@@ -732,9 +737,8 @@ class MemberStoryService:
                 logger.error(f"[Renarrate {job_id}] Story {story_db_id} not found.")
                 return
 
-            profile = _get_profile(db, story_row.user_id) if story_row.user_id else None
             resolved_name, resolved_id, uses_custom = AIService.resolve_voice(
-                gender=profile.gender if profile else None,
+                gender=story_row.gender,
                 text=story_row.story_text,
                 voice_name=voice_name,
                 custom_voice_id=custom_voice_id,
@@ -852,6 +856,8 @@ class MemberStoryService:
             image_prompt=None,
             allow_admin_fallback=False,
             replace_member_cover=True,
+            # Explicit regenerate: rebuild P2. Identity lock still applies at DALL-E.
+            force_rebuild=True,
         )
         db.commit()
         db.refresh(story)

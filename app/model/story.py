@@ -116,6 +116,8 @@ class Story(Base):
     # Storage key for the cover, needed to clean up the object when it is replaced.
     cover_image_key = Column(String, nullable=True)
     image_source = Column(SAEnum(ImageSource), nullable=True)
+    # Resolved DALL-E prompt (post-placeholder, pre identity lock). Not public.
+    image_prompt = Column(Text, nullable=True)
 
     # Teaser/intro copy generated per distribution platform.
     # Shape: {"instagram": str, "facebook": str, "spotify": str}
