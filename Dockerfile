@@ -35,6 +35,11 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 # This means we can just type 'uvicorn' instead of 'uv run uvicorn'
 ENV PATH="/app/.venv/bin:$PATH"
 
+# Chromium + OS libraries for the isolated HTML cover-template screenshot route.
+# `--with-deps` is `playwright install-deps` + `playwright install chromium`.
+ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
+RUN playwright install --with-deps chromium
+
 # Expose the API port
 EXPOSE 8000
 

@@ -25,6 +25,7 @@ dependencies = [
     "stripe>=15.0.1",
     "uvicorn[standard]>=0.42.0",
     "Pillow>=10.2.0",
+    "playwright>=1.49.0",
 ]
 
 [project.optional-dependencies]
