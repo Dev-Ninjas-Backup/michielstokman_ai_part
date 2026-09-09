@@ -1,21 +1,28 @@
-"""Render the Figma cover HTML to PNG via Playwright. Isolated from DALL-E."""
+"""Render the TTL HTML cover to PNG via Playwright. Isolated from DALL-E.
+
+The page uses window.Cover.set({...}) — no server-side placeholder substitution.
+Playwright loads index.html from a loopback static server so ./assets and ./fonts resolve.
+Viewport is always 2160×2160 so Cover.fit() scale is 1.
+"""
 from __future__ import annotations
 
 import base64
-import html
 import logging
 import mimetypes
-import re
+import threading
+from contextlib import contextmanager
+from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterator
 from urllib.parse import urlparse
 from urllib.request import urlopen
 
 logger = logging.getLogger(__name__)
 
 PACKAGE_DIR = Path(__file__).resolve().parent
-STATIC_DIR = PACKAGE_DIR / "static"
-TEMPLATE_PATH = PACKAGE_DIR / "template.html"
+INDEX_PATH = PACKAGE_DIR / "index.html"
+ASSETS_DIR = PACKAGE_DIR / "assets"
+DEFAULT_PHOTO = ASSETS_DIR / "photo.png"
 
 CANVAS_WIDTH = 2160
 CANVAS_HEIGHT = 2160
@@ -35,48 +42,8 @@ SAMPLE_DATA = {
 }
 
 
-_MALE_GENDERS = {"male", "m", "man", "masculine"}
-_FEMALE_GENDERS = {"female", "f", "woman", "feminine", "w"}
-
-
-def _multiline(value: str) -> str:
-    escaped = html.escape((value or "").strip())
-    return escaped.replace("\n", "<br>")
-
-
-def _fit_font_px(text: str, *, base: int) -> int:
-    """Tiered size so nowrap badge labels stay inside their torn-paper chips."""
-    n = len((text or "").strip())
-    if n <= 6:
-        return base
-    if n <= 10:
-        return round(base * 42 / 54)
-    if n <= 14:
-        return round(base * 34 / 54)
-    return round(base * 28 / 54)
-
-
-def resolve_gender_icon(gender: str) -> str:
-    """Pick icon-male.svg / icon-female.svg / icon-neutral.svg from the gender string."""
-    key = (gender or "").strip().lower()
-    if key in _MALE_GENDERS:
-        name = "icon-male.svg"
-    elif key in _FEMALE_GENDERS:
-        name = "icon-female.svg"
-    else:
-        name = "icon-neutral.svg"
-    if (STATIC_DIR / name).is_file():
-        return name
-    for fallback in ("icon-neutral.svg", "icon-female.svg"):
-        if (STATIC_DIR / fallback).is_file():
-            return fallback
-    return name
-
-
 def _data_uri(path: Path) -> str:
     mime = mimetypes.guess_type(path.name)[0] or "application/octet-stream"
-    if path.suffix.lower() == ".ttf":
-        mime = "font/ttf"
     payload = base64.b64encode(path.read_bytes()).decode("ascii")
     return f"data:{mime};base64,{payload}"
 
@@ -103,105 +70,143 @@ def _fetch_bytes(url: str) -> tuple[bytes, str]:
     return data, mime
 
 
-def resolve_photo_data_uri(photo_url: str | None) -> str:
+def resolve_photo_data_uri(photo_url: str | None) -> str | None:
+    """Return a data URI to swap into .photo-image img, or None to keep photo.png."""
     if not photo_url:
-        return _data_uri(STATIC_DIR / "sample-photo.png")
+        return None
     if photo_url.startswith(("http://", "https://")):
         raw, mime = _fetch_bytes(photo_url)
         return _data_uri_bytes(raw, mime)
+    if photo_url.startswith("data:"):
+        return photo_url
     local = Path(photo_url)
     if local.is_file():
         return _data_uri(local)
-    return _data_uri(STATIC_DIR / "sample-photo.png")
+    if DEFAULT_PHOTO.is_file():
+        return _data_uri(DEFAULT_PHOTO)
+    return None
 
 
-def build_html(data: dict[str, Any], *, photo_src: str) -> str:
-    template = TEMPLATE_PATH.read_text(encoding="utf-8")
-    city = (data.get("city") or "").strip()
-    country = (data.get("country") or "").strip()
-    location = ", ".join(part for part in (city, country) if part) or "Unknown"
-    explicit_class = "is-explicit" if data.get("is_explicit") else ""
-    author = str(data.get("author_name") or "")
-    gender = str(data.get("gender") or "")
-    orientation = str(data.get("orientation") or "")
-    filled = (
-        template.replace("__TITLE__", _multiline(str(data.get("title") or "")))
-        .replace("__SUBTITLE__", _multiline(str(data.get("subtitle") or "")))
-        .replace("__DESCRIPTION__", _multiline(str(data.get("description") or "")))
-        .replace("__AUTHOR_SIZE__", str(_fit_font_px(author, base=96)))
-        .replace("__AUTHOR_NAME__", html.escape(author))
-        .replace("__AGE_LABEL_SIZE__", str(_fit_font_px("Age", base=48)))
-        .replace("__AGE__", html.escape(str(data.get("age") or "")))
-        .replace("__GENDER_ICON__", resolve_gender_icon(gender))
-        .replace("__GENDER_SIZE__", str(_fit_font_px(gender, base=54)))
-        .replace("__GENDER__", html.escape(gender.lower()))
-        .replace("__ORIENTATION_SIZE__", str(_fit_font_px(orientation, base=54)))
-        .replace("__ORIENTATION__", html.escape(orientation.lower()))
-        .replace("__LOCATION__", _multiline(location.upper()))
-        .replace("__PHOTO_SRC__", photo_src)
-        .replace("__EXPLICIT_CLASS__", explicit_class)
-    )
-    return _inline_static_assets(filled)
+def _split_two_lines(value: str) -> tuple[str, str]:
+    """Split a newline-separated title/subtitle into Cover.set line1/line2."""
+    parts = [p.strip() for p in str(value or "").replace("\r\n", "\n").split("\n")]
+    parts = [p for p in parts if p]
+    if not parts:
+        return "", ""
+    if len(parts) == 1:
+        return parts[0], ""
+    return parts[0], " ".join(parts[1:])
 
 
-def _inline_static_assets(markup: str) -> str:
-    """Embed local CSS/img assets as data URIs so Chromium does not depend on file://."""
+def payload_to_cover_set(data: dict[str, Any]) -> dict[str, Any]:
+    """Map test-route fields onto window.Cover.set() keys.
 
-    def replace_path(match: re.Match[str]) -> str:
-        quote = match.group(1)
-        rel = match.group(2)
-        if rel.startswith("data:") or rel.startswith("http"):
-            return match.group(0)
-        path = STATIC_DIR / rel
-        if not path.is_file():
-            logger.warning("Cover template asset missing: %s", path)
-            return match.group(0)
-        return f"url({quote}{_data_uri(path)}{quote})"
+    Query/body params (unchanged): title, subtitle, description, author_name,
+    age, gender, orientation, city, country, is_explicit, photo_url.
 
-    markup = re.sub(r"url\((['\"])([^'\"]+)\1\)", replace_path, markup)
+    title / subtitle: first newline → line1, remaining lines joined → line2.
+    description → confession. author_name → author. role is always "author".
+    is_explicit True → explicit True (label "explicit"); False/None → False (hide).
+    photo_url is applied separately as photoUrl (data URI); omitted keeps assets/photo.png.
+    """
+    title_l1, title_l2 = _split_two_lines(str(data.get("title") or ""))
+    sub_l1, sub_l2 = _split_two_lines(str(data.get("subtitle") or ""))
+    explicit_flag = data.get("is_explicit")
+    cover: dict[str, Any] = {
+        "titleLine1": title_l1,
+        "titleLine2": title_l2,
+        "subtitleLine1": sub_l1,
+        "subtitleLine2": sub_l2,
+        "confession": str(data.get("description") or ""),
+        "city": str(data.get("city") or "").strip().rstrip(","),
+        "country": str(data.get("country") or "").strip(),
+        "author": str(data.get("author_name") or ""),
+        "role": "author",
+        "age": str(data.get("age") or ""),
+        "gender": str(data.get("gender") or "").strip().lower(),
+        "orientation": str(data.get("orientation") or "").strip().lower(),
+        "explicit": True if explicit_flag else False,
+    }
+    photo = resolve_photo_data_uri(data.get("photo_url"))
+    if photo:
+        cover["photoUrl"] = photo
+    return cover
 
-    def replace_src(match: re.Match[str]) -> str:
-        rel = match.group(1)
-        if rel.startswith("data:") or rel.startswith("http") or rel.startswith("__"):
-            return match.group(0)
-        path = STATIC_DIR / rel
-        if not path.is_file():
-            logger.warning("Cover template asset missing: %s", path)
-            return match.group(0)
-        return f'src="{_data_uri(path)}"'
 
-    return re.sub(r'src="([^"]+)"', replace_src, markup)
+class _QuietHandler(SimpleHTTPRequestHandler):
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        super().__init__(*args, directory=str(PACKAGE_DIR), **kwargs)
+
+    def log_message(self, format: str, *args: Any) -> None:  # noqa: A003
+        return
+
+
+@contextmanager
+def _static_server() -> Iterator[str]:
+    """Serve app/cover_template on 127.0.0.1 so relative ./assets ./fonts work."""
+    server = ThreadingHTTPServer(("127.0.0.1", 0), _QuietHandler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        yield f"http://127.0.0.1:{server.server_address[1]}"
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=3)
+
+
+_WAIT_ASSETS_JS = """() => Promise.all([
+    document.fonts.ready,
+    ...[...document.images].map((img) =>
+        img.complete && img.naturalWidth
+            ? Promise.resolve()
+            : new Promise((res) => {
+                img.onload = res;
+                img.onerror = res;
+            })
+    ),
+])"""
 
 
 async def render_cover_png(data: dict[str, Any] | None = None) -> bytes:
-    """Load the template in headless Chromium and return a 2160×2160 PNG."""
+    """Load index.html in headless Chromium at 2160×2160 and return a PNG."""
     from playwright.async_api import async_playwright
 
-    payload = {**SAMPLE_DATA, **(data or {})}
-    photo_src = resolve_photo_data_uri(payload.get("photo_url"))
-    markup = build_html(payload, photo_src=photo_src)
+    if not INDEX_PATH.is_file():
+        raise FileNotFoundError(f"Cover template missing: {INDEX_PATH}")
 
-    async with async_playwright() as playwright:
-        browser = await playwright.chromium.launch(
-            args=["--no-sandbox", "--disable-dev-shm-usage"],
-        )
-        page = await browser.new_page(
-            viewport={"width": CANVAS_WIDTH, "height": CANVAS_HEIGHT},
-            device_scale_factor=1,
-        )
-        await page.set_content(markup, wait_until="load")
-        await page.evaluate("document.fonts.ready")
-        await page.evaluate(
-            """() => Promise.all(
-                [...document.images].map((img) =>
-                    img.complete ? Promise.resolve() : new Promise((res, rej) => {
-                        img.onload = res; img.onerror = rej;
-                    })
-                )
-            )"""
-        )
-        png = await page.locator(".card").screenshot(type="png")
-        await browser.close()
+    payload = {**SAMPLE_DATA, **(data or {})}
+    cover_set = payload_to_cover_set(payload)
+
+    with _static_server() as origin:
+        async with async_playwright() as playwright:
+            browser = await playwright.chromium.launch(
+                args=["--no-sandbox", "--disable-dev-shm-usage"],
+            )
+            page = await browser.new_page(
+                viewport={"width": CANVAS_WIDTH, "height": CANVAS_HEIGHT},
+                device_scale_factor=1,
+            )
+            await page.goto(f"{origin}/index.html", wait_until="load")
+            await page.wait_for_function(
+                "() => window.Cover && typeof window.Cover.set === 'function'"
+            )
+            await page.evaluate(
+                """(fields) => {
+                    window.Cover.set(fields);
+                    window.Cover.fit();
+                }""",
+                cover_set,
+            )
+            await page.evaluate(_WAIT_ASSETS_JS)
+            inner = await page.evaluate(
+                "() => ({ w: window.innerWidth, h: window.innerHeight, "
+                "scale: document.getElementById('cover').style.transform })"
+            )
+            if inner["w"] != CANVAS_WIDTH or inner["h"] != CANVAS_HEIGHT:
+                logger.warning("Cover viewport is not 2160×2160: %s", inner)
+            png = await page.locator("#cover").screenshot(type="png")
+            await browser.close()
     return png
 
 

@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>TTL — To Wasteland On My Own</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="stage">
+      <!--
+        Dynamic fields live on #cover as data-* attributes.
+        Update via Cover.set({ gender: 'male', orientation: 'homosexual', age: 31, author: 'Alex' })
+      -->
+      <article
+        class="cover"
+        id="cover"
+        aria-label="TTL cover"
+        data-title-line1="TO WASTELAND"
+        data-title-line2="ON MY OWN"
+        data-subtitle-line1="A NIGHT THAT"
+        data-subtitle-line2="LIBERATED MY ESSENCE"
+        data-confession="A confession about shame, desire and finally choosing me."
+        data-city="BARCELONA,"
+        data-country="SPAIN"
+        data-author="Lisa"
+        data-role="author"
+        data-age="28"
+        data-gender="female"
+        data-orientation="bisexual"
+        data-explicit="explicit"
+      >
+        <div class="bird" aria-hidden="true">
+          <img src="./assets/vector-deco.svg" alt="" width="202" height="161" />
+        </div>
+
+        <div class="titles">
+          <h1 class="title-main">
+            <span data-bind="title-line1">TO WASTELAND</span>
+            <span data-bind="title-line2">ON MY OWN</span>
+          </h1>
+          <p class="subtitle">
+            <span data-bind="subtitle-line1">A NIGHT THAT</span>
+            <span data-bind="subtitle-line2">LIBERATED MY ESSENCE</span>
+          </p>
+        </div>
+
+        <div class="underline-pink" aria-hidden="true">
+          <img src="./assets/underline-pink.png" alt="" />
+        </div>
+
+        <p class="confession" data-bind="confession">
+          A confession about shame, desire and finally choosing me.
+        </p>
+
+        <div class="location">
+          <div class="location-pin" aria-hidden="true">
+            <img src="./assets/icon-pin.svg" alt="" width="104" height="140" />
+          </div>
+          <p class="location-text">
+            <span data-bind="city">BARCELONA, </span>
+            <span data-bind="country">SPAIN</span>
+          </p>
+        </div>
+
+        <div class="underline-orange" aria-hidden="true">
+          <img src="./assets/underline-orange.png" alt="" />
+        </div>
+
+        <div class="photo-wrap" aria-hidden="true">
+          <div class="photo-rotator">
+            <div class="photo-frame">
+              <div class="photo-image">
+                <img src="./assets/photo.png" alt="" width="1371" height="1668" />
+              </div>
+              <div class="photo-torn">
+                <div class="photo-torn-inner">
+                  <img src="./assets/photo-mask.svg" alt="" />
+                </div>
+              </div>
+              <div class="photo-overlay">
+                <img src="./assets/photo-layer.svg" alt="" />
+              </div>
+              <div class="photo-accent">
+                <img src="./assets/photo-accent.svg" alt="" />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Author: bg + text grow together -->
+        <div class="chip chip--author" data-chip="author">
+          <img class="chip__bg" src="./assets/badge-author.png" alt="" />
+          <div class="chip__body">
+            <span class="chip__title" data-bind="author">Lisa</span>
+            <span class="chip__sub" data-bind="role">author</span>
+          </div>
+        </div>
+
+        <!-- Bottom meta badges: content-sized, bg stretches -->
+        <div class="meta-row">
+          <div class="chip chip--age" data-chip="age">
+            <img class="chip__bg" src="./assets/badge-age-shape.png" alt="" />
+            <div class="chip__body chip__body--stack">
+              <span class="chip__value" data-bind="age">28</span>
+              <span class="chip__label">Age</span>
+            </div>
+          </div>
+
+          <div class="chip chip--gender" data-chip="gender" data-gender="female">
+            <img class="chip__bg" src="./assets/badge-female-shape.png" alt="" />
+            <div class="chip__body chip__body--stack">
+              <img
+                class="chip__icon"
+                data-gender-icon
+                src="./assets/icon-female.svg"
+                alt=""
+                width="76"
+                height="110"
+              />
+              <span class="chip__label" data-bind="gender">female</span>
+            </div>
+          </div>
+
+          <div
+            class="chip chip--orientation"
+            data-chip="orientation"
+            data-orientation="bisexual"
+          >
+            <img class="chip__bg" src="./assets/badge-bisexual.png" alt="" />
+            <div class="chip__body chip__body--stack">
+              <img
+                class="chip__icon chip__icon--hearts"
+                src="./assets/icon-heart.svg"
+                alt=""
+                width="101"
+                height="101"
+              />
+              <span class="chip__label" data-bind="orientation">bisexual</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Explicit -->
+        <div class="chip chip--explicit" data-chip="explicit">
+          <img class="chip__bg" src="./assets/badge-explicit.png" alt="" />
+          <div class="chip__body">
+            <span class="chip__label" data-bind="explicit">explicit</span>
+          </div>
+        </div>
+
+        <div class="icon-hearts" aria-hidden="true">
+          <img src="./assets/icon-hearts.png" alt="" />
+        </div>
+
+        <div class="logo" aria-hidden="true">
+          <img src="./assets/logo-ttl.png" alt="TTL" width="199" height="229" />
+        </div>
+
+        <div class="sun" aria-hidden="true">
+          <img src="./assets/icon-sun.svg" alt="" width="175" height="175" />
+        </div>
+      </article>
+    </div>
+
+    <script src="./cover.js"></script>
+  </body>
+</html>

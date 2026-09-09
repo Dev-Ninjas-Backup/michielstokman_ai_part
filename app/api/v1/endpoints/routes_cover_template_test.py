@@ -54,7 +54,17 @@ async def cover_template_preview_get(
     is_explicit: bool = Query(True),
     photo_url: Optional[str] = Query(None),
 ):
-    """Return a 2160×2160 PNG of the HTML cover template. Test-only."""
+    """Return a 2160×2160 PNG of the HTML cover template. Test-only.
+
+    Query params (same names as before; remapped to Cover.set() in render.py):
+    title, subtitle, description, author_name, age, gender, orientation,
+    city, country, is_explicit, photo_url.
+
+    title/subtitle: split on newlines into titleLine1/2 and subtitleLine1/2.
+    description → confession. author_name → author (role hardcoded "author").
+    is_explicit true/false → Cover explicit true / false (hides the badge).
+    photo_url optional; omit to keep assets/photo.png.
+    """
     _reject_production()
     png = await render_cover_png(
         {
