@@ -1,0 +1,576 @@
+@font-face {
+  font-family: "Edo";
+  src: url("./fonts/edosz.ttf") format("truetype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Outfit";
+  src: url("./fonts/Outfit-Medium.ttf") format("truetype");
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body {
+  min-height: 100%;
+  background: #1a1a1a;
+}
+
+body {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  overflow: auto;
+}
+
+.stage {
+  width: min(100vw, 100vh);
+  height: min(100vw, 100vh);
+  overflow: hidden;
+  position: relative;
+}
+
+.cover {
+  --w: 2160px;
+  --h: 2160px;
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: var(--w);
+  height: var(--h);
+  background: #f1ede4;
+  overflow: hidden;
+  transform-origin: top left;
+  font-synthesis: none;
+  -webkit-font-smoothing: antialiased;
+}
+
+.cover img {
+  display: block;
+  max-width: none;
+  pointer-events: none;
+  user-select: none;
+}
+
+/* —— Bird —— */
+.bird {
+  position: absolute;
+  left: 33.24%;
+  right: 57.41%;
+  top: calc(50% + 488.5px);
+  aspect-ratio: 50 / 39.82;
+  transform: translateY(-50%);
+}
+
+.bird img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+/* —— Titles —— */
+.titles {
+  position: absolute;
+  left: 92px;
+  top: 271.48px;
+  width: 1253px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 36px;
+  text-transform: uppercase;
+  font-family: "Edo", sans-serif;
+  word-break: break-word;
+}
+
+.title-main {
+  width: 100%;
+  color: #37178c;
+  font-size: 154px;
+  line-height: 1.2;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.subtitle {
+  width: 100%;
+  color: #eb2874;
+  font-size: 80px;
+  line-height: 1.2;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+/* —— Confession —— */
+.confession {
+  position: absolute;
+  left: 92px;
+  top: 1159.5px;
+  width: 663px;
+  transform: translateY(-50%);
+  font-family: "Outfit", sans-serif;
+  font-weight: 500;
+  font-size: 70px;
+  line-height: 1.5;
+  color: #301c05;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+/* —— Location —— */
+.location {
+  position: absolute;
+  left: 92px;
+  top: 1417px;
+  display: flex;
+  align-items: center;
+  gap: 48px;
+}
+
+.location-pin {
+  position: relative;
+  width: 104px;
+  height: 140px;
+  flex-shrink: 0;
+}
+
+.location-pin img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.location-text {
+  min-width: 428px;
+  font-family: "Edo", sans-serif;
+  font-size: 60px;
+  line-height: 1.2;
+  letter-spacing: 1.4px;
+  text-transform: uppercase;
+  color: #000;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+/* —— Photo —— */
+.photo-wrap {
+  position: absolute;
+  left: 719px;
+  top: 95px;
+  width: 1782.6px;
+  height: 2129.597px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.photo-rotator {
+  flex: none;
+  transform: rotate(10.19deg);
+}
+
+.photo-frame {
+  position: relative;
+  width: 1469.848px;
+  height: 1899.615px;
+  overflow: hidden;
+}
+
+.photo-image {
+  position: absolute;
+  inset: 9.89% 0.54% 2.28% 6.18%;
+}
+
+.photo-image img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  /* Any story photo aspect ratio: fill frame without stretch/distort */
+  object-fit: cover;
+  object-position: center center;
+}
+
+.photo-overlay img,
+.photo-accent img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.photo-torn {
+  position: absolute;
+  inset: 15.02% 0.55% 2.3% 12.49%;
+}
+
+.photo-torn-inner {
+  position: absolute;
+  inset: 0 -0.31% -0.83% -0.31%;
+}
+
+.photo-torn-inner img {
+  width: 100%;
+  height: 100%;
+}
+
+.photo-overlay {
+  position: absolute;
+  inset: 9.88% 14.73% 16.54% 6.17%;
+}
+
+.photo-accent {
+  position: absolute;
+  inset: 12.63% 12.4% 85% 85.34%;
+}
+
+/* ============================================================
+   CHIP SYSTEM — self-contained badges for dynamic content
+   bg stretches with content; text/icon live inside the chip
+   ============================================================ */
+
+.chip {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2;
+}
+
+.chip__bg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: fill;
+  z-index: 0;
+}
+
+.chip__body {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 24px 36px;
+  min-width: 0;
+}
+
+.chip__body--stack {
+  gap: 4px;
+}
+
+.chip__title,
+.chip__sub,
+.chip__value,
+.chip__label {
+  font-family: "Edo", sans-serif;
+  white-space: nowrap;
+  line-height: 1;
+}
+
+.chip__icon {
+  width: 76px;
+  height: auto;
+  max-height: 110px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
+.chip__icon--hearts {
+  width: 101px;
+  height: 101px;
+  max-height: none;
+}
+
+/* —— Author chip —— */
+.chip--author {
+  left: 1559px;
+  top: 234px;
+  min-width: 602px;
+  width: max-content;
+  min-height: 390px;
+  padding: 48px 56px;
+}
+
+.chip--author .chip__body {
+  align-items: flex-start;
+  padding: 40px 48px 32px;
+  transform: rotate(-1.2deg);
+}
+
+.chip--author .chip__title {
+  font-size: 96px;
+  letter-spacing: 5.76px;
+  color: #fff;
+}
+
+.chip--author .chip__sub {
+  margin-top: 8px;
+  font-size: 48px;
+  letter-spacing: 3.84px;
+  color: #fff;
+}
+
+/* —— Bottom meta row —— */
+.meta-row {
+  position: absolute;
+  left: 934px;
+  top: 1735px;
+  /* Keep chips inside 2160 canvas at worst-case label lengths */
+  max-width: calc(2160px - 934px);
+  display: flex;
+  align-items: flex-end;
+  gap: 0;
+  z-index: 3;
+}
+
+.chip--age {
+  position: relative;
+  left: auto;
+  top: auto;
+  width: 380px;
+  height: 377px;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+.chip--age .chip__bg {
+  /* source is a wide strip — show orange (left) portion */
+  width: 313.45%;
+  height: 99.72%;
+  inset: auto;
+  left: 0.05%;
+  top: 0.02%;
+  object-fit: fill;
+}
+
+.chip--age .chip__body {
+  transform: rotate(-8.5deg);
+  padding: 40px 28px 48px;
+}
+
+.chip--age .chip__value {
+  font-size: 130px;
+  letter-spacing: 2.6px;
+  color: #000;
+}
+
+.chip--age .chip__label {
+  font-size: 48px;
+  letter-spacing: 0.96px;
+  color: #000;
+  margin-top: 4px;
+}
+
+.chip--gender {
+  position: relative;
+  left: auto;
+  top: auto;
+  min-width: 388px;
+  width: max-content;
+  min-height: 332px;
+  margin-bottom: 18px;
+  flex-shrink: 0;
+}
+
+.chip--gender .chip__body {
+  transform: rotate(-6.21deg);
+  padding: 36px 44px 40px;
+  min-width: 280px;
+}
+
+.chip--gender .chip__label {
+  font-size: 54px;
+  letter-spacing: 1.08px;
+  color: #f9f8f9;
+  text-transform: lowercase;
+}
+
+.chip--gender[data-gender="male"] .chip__icon {
+  width: 97px;
+  height: 97px;
+  max-height: 97px;
+}
+
+.chip--orientation {
+  position: relative;
+  left: auto;
+  top: auto;
+  /* grows for longer labels e.g. homosexual */
+  min-width: 393px;
+  width: max-content;
+  min-height: 312px;
+  margin-left: 16px; /* was 32px — room for hard-limit labels inside 2160 */
+  margin-bottom: 18px;
+  flex-shrink: 0;
+}
+
+.chip--orientation .chip__body {
+  transform: rotate(-6.76deg);
+  padding: 28px 40px 36px;
+  min-width: 260px;
+}
+
+.chip--orientation .chip__label {
+  font-size: 54px;
+  letter-spacing: 1.08px;
+  color: #f9f8f9;
+  text-transform: lowercase;
+}
+
+/* Longer orientation words: keep one line, slightly tighter tracking */
+.chip--orientation[data-orientation="homosexual"] .chip__label,
+.chip--orientation.is-long .chip__label {
+  letter-spacing: 0.4px;
+  font-size: 50px;
+}
+
+.chip--orientation[data-orientation="homosexual"],
+.chip--orientation.is-long {
+  min-width: 400px;
+}
+
+/* Hard-limit / very long labels (e.g. heteroflexible = 14): shrink further */
+.chip--orientation.is-xlong .chip__label {
+  letter-spacing: 0.2px;
+  font-size: 44px;
+}
+
+.chip--orientation.is-xlong {
+  min-width: 400px;
+}
+
+.chip--orientation.is-xlong .chip__body {
+  padding: 28px 28px 36px;
+}
+
+.chip--gender .chip__label.is-long,
+.chip--gender.is-long .chip__label {
+  font-size: 48px;
+  letter-spacing: 0.6px;
+}
+
+/* —— Explicit chip —— */
+.chip--explicit {
+  left: 62px;
+  top: 1697px;
+  min-width: 558px;
+  width: max-content;
+  min-height: 313px;
+  filter: drop-shadow(0 0 20px rgba(0, 0, 0, 0.25));
+}
+
+/* Hidden when Cover.set({ explicit: null | false | "" }) */
+.cover.is-explicit-hidden .chip--explicit,
+.cover.is-explicit-hidden .icon-hearts {
+  display: none;
+}
+
+.chip--explicit .chip__body {
+  transform: rotate(6.84deg);
+  padding: 48px 64px;
+}
+
+.chip--explicit .chip__label {
+  font-size: 72px;
+  letter-spacing: 7.2px;
+  color: #fff;
+  text-transform: lowercase;
+}
+
+/* —— Decorative —— */
+.icon-hearts {
+  position: absolute;
+  inset: 79.03% 66.06% 16.44% 29.77%;
+  overflow: hidden;
+  z-index: 4;
+}
+
+.icon-hearts img {
+  position: absolute;
+  height: 99.71%;
+  width: 99.08%;
+  left: 0.36%;
+  top: 0.17%;
+}
+
+.underline-pink {
+  position: absolute;
+  inset: 40.42% 53.47% 56.02% 4.26%;
+  overflow: hidden;
+}
+
+.underline-pink img {
+  position: absolute;
+  height: 99.17%;
+  width: 99.84%;
+  left: 0.09%;
+  top: 0.57%;
+}
+
+.underline-orange {
+  position: absolute;
+  inset: 73.06% 75.42% 25.65% 6.16%;
+  overflow: hidden;
+}
+
+.underline-orange img {
+  position: absolute;
+  height: 97.26%;
+  width: 99.82%;
+  left: 0.02%;
+  top: 1.18%;
+}
+
+.logo {
+  position: absolute;
+  left: 92px;
+  top: 12px;
+  width: 199px;
+  height: 229px;
+}
+
+.logo img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.sun {
+  position: absolute;
+  left: 1922px;
+  top: 12px;
+  display: flex;
+  align-items: center;
+  padding: 20px 0;
+  overflow: hidden;
+}
+
+.sun img {
+  width: 175px;
+  height: 175px;
+  position: relative;
+}
