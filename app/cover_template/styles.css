@@ -180,6 +180,10 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
+  overflow: hidden;
+  /* Wrap AABB extends past 2160; clip to the on-canvas remainder with a
+     small margin so the bitmap never meets the canvas edge. */
+  clip-path: inset(0 382px 80px 0);
 }
 
 .photo-rotator {
@@ -192,11 +196,25 @@ body {
   width: 1469.848px;
   height: 1899.615px;
   overflow: hidden;
+  isolation: isolate;
+  -webkit-mask-image: url("./assets/photo-clip-mask.png");
+  mask-image: url("./assets/photo-clip-mask.png");
+  -webkit-mask-size: 100% 100%;
+  mask-size: 100% 100%;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: 0 0;
+  mask-position: 0 0;
+  -webkit-mask-mode: alpha;
+  mask-mode: alpha;
 }
 
 .photo-image {
   position: absolute;
-  inset: 9.89% 0.54% 2.28% 6.18%;
+  /* Match .photo-torn left/top so the jagged edge sits on the photo, not
+     outside it. Extra right/bottom inset keeps object-fit:cover off-canvas. */
+  inset: 15.02% 10% 8% 12.49%;
+  overflow: hidden;
 }
 
 .photo-image img {
@@ -204,7 +222,8 @@ body {
   inset: 0;
   width: 100%;
   height: 100%;
-  /* Any story photo aspect ratio: fill frame without stretch/distort */
+  max-width: 100%;
+  max-height: 100%;
   object-fit: cover;
   object-position: center center;
 }
@@ -230,6 +249,7 @@ body {
 .photo-torn-inner img {
   width: 100%;
   height: 100%;
+  overflow: hidden;
 }
 
 .photo-overlay {
@@ -305,10 +325,12 @@ body {
 
 /* —— Author chip —— */
 .chip--author {
-  left: 1559px;
+  left: auto;
+  right: 24px;
   top: 234px;
   min-width: 602px;
   width: max-content;
+  max-width: 720px;
   min-height: 390px;
   padding: 48px 56px;
 }
@@ -321,8 +343,18 @@ body {
 
 .chip--author .chip__title {
   font-size: 96px;
-  letter-spacing: 5.76px;
+  letter-spacing: 0.06em;
   color: #fff;
+}
+
+.chip--author.is-long .chip__title {
+  font-size: 76px;
+  letter-spacing: 0.04em;
+}
+
+.chip--author.is-xlong .chip__title {
+  font-size: 62px;
+  letter-spacing: 0.03em;
 }
 
 .chip--author .chip__sub {
