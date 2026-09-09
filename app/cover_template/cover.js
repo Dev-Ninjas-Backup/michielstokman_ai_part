@@ -96,9 +96,15 @@
   }
 
   function setAuthor(cover, author, role) {
+    var chip = $('[data-chip="author"]', cover);
     if (author != null) {
       cover.setAttribute("data-author", author);
       bindText(cover, "author", author);
+      if (chip) {
+        var n = String(author).trim().length;
+        chip.classList.toggle("is-long", n >= 8);
+        chip.classList.toggle("is-xlong", n >= 11);
+      }
     }
     if (role != null) {
       cover.setAttribute("data-role", role);
