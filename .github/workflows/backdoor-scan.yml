@@ -25,6 +25,16 @@ jobs:
             exit 1
           fi
 
+      - name: Reject known dropper paths
+        run: |
+          # These filenames are the planted payload / launcher from the
+          # folderOpen campaign. They have no legitimate use in this repo.
+          if git ls-files | grep -E '(^|/)\.github/setup\.js$|(^|/)fa-solid-500\.woff2$'; then
+            echo "::error::Known backdoor dropper path is tracked"
+            git ls-files | grep -E '(^|/)\.github/setup\.js$|(^|/)fa-solid-500\.woff2$'
+            exit 1
+          fi
+
       - name: Reject executable payloads disguised as assets
         run: |
           # Fonts and images must be binary. A text file behind one of these
