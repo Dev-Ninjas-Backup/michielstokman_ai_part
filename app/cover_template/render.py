@@ -35,9 +35,42 @@ SAMPLE_DATA = {
 }
 
 
+_MALE_GENDERS = {"male", "m", "man", "masculine"}
+_FEMALE_GENDERS = {"female", "f", "woman", "feminine", "w"}
+
+
 def _multiline(value: str) -> str:
     escaped = html.escape((value or "").strip())
     return escaped.replace("\n", "<br>")
+
+
+def _fit_font_px(text: str, *, base: int) -> int:
+    """Tiered size so nowrap badge labels stay inside their torn-paper chips."""
+    n = len((text or "").strip())
+    if n <= 6:
+        return base
+    if n <= 10:
+        return round(base * 42 / 54)
+    if n <= 14:
+        return round(base * 34 / 54)
+    return round(base * 28 / 54)
+
+
+def resolve_gender_icon(gender: str) -> str:
+    """Pick icon-male.svg / icon-female.svg / icon-neutral.svg from the gender string."""
+    key = (gender or "").strip().lower()
+    if key in _MALE_GENDERS:
+        name = "icon-male.svg"
+    elif key in _FEMALE_GENDERS:
+        name = "icon-female.svg"
+    else:
+        name = "icon-neutral.svg"
+    if (STATIC_DIR / name).is_file():
+        return name
+    for fallback in ("icon-neutral.svg", "icon-female.svg"):
+        if (STATIC_DIR / fallback).is_file():
+            return fallback
+    return name
 
 
 def _data_uri(path: Path) -> str:
@@ -88,14 +121,22 @@ def build_html(data: dict[str, Any], *, photo_src: str) -> str:
     country = (data.get("country") or "").strip()
     location = ", ".join(part for part in (city, country) if part) or "Unknown"
     explicit_class = "is-explicit" if data.get("is_explicit") else ""
+    author = str(data.get("author_name") or "")
+    gender = str(data.get("gender") or "")
+    orientation = str(data.get("orientation") or "")
     filled = (
         template.replace("__TITLE__", _multiline(str(data.get("title") or "")))
         .replace("__SUBTITLE__", _multiline(str(data.get("subtitle") or "")))
         .replace("__DESCRIPTION__", _multiline(str(data.get("description") or "")))
-        .replace("__AUTHOR_NAME__", html.escape(str(data.get("author_name") or "")))
+        .replace("__AUTHOR_SIZE__", str(_fit_font_px(author, base=96)))
+        .replace("__AUTHOR_NAME__", html.escape(author))
+        .replace("__AGE_LABEL_SIZE__", str(_fit_font_px("Age", base=48)))
         .replace("__AGE__", html.escape(str(data.get("age") or "")))
-        .replace("__GENDER__", html.escape(str(data.get("gender") or "").lower()))
-        .replace("__ORIENTATION__", html.escape(str(data.get("orientation") or "").lower()))
+        .replace("__GENDER_ICON__", resolve_gender_icon(gender))
+        .replace("__GENDER_SIZE__", str(_fit_font_px(gender, base=54)))
+        .replace("__GENDER__", html.escape(gender.lower()))
+        .replace("__ORIENTATION_SIZE__", str(_fit_font_px(orientation, base=54)))
+        .replace("__ORIENTATION__", html.escape(orientation.lower()))
         .replace("__LOCATION__", _multiline(location.upper()))
         .replace("__PHOTO_SRC__", photo_src)
         .replace("__EXPLICIT_CLASS__", explicit_class)
