@@ -196,9 +196,11 @@ body {
 
 .photo-image {
   /*
-    Photo aperture mask is GENERATED from assets/photo-mask.svg — the same SVG
-    drawn as .photo-torn-stroke. Rebuild via scripts/build_photo_tear_hole_mask.py
-    after any photo-mask.svg or .photo-torn CSS change.
+    Photo aperture mask is GENERATED from assets/photo-fill-mask.png (authoritative
+    white-inner silhouette). Decorative stroke is assets/photo-torn-border-fit.png
+    from the matching border art. Rebuild both via
+    scripts/build_photo_tear_hole_mask.py after fill/border art or .photo-torn CSS
+    size changes.
 
     .photo-image lives inside .photo-torn-inner with the stroke so both share
     one box — zero CSS inset drift between mask and white border.
