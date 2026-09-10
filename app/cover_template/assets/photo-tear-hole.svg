@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1469.848 1899.615">
   <!-- GENERATED — do not hand-edit.
-       Hole mask PNGs are derived from assets/photo-mask.svg (same file as the
-       white .photo-torn overlay) via scripts/build_photo_tear_hole_mask.py.
-       Re-run after any photo-mask.svg or .photo-torn CSS change. -->
+       Hole mask PNGs are derived from assets/photo-fill-mask.png via
+       scripts/build_photo_tear_hole_mask.py. Decorative stroke is
+       assets/photo-torn-border-fit.png from photo-torn-border.png. -->
 </svg>
