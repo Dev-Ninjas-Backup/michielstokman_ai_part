@@ -70,14 +70,14 @@
         <div class="photo-wrap" aria-hidden="true">
           <div class="photo-rotator">
             <div class="photo-frame">
-              <!-- Clip boundary is mask-image from photo-tear-hole-mask-alpha.png,
-                   derived from the same assets/photo-mask.svg as .photo-torn. -->
-              <div class="photo-image">
-                <img src="./assets/photo.png" alt="" width="1371" height="1668" />
-              </div>
+              <!-- Photo + white stroke share .photo-torn-inner so mask and SVG
+                   use the same box. Mask is derived from photo-mask.svg. -->
               <div class="photo-torn">
                 <div class="photo-torn-inner">
-                  <img src="./assets/photo-mask.svg" alt="" />
+                  <div class="photo-image">
+                    <img src="./assets/photo.png" alt="" width="1371" height="1668" />
+                  </div>
+                  <img class="photo-torn-stroke" src="./assets/photo-mask.svg" alt="" />
                 </div>
               </div>
               <div class="photo-overlay">
