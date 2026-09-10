@@ -206,6 +206,10 @@ body {
     Photo HOLE: full .photo-frame → torn open-corner to frame R/B.
     Jagged L/T from photo-mask.svg overlay; R/B bleed to canvas via rotation.
     Opaque underlay so PNG alpha cannot reveal cover beige (false bottom gap).
+
+    This mask must always fully fill the torn hole with zero gap, and must never
+    let the photo bleed past the hole's boundary. Any change here MUST be
+    verified against test_cover_template.py before merging.
   */
   position: absolute;
   inset: 0;
