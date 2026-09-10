@@ -194,18 +194,12 @@ body {
   overflow: hidden;
 }
 
-.photo-tear-clip {
-  position: absolute;
-  width: 0;
-  height: 0;
-  overflow: hidden;
-}
-
 .photo-image {
   /*
-    Photo HOLE: full .photo-frame → torn open-corner to frame R/B.
-    Jagged L/T from photo-mask.svg overlay; R/B bleed to canvas via rotation.
-    Opaque underlay so PNG alpha cannot reveal cover beige (false bottom gap).
+    Photo aperture mask is GENERATED from assets/photo-mask.svg — the same SVG
+    drawn as the white torn border in .photo-torn. Rebuild via
+    scripts/build_photo_tear_hole_mask.py after any photo-mask.svg or
+    .photo-torn CSS change. Do not maintain a separate hand-tuned clip path.
 
     This mask must always fully fill the torn hole with zero gap, and must never
     let the photo bleed past the hole's boundary. Any change here MUST be
@@ -215,8 +209,6 @@ body {
   inset: 0;
   overflow: hidden;
   background-color: #000;
-  clip-path: url(#photoTear);
-  -webkit-clip-path: url(#photoTear);
   -webkit-mask-image: url("./assets/photo-tear-hole-mask-alpha.png");
   mask-image: url("./assets/photo-tear-hole-mask-alpha.png");
   -webkit-mask-size: 100% 100%;
