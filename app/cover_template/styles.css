@@ -194,19 +194,27 @@ body {
   overflow: hidden;
 }
 
-.photo-image {
+.photo-tear-clip {
   position: absolute;
-  /*
-    Clip to the torn-paper HOLE (same box as .photo-torn at
-    15.02% 0.55% 2.3% 12.49%, plus white-stroke pad).
-    Old photo-clip.png opaque region was ~9.9% top / 6.2% left —
-    ~5%/6% larger — so the bitmap painted past the jagged tear.
-    Inset the photo into the hole; keep object-fit:cover for any
-    source aspect ratio. photo-clip.png was rebuilt to this hole
-    for asset consistency (mask not required when inset is set).
-  */
-  inset: 21% 7% 9% 18.5%;
+  width: 0;
+  height: 0;
   overflow: hidden;
+}
+
+.photo-image {
+  /*
+    Exact photo-mask.svg viewBox size. Position matches .photo-torn-inner
+    (torn inset 15.02%/0.55%/2.3%/12.49% + inner inset 0/-0.31%/-0.83%/-0.31%).
+    clipPath userSpaceOnUse → path units = CSS px 1:1. No percentage photo insets.
+  */
+  position: absolute;
+  top: 285.3222px;
+  left: 179.6217px;
+  width: 1286.18px;
+  height: 1583.62px;
+  overflow: hidden;
+  clip-path: url(#photoTear);
+  -webkit-clip-path: url(#photoTear);
 }
 
 .photo-image img {
