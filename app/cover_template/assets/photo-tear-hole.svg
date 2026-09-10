@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1469.848 1899.615">
+  <defs>
+    <clipPath id="photoTear" clipPathUnits="objectBoundingBox">
+      <path d="M0.125170,0.150000L0.125170,0.999474L0.999320,0.999474L0.999320,0.150000L0.125170,0.150000Z"/>
+    </clipPath>
+  </defs>
+  <path id="photo-tear-hole" d="M183.981,284.942L183.981,1898.615L1468.848,1898.615L1468.848,284.942L183.981,284.942Z" fill="#fff"/>
+</svg>

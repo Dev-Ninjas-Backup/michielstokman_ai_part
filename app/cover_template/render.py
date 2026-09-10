@@ -52,6 +52,29 @@ def _data_uri_bytes(raw: bytes, mime: str) -> str:
     return f"data:{mime};base64,{base64.b64encode(raw).decode('ascii')}"
 
 
+def _flatten_photo_to_jpeg(raw: bytes) -> bytes:
+    """Composite RGBA/LA onto opaque black and encode JPEG.
+
+    Sample Figma photo.png is a cutout with transparent margins. Those alpha
+    holes previously showed the cover beige through the tear hole and looked
+    like a bottom 'gap' even though .photo-wrap already past y=2160.
+    """
+    from io import BytesIO
+
+    from PIL import Image
+
+    img = Image.open(BytesIO(raw))
+    if img.mode in ("RGBA", "LA") or (img.mode == "P" and "transparency" in img.info):
+        rgba = img.convert("RGBA")
+        bg = Image.new("RGBA", rgba.size, (0, 0, 0, 255))
+        img = Image.alpha_composite(bg, rgba).convert("RGB")
+    else:
+        img = img.convert("RGB")
+    buf = BytesIO()
+    img.save(buf, format="JPEG", quality=92, optimize=True)
+    return buf.getvalue()
+
+
 def _fetch_bytes(url: str) -> tuple[bytes, str]:
     parsed = urlparse(url)
     suffix = Path(parsed.path).suffix.lower()
@@ -71,21 +94,37 @@ def _fetch_bytes(url: str) -> tuple[bytes, str]:
 
 
 def resolve_photo_data_uri(photo_url: str | None) -> str | None:
-    """Return a data URI to swap into .photo-image img, or None to keep photo.png."""
-    if not photo_url:
-        return None
-    if photo_url.startswith(("http://", "https://")):
-        raw, mime = _fetch_bytes(photo_url)
-        return _data_uri_bytes(raw, mime)
-    if photo_url.startswith("data:"):
-        return photo_url
-    local = Path(photo_url)
-    if local.is_file():
-        return _data_uri(local)
-    if DEFAULT_PHOTO.is_file():
-        return _data_uri(DEFAULT_PHOTO)
-    return None
+    """Return an opaque JPEG data URI for .photo-image img.
 
+    Always flattens alpha so transparent PNG margins cannot reveal the cover
+    beige inside the torn-photo hole (false 'bleed gap').
+    """
+    raw: bytes | None = None
+    if not photo_url:
+        if DEFAULT_PHOTO.is_file():
+            raw = DEFAULT_PHOTO.read_bytes()
+        else:
+            return None
+    elif photo_url.startswith(("http://", "https://")):
+        raw, _mime = _fetch_bytes(photo_url)
+    elif photo_url.startswith("data:"):
+        # data:<mime>;base64,<payload>
+        try:
+            header, b64 = photo_url.split(",", 1)
+            if ";base64" not in header:
+                return photo_url
+            raw = base64.b64decode(b64)
+        except (ValueError, OSError):
+            return photo_url
+    else:
+        local = Path(photo_url)
+        if local.is_file():
+            raw = local.read_bytes()
+        elif DEFAULT_PHOTO.is_file():
+            raw = DEFAULT_PHOTO.read_bytes()
+        else:
+            return None
+    return _data_uri_bytes(_flatten_photo_to_jpeg(raw), "image/jpeg")
 
 def _split_two_lines(value: str) -> tuple[str, str]:
     """Split a newline-separated title/subtitle into Cover.set line1/line2."""
@@ -127,9 +166,8 @@ def payload_to_cover_set(data: dict[str, Any]) -> dict[str, Any]:
         "orientation": str(data.get("orientation") or "").strip().lower(),
         "explicit": True if explicit_flag else False,
     }
-    photo = resolve_photo_data_uri(data.get("photo_url"))
-    if photo:
-        cover["photoUrl"] = photo
+    # Always set photoUrl (flattened) so default assets/photo.png alpha is not used raw.
+    cover["photoUrl"] = resolve_photo_data_uri(data.get("photo_url"))
     return cover
 
 
