@@ -203,18 +203,25 @@ body {
 
 .photo-image {
   /*
-    Exact photo-mask.svg viewBox size. Position matches .photo-torn-inner
-    (torn inset 15.02%/0.55%/2.3%/12.49% + inner inset 0/-0.31%/-0.83%/-0.31%).
-    clipPath userSpaceOnUse → path units = CSS px 1:1. No percentage photo insets.
+    Photo HOLE: full .photo-frame → torn open-corner to frame R/B.
+    Jagged L/T from photo-mask.svg overlay; R/B bleed to canvas via rotation.
+    Opaque underlay so PNG alpha cannot reveal cover beige (false bottom gap).
   */
   position: absolute;
-  top: 285.3222px;
-  left: 179.6217px;
-  width: 1286.18px;
-  height: 1583.62px;
+  inset: 0;
   overflow: hidden;
+  background-color: #000;
   clip-path: url(#photoTear);
   -webkit-clip-path: url(#photoTear);
+  -webkit-mask-image: url("./assets/photo-tear-hole-mask-alpha.png");
+  mask-image: url("./assets/photo-tear-hole-mask-alpha.png");
+  -webkit-mask-size: 100% 100%;
+  mask-size: 100% 100%;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: 0 0;
+  mask-position: 0 0;
+  mask-mode: alpha;
 }
 
 .photo-image img {
