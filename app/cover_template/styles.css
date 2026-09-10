@@ -196,17 +196,17 @@ body {
 
 .photo-image {
   position: absolute;
-  inset: 0;
-  /* Clip any replacement photo to the torn-paper silhouette */
-  -webkit-mask-image: url("./assets/photo-clip.png");
-  mask-image: url("./assets/photo-clip.png");
-  -webkit-mask-size: 100% 100%;
-  mask-size: 100% 100%;
-  -webkit-mask-repeat: no-repeat;
-  mask-repeat: no-repeat;
-  -webkit-mask-position: center;
-  mask-position: center;
-  mask-mode: alpha;
+  /*
+    Clip to the torn-paper HOLE (same box as .photo-torn at
+    15.02% 0.55% 2.3% 12.49%, plus white-stroke pad).
+    Old photo-clip.png opaque region was ~9.9% top / 6.2% left —
+    ~5%/6% larger — so the bitmap painted past the jagged tear.
+    Inset the photo into the hole; keep object-fit:cover for any
+    source aspect ratio. photo-clip.png was rebuilt to this hole
+    for asset consistency (mask not required when inset is set).
+  */
+  inset: 21% 7% 9% 18.5%;
+  overflow: hidden;
 }
 
 .photo-image img {
