@@ -219,7 +219,13 @@ async def render_cover_png(data: dict[str, Any] | None = None) -> bytes:
     with _static_server() as origin:
         async with async_playwright() as playwright:
             browser = await playwright.chromium.launch(
-                args=["--no-sandbox", "--disable-dev-shm-usage"],
+                args=[
+                    "--no-sandbox",
+                    "--disable-dev-shm-usage",
+                    "--disable-gpu",
+                    "--disable-software-rasterizer",
+                    "--font-render-hinting=none",
+                ],
             )
             page = await browser.new_page(
                 viewport={"width": CANVAS_WIDTH, "height": CANVAS_HEIGHT},
