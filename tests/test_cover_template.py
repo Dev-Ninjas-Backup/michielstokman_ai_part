@@ -191,35 +191,49 @@ def _inside_edge_probes(
     return probes
 
 
-def _outside_rb_probes(
+def _outside_boundary_probes(
     mask: Image.Image, mw: int, mh: int
 ) -> list[tuple[str, int, int]]:
-    """Just outside the hole near the canvas right/bottom edges."""
+    """Just outside the hole past the L's outer edge (photo must not appear here)."""
+    left_m, top_m, right_m, bot_m = _mask_bbox(mask, mw, mh)
     probes: list[tuple[str, int, int]] = []
 
-    for y in range(600, 2100, 50):
-        for x in range(CANVAS_WIDTH - 1, CANVAS_WIDTH - 90, -2):
-            if not _hole_on_canvas(mask, mw, mh, x, y):
-                if any(
-                    _hole_on_canvas(mask, mw, mh, x - d, y) for d in range(2, 32, 2)
-                ):
-                    probes.append(("outside-right", x, y))
-                    break
+    # Step a few pixels past the hole along frame-right and frame-bottom of the L.
+    for t in (0.35, 0.45, 0.55, 0.65, 0.75):
+        my = int(top_m + t * (bot_m - top_m))
+        try:
+            mx = _first_opaque_x(mask, mw, my, reverse=True) + 24
+        except AssertionError:
+            continue
+        fx, fy = _m2f(mx, my, mw, mh)
+        x, y = _frame_to_canvas(fx, fy)
+        xi, yi = int(round(x)), int(round(y))
+        if (
+            0 <= xi < CANVAS_WIDTH
+            and 0 <= yi < CANVAS_HEIGHT
+            and not _hole_on_canvas(mask, mw, mh, xi, yi)
+        ):
+            probes.append(("outside-jagged", xi, yi))
 
-    for x in range(1200, 2100, 50):
-        for y in range(CANVAS_HEIGHT - 1, CANVAS_HEIGHT - 90, -2):
-            if not _hole_on_canvas(mask, mw, mh, x, y):
-                if any(
-                    _hole_on_canvas(mask, mw, mh, x, y - d) for d in range(2, 32, 2)
-                ):
-                    probes.append(("outside-bottom", x, y))
-                    break
+    for t in (0.25, 0.40, 0.55, 0.70):
+        mx = int(left_m + t * (right_m - left_m))
+        try:
+            my = _first_opaque_y(mask, mh, mx, reverse=True) + 24
+        except AssertionError:
+            continue
+        fx, fy = _m2f(mx, my, mw, mh)
+        x, y = _frame_to_canvas(fx, fy)
+        xi, yi = int(round(x)), int(round(y))
+        if (
+            0 <= xi < CANVAS_WIDTH
+            and 0 <= yi < CANVAS_HEIGHT
+            and not _hole_on_canvas(mask, mw, mh, xi, yi)
+        ):
+            probes.append(("outside-jagged", xi, yi))
 
-    # Right often bleeds flush to x=2160 (no outside-right on canvas). Bottom must exist.
-    bottoms = [p for p in probes if p[0] == "outside-bottom"]
-    if len(bottoms) < 5:
+    if len(probes) < 4:
         raise AssertionError(
-            f"Expected outside-bottom probes near canvas edge; got {len(bottoms)}. "
+            f"Expected outside-boundary probes past the torn L; got {len(probes)}. "
             "Hole geometry may have changed."
         )
     return probes
@@ -244,7 +258,7 @@ def _render_cover(photo_url: str | None) -> Image.Image:
 def _assert_hole_fill_and_clip(label: str, cover: Image.Image, expect_saturated: bool) -> None:
     mask, mw, mh = _load_hole_mask()
     inside = _inside_edge_probes(mask, mw, mh)
-    outside = _outside_rb_probes(mask, mw, mh)
+    outside = _outside_boundary_probes(mask, mw, mh)
     beige_tol = _BEIGE_TOL_SOLID if expect_saturated else _BEIGE_TOL_NATURAL
 
     beige_inside: list[str] = []
@@ -273,13 +287,11 @@ def _assert_hole_fill_and_clip(label: str, cover: Image.Image, expect_saturated:
         if expect_saturated:
             if _is_saturated_photo(rgb):
                 overflow.append(f"{side}@({x},{y})={rgb}")
-        else:
-            # Default portrait: outside R/B must stay cover beige (not photo content).
-            if not _is_beige(rgb, _BEIGE_TOL_SOLID):
-                overflow.append(f"{side}@({x},{y})={rgb}")
+        # Natural portrait: chips/badges sit near the L; only the solid-color
+        # cases give an unambiguous overflow signal.
     assert not overflow, (
-        f"[{label}] Photo overflows past the torn-hole mask near the canvas "
-        f"right/bottom edge. Offending samples: {', '.join(overflow[:8])}"
+        f"[{label}] Photo overflows past the torn-hole mask (outside the white "
+        f"border). Offending samples: {', '.join(overflow[:8])}"
     )
 
 

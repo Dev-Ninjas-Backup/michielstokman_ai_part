@@ -70,13 +70,8 @@
         <div class="photo-wrap" aria-hidden="true">
           <div class="photo-rotator">
             <div class="photo-frame">
-              <svg class="photo-tear-clip" width="0" height="0" aria-hidden="true" focusable="false">
-                <defs>
-                  <clipPath id="photoTear" clipPathUnits="objectBoundingBox">
-                    <path d="M0.125170,0.150000L0.125170,0.999474L0.999320,0.999474L0.999320,0.150000L0.125170,0.150000Z"/>
-                  </clipPath>
-                </defs>
-              </svg>
+              <!-- Clip boundary is mask-image from photo-tear-hole-mask-alpha.png,
+                   derived from the same assets/photo-mask.svg as .photo-torn. -->
               <div class="photo-image">
                 <img src="./assets/photo.png" alt="" width="1371" height="1668" />
               </div>
