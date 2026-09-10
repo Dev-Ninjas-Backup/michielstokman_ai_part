@@ -1,22 +1,20 @@
 """Build photo-tear-hole mask from the SAME photo-mask.svg used as the white overlay.
 
-Rasters .photo-torn-inner (shared box with the live white stroke + photo), then
-derives a paper silhouette clipped to the L's OUTER edge so the photo:
-  - fills under every jagged bay (no beige gaps)
-  - never extends past the stroke outer edge into the card beige
+Rasters the live cover template (real CSS for .photo-torn / .photo-torn-inner),
+then derives the aperture as the complement of the SE exterior past the L stroke.
 """
 from __future__ import annotations
 
 import asyncio
+from collections import deque
 from io import BytesIO
 from pathlib import Path
 
 import numpy as np
-from PIL import Image, ImageFilter
+from PIL import Image
 
 PACKAGE = Path(__file__).resolve().parents[1] / "app" / "cover_template"
 ASSETS = PACKAGE / "assets"
-# Match .photo-frame CSS size (rounded) used as the build viewport.
 FRAME_W = 1470
 FRAME_H = 1900
 
@@ -24,30 +22,14 @@ TORN_TOP = 0.1502
 TORN_RIGHT = 0.0055
 TORN_BOTTOM = 0.023
 TORN_LEFT = 0.1249
-INNER_TOP = 0.0
-INNER_RIGHT = -0.0031
-INNER_BOTTOM = -0.0083
-INNER_LEFT = -0.0031
-
-
-def _dilate(mask: np.ndarray, radius_px: int) -> np.ndarray:
-    if radius_px <= 0:
-        return mask.astype(bool)
-    size = 2 * radius_px + 1
-    return (
-        np.array(
-            Image.fromarray((mask.astype(np.uint8) * 255)).filter(
-                ImageFilter.MaxFilter(size)
-            )
-        )
-        > 0
-    )
 
 
 async def _raster_ribbon_from_live_page() -> Image.Image:
-    """Screenshot .photo-torn-inner with photo-mask.svg (no drop-shadow)."""
+    """Screenshot .photo-frame with photo-mask.svg path (no drop-shadow) via real CSS."""
     from playwright.async_api import async_playwright
 
+    # Strip the drop-shadow filter for mask geometry — same path as the overlay,
+    # without the soft brown fringe shifting the perceived inner edge.
     src = (ASSETS / "photo-mask.svg").read_text(encoding="utf-8")
     stripped = src.replace('filter="url(#filter0_d_0_4)"', "")
     tmp_svg = ASSETS / "_photo-mask-noshadow.svg"
@@ -77,7 +59,7 @@ async def _raster_ribbon_from_live_page() -> Image.Image:
         <div class="photo-frame">
           <div class="photo-torn">
             <div class="photo-torn-inner">
-              <img class="photo-torn-stroke" src="./assets/_photo-mask-noshadow.svg" alt="" />
+              <img src="./assets/_photo-mask-noshadow.svg" alt="" />
             </div>
           </div>
         </div>
@@ -98,10 +80,10 @@ async def _raster_ribbon_from_live_page() -> Image.Image:
             )
             await page.goto(index.as_uri(), wait_until="load")
             await page.wait_for_function(
-                "() => { const i=document.querySelector('.photo-torn-stroke');"
+                "() => { const i=document.querySelector('.photo-torn-inner img');"
                 " return i && i.complete && i.naturalWidth; }"
             )
-            png = await page.locator(".photo-torn-inner").screenshot(
+            png = await page.locator(".photo-frame").screenshot(
                 type="png", omit_background=True
             )
             await browser.close()
@@ -115,19 +97,26 @@ async def _raster_ribbon_from_live_page() -> Image.Image:
 
 def _hole_from_ribbon(ribbon_rgba: Image.Image) -> Image.Image:
     arr = np.array(ribbon_rgba)
-    h, w = arr.shape[0], arr.shape[1]
+    if arr.shape[0] != FRAME_H or arr.shape[1] != FRAME_W:
+        ribbon_rgba = ribbon_rgba.resize((FRAME_W, FRAME_H), Image.Resampling.NEAREST)
+        arr = np.array(ribbon_rgba)
 
     alpha = arr[..., 3]
     rgb = arr[..., :3].astype(np.int16)
     barrier = (alpha > 200) & (rgb.min(axis=-1) > 200)
     if float(barrier.mean()) < 0.01:
+        # opaque screenshot without alpha — use near-white RGB
         barrier = (arr[..., 0] > 250) & (arr[..., 1] > 250) & (arr[..., 2] > 250)
 
-    # L topology in torn-inner space: vertical arm on the right, horizontal on bottom.
+    torn_x = int(round(FRAME_W * TORN_LEFT))
+    torn_y = int(round(FRAME_H * TORN_TOP))
+    torn_w = int(round(FRAME_W * (1.0 - TORN_LEFT - TORN_RIGHT)))
+    torn_h = int(round(FRAME_H * (1.0 - TORN_TOP - TORN_BOTTOM)))
+
     vert = barrier.copy()
-    vert[:, : w // 2] = False
+    vert[:, : torn_x + int(0.50 * torn_w)] = False
     horiz = barrier.copy()
-    horiz[: h // 2, :] = False
+    horiz[: torn_y + int(0.50 * torn_h), :] = False
     ys, xs = np.where(vert)
     if len(xs) == 0 or not np.any(horiz):
         raise RuntimeError("photo-mask.svg did not rasterize into an L-shaped barrier")
@@ -137,102 +126,69 @@ def _hole_from_ribbon(ribbon_rgba: Image.Image) -> Image.Image:
     left_tip_x = int(xs_h.min())
     left_tip_y = int(ys_h[xs_h == left_tip_x].min())
 
-    # Snap open edges to painted tips (CSS % can sit 1–3px outside the ink).
-    box_l = 0
-    box_t = top_tip_y
+    block = barrier.copy()
+    block[: top_tip_y + 1, top_tip_x:] = True
+    block[left_tip_y:, : left_tip_x + 1] = True
 
-    right_edge = np.full(h, -1, dtype=np.int32)
-    for y in range(h):
-        xs_row = np.where(vert[y])[0]
-        if len(xs_row):
-            right_edge[y] = int(xs_row.max())
-    last = -1
-    for y in range(h):
-        if right_edge[y] >= 0:
-            last = right_edge[y]
-        elif last >= 0 and y >= top_tip_y:
-            right_edge[y] = last
-    last = -1
-    for y in range(h - 1, -1, -1):
-        if right_edge[y] >= 0:
-            last = right_edge[y]
-        elif last >= 0 and y >= top_tip_y:
-            right_edge[y] = last
+    exterior = np.zeros((FRAME_H, FRAME_W), dtype=bool)
+    seed = (FRAME_W - 2, FRAME_H - 2)
+    if block[seed[1], seed[0]]:
+        seed = (FRAME_W - 5, FRAME_H - 5)
+    q: deque[tuple[int, int]] = deque([seed])
+    exterior[seed[1], seed[0]] = True
+    while q:
+        x, y = q.popleft()
+        for nx, ny in ((x - 1, y), (x + 1, y), (x, y - 1), (x, y + 1)):
+            if nx < 0 or ny < 0 or nx >= FRAME_W or ny >= FRAME_H:
+                continue
+            if exterior[ny, nx] or block[ny, nx]:
+                continue
+            exterior[ny, nx] = True
+            q.append((nx, ny))
 
-    bottom_edge = np.full(w, -1, dtype=np.int32)
-    for x in range(w):
-        ys_col = np.where(horiz[:, x])[0]
-        if len(ys_col):
-            bottom_edge[x] = int(ys_col.max())
-    last = -1
-    for x in range(w):
-        if bottom_edge[x] >= 0:
-            last = bottom_edge[x]
-        elif last >= 0 and x >= left_tip_x:
-            bottom_edge[x] = last
-    last = -1
-    for x in range(w - 1, -1, -1):
-        if bottom_edge[x] >= 0:
-            last = bottom_edge[x]
-        elif last >= 0 and x >= left_tip_x:
-            bottom_edge[x] = last
-
-    default_bottom = int(ys_h.max()) if len(ys_h) else h - 1
-    default_right = int(xs.max()) if len(xs) else w - 1
-
-    xs_grid = np.arange(w)[None, :]
-    ys_grid = np.arange(h)[:, None]
-    re = right_edge.astype(np.int32).copy()
-    be = bottom_edge.astype(np.int32).copy()
-    re[re < 0] = default_right
-    tip_bottom = (
-        int(bottom_edge[left_tip_x]) if bottom_edge[left_tip_x] >= 0 else default_bottom
-    )
-    be[:left_tip_x] = np.where(be[:left_tip_x] < 0, tip_bottom, be[:left_tip_x])
-    be[be < 0] = default_bottom
-
-    hole = (
-        (ys_grid >= box_t)
-        & (xs_grid >= box_l)
-        & (xs_grid <= re[:, None])
-        & (ys_grid <= be[None, :])
-    )
-
-    hole |= barrier & _dilate(hole, 2)
-    hole = _dilate(hole, 2)
-    for y in range(h):
-        if right_edge[y] >= 0:
-            hole[y, int(right_edge[y]) + 1 :] = False
-    for x in range(w):
-        if bottom_edge[x] >= 0:
-            hole[int(bottom_edge[x]) + 1 :, x] = False
-    hole[:top_tip_y, :] = False
-    hole[:, :box_l] = False
-    hole[: top_tip_y + 1, top_tip_x + 1 :] = False
+    xx = np.arange(FRAME_W)[None, :]
+    yy = np.arange(FRAME_H)[:, None]
+    in_torn = (xx >= torn_x) & (yy >= torn_y)
+    # Clip to the inner side of the L only (do not include ink — white overlay
+    # paints on top). Exterior flood already stopped at the ribbon pixels.
+    hole = (~exterior) & in_torn & (~barrier)
 
     fill = float(hole.mean())
-    if fill < 0.35 or fill > 0.95:
+    if fill < 0.35 or fill > 0.85:
         raise RuntimeError(f"Hole fill {fill:.3%} outside expected range")
 
-    out = np.zeros((h, w, 4), dtype=np.uint8)
+    out = np.zeros((FRAME_H, FRAME_W, 4), dtype=np.uint8)
     out[hole, :3] = 255
     out[hole, 3] = 255
     return Image.fromarray(out, "RGBA")
 
 
 async def main() -> None:
-    print("Rasterizing photo-mask.svg via .photo-torn-inner…")
+    print("Rasterizing photo-mask.svg via live cover CSS…")
     ribbon = await _raster_ribbon_from_live_page()
     ribbon.save(ASSETS / "photo-mask-raster-debug.png")
     a = np.array(ribbon)
-    print("ribbon opaque%", float((a[..., 3] > 200).mean()), "size", a.shape)
+    if a.shape[2] == 4:
+        print("ribbon opaque%", float((a[..., 3] > 200).mean()), "size", a.shape)
     hole = _hole_from_ribbon(ribbon)
     hole_arr = np.array(hole)
-    print("hole fill%", float((hole_arr[..., 3] > 128).mean()), "size", hole_arr.shape)
+    print("hole fill%", float((hole_arr[..., 3] > 128).mean()))
+
     alpha = Image.fromarray(hole_arr[..., 3], mode="L")
     Image.merge("RGB", (alpha, alpha, alpha)).save(ASSETS / "photo-tear-hole-mask.png")
     hole.save(ASSETS / "photo-tear-hole-mask-alpha.png")
-    print("Wrote masks from photo-mask.svg (torn-inner space)")
+
+    (ASSETS / "photo-tear-hole.svg").write_text(
+        """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1469.848 1899.615">
+  <!-- GENERATED — do not hand-edit.
+       Hole mask PNGs are derived from assets/photo-mask.svg (same file as the
+       white .photo-torn overlay) via scripts/build_photo_tear_hole_mask.py.
+       Re-run after any photo-mask.svg or .photo-torn CSS change. -->
+</svg>
+""",
+        encoding="utf-8",
+    )
+    print("Wrote masks from photo-mask.svg")
 
 
 if __name__ == "__main__":

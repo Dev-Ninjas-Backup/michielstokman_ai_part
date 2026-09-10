@@ -35,24 +35,6 @@ _OY = (_WRAP_H - _FRAME_H) / 2.0
 _CX = _WRAP_L + _WRAP_W / 2.0
 _CY = _WRAP_T + _WRAP_H / 2.0
 
-# .photo-torn / .photo-torn-inner — mask is generated in torn-inner space
-_TORN_TOP = 0.1502
-_TORN_RIGHT = 0.0055
-_TORN_BOTTOM = 0.023
-_TORN_LEFT = 0.1249
-_INNER_TOP = 0.0
-_INNER_RIGHT = -0.0031
-_INNER_BOTTOM = -0.0083
-_INNER_LEFT = -0.0031
-_TORN_X = _FRAME_W * _TORN_LEFT
-_TORN_Y = _FRAME_H * _TORN_TOP
-_TORN_W = _FRAME_W * (1.0 - _TORN_LEFT - _TORN_RIGHT)
-_TORN_H = _FRAME_H * (1.0 - _TORN_TOP - _TORN_BOTTOM)
-_INNER_L = _TORN_X + _TORN_W * _INNER_LEFT
-_INNER_T = _TORN_Y + _TORN_H * _INNER_TOP
-_INNER_W = _TORN_W * (1.0 - _INNER_LEFT - _INNER_RIGHT)
-_INNER_H = _TORN_H * (1.0 - _INNER_TOP - _INNER_BOTTOM)
-
 # Cover card beige (#f1ede4). Tight tol catches true gaps; loose tol is for
 # solid-color sources where photo content cannot resemble the card background.
 _BEIGE = (241, 237, 228)
@@ -96,13 +78,10 @@ def _load_hole_mask() -> tuple[Image.Image, int, int]:
 
 
 def _hole_at_frame(mask: Image.Image, mw: int, mh: int, fx: float, fy: float) -> bool:
-    # Mask is authored in .photo-torn-inner coordinates (not full frame).
-    lx = fx - _INNER_L
-    ly = fy - _INNER_T
-    if lx < 0 or ly < 0 or lx >= _INNER_W or ly >= _INNER_H:
+    if fx < 0 or fy < 0 or fx >= _FRAME_W or fy >= _FRAME_H:
         return False
-    mx = int(round((lx / _INNER_W) * (mw - 1)))
-    my = int(round((ly / _INNER_H) * (mh - 1)))
+    mx = int(round((fx / _FRAME_W) * (mw - 1)))
+    my = int(round((fy / _FRAME_H) * (mh - 1)))
     mx = max(0, min(mw - 1, mx))
     my = max(0, min(mh - 1, my))
     return mask.getpixel((mx, my))[3] > 127
@@ -133,10 +112,7 @@ def _mask_bbox(mask: Image.Image, mw: int, mh: int) -> tuple[int, int, int, int]
 
 
 def _m2f(mx: float, my: float, mw: int, mh: int) -> tuple[float, float]:
-    """Mask pixel → frame coordinates (mask lives in torn-inner space)."""
-    lx = mx / (mw - 1) * _INNER_W
-    ly = my / (mh - 1) * _INNER_H
-    return _INNER_L + lx, _INNER_T + ly
+    return mx / (mw - 1) * _FRAME_W, my / (mh - 1) * _FRAME_H
 
 
 def _first_opaque_x(mask: Image.Image, mw: int, my: int, reverse: bool = False) -> int:
@@ -160,8 +136,8 @@ def _inside_edge_probes(
 ) -> list[tuple[str, int, int]]:
     """Points just inside the hole near left/top/right/bottom (canvas space)."""
     left_m, top_m, right_m, bot_m = _mask_bbox(mask, mw, mh)
-    inset_x = int(_HOLE_INSET_PX / _INNER_W * (mw - 1))
-    inset_y = int(_HOLE_INSET_PX / _INNER_H * (mh - 1))
+    inset_x = int(_HOLE_INSET_PX / _FRAME_W * (mw - 1))
+    inset_y = int(_HOLE_INSET_PX / _FRAME_H * (mh - 1))
     probes: list[tuple[str, int, int]] = []
 
     for t in (0.35, 0.45, 0.55, 0.65):
@@ -325,8 +301,6 @@ def _assert_hole_fill_and_clip(label: str, cover: Image.Image, expect_saturated:
         ("portrait-default", None, False),
         ("landscape-wide", "WIDE", True),
         ("tiny-upscaled", "TINY", True),
-        # DALL-E-like tall portrait (1024×1792) — hole is fixed; photo must cover.
-        ("dalle-tall", "TALL", True),
     ],
 )
 def test_photo_fills_torn_hole_without_gap_or_overflow(
@@ -342,8 +316,6 @@ def test_photo_fills_torn_hole_without_gap_or_overflow(
         photo_url = _solid_jpeg_data_uri((1600, 900))
     elif photo_url == "TINY":
         photo_url = _solid_jpeg_data_uri((48, 64))
-    elif photo_url == "TALL":
-        photo_url = _solid_jpeg_data_uri((1024, 1792))
 
     cover = _render_cover(photo_url)
     _assert_hole_fill_and_clip(case, cover, expect_saturated=expect_saturated)

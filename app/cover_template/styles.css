@@ -197,11 +197,13 @@ body {
 .photo-image {
   /*
     Photo aperture mask is GENERATED from assets/photo-mask.svg — the same SVG
-    drawn as .photo-torn-stroke. Rebuild via scripts/build_photo_tear_hole_mask.py
-    after any photo-mask.svg or .photo-torn CSS change.
+    drawn as the white torn border in .photo-torn. Rebuild via
+    scripts/build_photo_tear_hole_mask.py after any photo-mask.svg or
+    .photo-torn CSS change. Do not maintain a separate hand-tuned clip path.
 
-    .photo-image lives inside .photo-torn-inner with the stroke so both share
-    one box — zero CSS inset drift between mask and white border.
+    This mask must always fully fill the torn hole with zero gap, and must never
+    let the photo bleed past the hole's boundary. Any change here MUST be
+    verified against test_cover_template.py before merging.
   */
   position: absolute;
   inset: 0;
@@ -216,7 +218,6 @@ body {
   -webkit-mask-position: 0 0;
   mask-position: 0 0;
   mask-mode: alpha;
-  z-index: 0;
 }
 
 .photo-image img {
@@ -246,13 +247,9 @@ body {
   inset: 0 -0.31% -0.83% -0.31%;
 }
 
-.photo-torn-stroke {
-  position: absolute;
-  inset: 0;
+.photo-torn-inner img {
   width: 100%;
   height: 100%;
-  z-index: 1;
-  pointer-events: none;
 }
 
 .photo-overlay {
