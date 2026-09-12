@@ -71,6 +71,25 @@ _FOG = {
     ),
 }
 
+# Long title + long subtitle + quiet contemplative mood (rich env still required).
+_ELENA = {
+    "slug": "05_second_draft_elena",
+    "title": "Second Draft Of A Love I Almost Kept",
+    "author_name": "Elena",
+    "gender": "female",
+    "age": 29,
+    "location": "Lisbon, Portugal",
+    "subtitle": "The hands that once trembled now rested",
+    "hook": (
+        "I rewrote the ending again. The hands that once trembled now rested on the "
+        "windowsill while the city kept breathing below."
+    ),
+    "situation": (
+        "Sitting alone by a rain-streaked Lisbon window at dusk, quiet and contemplative, "
+        "notebook open on her knees, city lights soft through the glass."
+    ),
+}
+
 
 def _story_from_sample(sample: dict) -> SimpleNamespace:
     loc = sample["location"]
@@ -157,6 +176,7 @@ def _run_one(sample: dict, *, has_key: bool) -> dict:
 
     conf = geom.get("confession") or {}
     loc_top = 1417
+    title_box = geom.get("title") or {}
     return {
         "slug": sample["slug"],
         "title": sample["title"],
@@ -170,8 +190,10 @@ def _run_one(sample: dict, *, has_key: bool) -> dict:
         "prompt_words": len(prompt.split()),
         "pose_in_prompt": "Pose / body language (required, story-specific)" in prompt,
         "framing_in_prompt": "full head and shoulders" in prompt,
+        "rich_env_in_prompt": "rich environmental detail" in prompt,
         "arms_out_default_absent": "arms outstretched" not in prompt,
         "confession_clears_location": (conf.get("bottom") or 0) < loc_top,
+        "title_extends_past_photo_left": (title_box.get("right") or 0) > 670,
         "underline_gap": geom.get("underline_gap"),
         "geometry": geom,
     }
@@ -182,7 +204,7 @@ def main() -> int:
     results = []
     has_key = bool(settings.OPENAI_API_KEY)
 
-    for sample in list(SAMPLES) + [_FOG]:
+    for sample in list(SAMPLES) + [_FOG, _ELENA]:
         results.append(_run_one(sample, has_key=has_key))
 
     summary = OUT / "results.json"

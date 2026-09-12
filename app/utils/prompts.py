@@ -42,11 +42,20 @@ CONFESSION_COVER_PHOTOGRAPHY_STYLE = (
 
 # Shared closing for template portrait-only prompts (no collage pose defaults).
 CONFESSION_COVER_PHOTOGRAPHY_PORTRAIT_CLOSING = (
-    " Outdoor or candid indoor natural setting matching the story's location and mood. Composition "
-    "feels candid and editorial, like a lifestyle magazine feature — never a posed studio headshot, "
-    "never looking directly at camera unless caught in a natural, unposed laugh. Avoid glossy, "
-    "overly polished, or stock-photo aesthetics. Hair and clothing may show natural movement from "
-    "wind if outdoors."
+    " Outdoor or candid indoor natural setting matching the story's location and mood, with "
+    "visible depth and atmosphere — never a flat studio void. Composition feels candid and "
+    "editorial, like a lifestyle magazine feature — never a posed studio headshot, never "
+    "looking directly at camera unless caught in a natural, unposed laugh. Avoid glossy, "
+    "overly polished, or stock-photo aesthetics. Hair and clothing may show natural movement "
+    "from wind if outdoors."
+)
+
+# Always required for template portraits — independent of quiet vs dramatic pose.
+CONFESSION_COVER_PORTRAIT_ENVIRONMENT = (
+    "Regardless of the subject's pose or emotional tone, always include rich environmental "
+    "detail and atmosphere appropriate to the setting — visible light sources, depth, texture, "
+    "and background elements that ground the scene (e.g. window light, city lights, natural "
+    "landscape, interior textures) — never a flat, plain, or empty background."
 )
 
 
@@ -481,7 +490,7 @@ YOU'VE **NEVER** DARED TO SAY.
 Rules:
 - English only. ALL CAPS.
 - Exactly two lines, separated by a single newline.
-- Each line ≤ 34 characters (including spaces). Soft target ≤ 22 per line.
+- Each line ≤ 34 characters (including spaces). Soft target ≤ 28 per line.
 - 8–16 words total.
 - Mark exactly one word with **WORD** — the emotional punch (like NEVER).
 - Write a unique line for THIS piece. Do not copy the example. Do not use the story title.

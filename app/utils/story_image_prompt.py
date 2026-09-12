@@ -186,6 +186,7 @@ def build_portrait_only_prompt(story: Story) -> str:
     from app.utils.prompts import (
         CONFESSION_COVER_PHOTOGRAPHY_LOOK,
         CONFESSION_COVER_PHOTOGRAPHY_PORTRAIT_CLOSING,
+        CONFESSION_COVER_PORTRAIT_ENVIRONMENT,
     )
 
     gender = (story.gender or "person").strip().lower() or "person"
@@ -210,12 +211,13 @@ def build_portrait_only_prompt(story: Story) -> str:
         f"Subject: {subject}, in {location}, captured in a candid, emotionally genuine "
         f"moment related to: {mood}\n\n"
         f"{pose}\n\n"
+        f"{CONFESSION_COVER_PORTRAIT_ENVIRONMENT}\n\n"
         "Compose the shot so the main subject's full head and shoulders (at minimum) "
         "remain within the vertical frame with adequate headroom and no awkward cropping "
         "at the top or sides — frame as a 4:5 vertical portrait shot specifically, not a "
-        "wider scene that requires aggressive cropping later. Keep supporting background "
-        "elements secondary; do not let a second person or deep scene push the main subject "
-        "out of frame.\n\n"
+        "wider scene that requires aggressive cropping later. Environmental detail must "
+        "remain visible around the subject; do not let a second person push the main "
+        "subject out of frame.\n\n"
         f"{CONFESSION_COVER_PHOTOGRAPHY_LOOK}"
         f"{CONFESSION_COVER_PHOTOGRAPHY_PORTRAIT_CLOSING}\n\n"
         "The photo must fill the entire frame edge-to-edge with no white space, no borders, "
