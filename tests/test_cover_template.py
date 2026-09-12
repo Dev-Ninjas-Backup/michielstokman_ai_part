@@ -22,12 +22,13 @@ from app.cover_template.render import (
 
 # Geometry from app/cover_template/styles.css (.photo-wrap / .photo-rotator / .photo-frame)
 _WRAP_L = 719.0
-_WRAP_T = 95.0
+_WRAP_T = 10.0
 _WRAP_W = 1782.6
 _WRAP_H = 2129.597
 _FRAME_W = 1469.848
 _FRAME_H = 1899.615
-_ANGLE = math.radians(10.19)
+_ANGLE = math.radians(1.0)
+_SCALE = 1.15
 _COS = math.cos(_ANGLE)
 _SIN = math.sin(_ANGLE)
 _OX = (_WRAP_W - _FRAME_W) / 2.0
@@ -35,7 +36,7 @@ _OY = (_WRAP_H - _FRAME_H) / 2.0
 _CX = _WRAP_L + _WRAP_W / 2.0
 _CY = _WRAP_T + _WRAP_H / 2.0
 
-# .photo-torn / .photo-torn-inner — mask is generated in torn-inner space
+# .photo-torn / .photo-torn-inner — ttl_cover_html photo-mask.svg box
 _TORN_TOP = 0.1502
 _TORN_RIGHT = 0.0055
 _TORN_BOTTOM = 0.023
@@ -58,7 +59,7 @@ _INNER_H = _TORN_H * (1.0 - _INNER_TOP - _INNER_BOTTOM)
 _BEIGE = (241, 237, 228)
 _BEIGE_TOL_SOLID = 22
 _BEIGE_TOL_NATURAL = 4
-_HOLE_INSET_PX = 55
+_HOLE_INSET_PX = 70
 _MASK_PATH = ASSETS_DIR / "photo-tear-hole-mask-alpha.png"
 
 # Saturated fill used for landscape / tiny sources so photo vs beige is unambiguous.
@@ -77,16 +78,16 @@ def _is_saturated_photo(rgb: tuple[int, int, int]) -> bool:
 def _frame_to_canvas(fx: float, fy: float) -> tuple[float, float]:
     wx = _OX + fx
     wy = _OY + fy
-    dx = wx - _WRAP_W / 2.0
-    dy = wy - _WRAP_H / 2.0
+    dx = (wx - _WRAP_W / 2.0) * _SCALE
+    dy = (wy - _WRAP_H / 2.0) * _SCALE
     return _CX + dx * _COS - dy * _SIN, _CY + dx * _SIN + dy * _COS
 
 
 def _canvas_to_frame(x: float, y: float) -> tuple[float, float]:
     dx = x - _CX
     dy = y - _CY
-    lx = dx * _COS + dy * _SIN
-    ly = -dx * _SIN + dy * _COS
+    lx = (dx * _COS + dy * _SIN) / _SCALE
+    ly = (-dx * _SIN + dy * _COS) / _SCALE
     return lx + _WRAP_W / 2.0 - _OX, ly + _WRAP_H / 2.0 - _OY
 
 
@@ -177,14 +178,21 @@ def _inside_edge_probes(
         ):
             probes.append(("left", xi, yi))
 
-        # Frame-right often rotates past x=2160; use the visible hole's right edge.
-        _, y_band = _frame_to_canvas(*_m2f(mw - 1 - inset_x, my, mw, mh))
-        y_band = max(0, min(CANVAS_HEIGHT - 1, int(round(y_band))))
-        for x_try in range(CANVAS_WIDTH - 2, CANVAS_WIDTH - 160, -2):
-            if _hole_on_canvas(mask, mw, mh, x_try, y_band):
-                x_in = x_try - _HOLE_INSET_PX
-                if x_in >= 0 and _hole_on_canvas(mask, mw, mh, x_in, y_band):
-                    probes.append(("right", x_in, y_band))
+        mx_r = _first_opaque_x(mask, mw, my, reverse=True) - inset_x
+        fx, fy = _m2f(mx_r, my, mw, mh)
+        x, y = _frame_to_canvas(fx, fy)
+        xi, yi = int(round(x)), int(round(y))
+        # Scaled frame can push the right edge past the canvas; walk left.
+        if yi < 0 or yi >= CANVAS_HEIGHT:
+            continue
+        yi = max(0, min(CANVAS_HEIGHT - 1, yi))
+        if xi >= CANVAS_WIDTH:
+            xi = CANVAS_WIDTH - 2
+        for x_try in range(xi, max(-1, xi - 200), -2):
+            if x_try < 0:
+                break
+            if _hole_on_canvas(mask, mw, mh, x_try, yi):
+                probes.append(("right", x_try, yi))
                 break
 
     for t in (0.30, 0.40, 0.50, 0.60):
