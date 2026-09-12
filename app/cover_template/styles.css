@@ -83,9 +83,9 @@ body {
 }
 
 /* —— Titles —— */
-/* Photo frame left edge ≈ 670px; titles start at 92px.
-   Current subtitle span max-width was 720px AND centered in the 1253px titles
-   column (unused gutters). Widen + left-align so copy uses space toward the photo. */
+/* Photo-wrap left = 670px (white torn border). Subtitle + pink rule stay in the
+   beige column (max 558px). Title may be longer but stacks UNDER .photo-wrap so
+   anything past the torn edge is covered — never painted on top of the photo. */
 .titles {
   position: absolute;
   left: 92px;
@@ -97,16 +97,14 @@ body {
   gap: 36px;
   text-transform: uppercase;
   font-family: "Edo", sans-serif;
-  word-break: break-word;
-  /* Above .photo-wrap so long titles can overlap the torn photo edge (like author chip). */
-  z-index: 10;
+  z-index: 1;
   overflow: visible;
   pointer-events: none;
 }
 
 .title-main {
   width: 100%;
-  max-width: 1200px;
+  max-width: 558px;
   color: #37178c;
   font-size: 164px;
   line-height: 1.2;
@@ -114,9 +112,14 @@ body {
   flex-direction: column;
   justify-content: center;
   align-items: flex-start;
-  overflow: visible;
-  position: relative;
-  z-index: 1;
+  overflow: hidden;
+}
+
+.title-main > span {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
 }
 
 .subtitle {
@@ -130,10 +133,10 @@ body {
   align-items: flex-start;
 }
 
-/* Was 720px centered; then 980px. Widen further toward/over photo left edge. */
+/* Cap at beige column — left of white torn border (670 − 92 − gutter). */
 .subtitle > span {
   display: block;
-  max-width: 1100px;
+  max-width: 558px;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: clip;
@@ -211,14 +214,14 @@ body {
 .photo-wrap {
   position: absolute;
   left: 670px;
+  /* Above .titles so title/subtitle/pink never paint over the torn photo edge. */
+  z-index: 2;
   top: 10px;
   width: 1782.6px;
   height: 2129.597px;
   display: flex;
   align-items: center;
   justify-content: center;
-  /* Below .titles (z-index 10) so long titles can overlap the photo edge. */
-  z-index: 1;
 }
 
 .photo-rotator {
@@ -588,11 +591,10 @@ body {
 }
 
 .underline-pink {
-  /* In-flow under .subtitle (was absolute inset assuming a 2-line subtitle).
-     titles gap is 36px; pull up so the rule sits ~8px under the prior block.
-     Match widened subtitle column (was 720 / 913). */
+  /* In-flow under .subtitle. Width matches subtitle column — stops at torn border. */
   position: relative;
-  width: min(1100px, 100%);
+  width: 558px;
+  max-width: 100%;
   height: 77px;
   flex-shrink: 0;
   align-self: flex-start;

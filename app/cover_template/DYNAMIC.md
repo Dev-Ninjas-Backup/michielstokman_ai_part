@@ -30,10 +30,10 @@ Measured 2026-09-12 against the **current** template (post clip-path / torn-bord
 
 | Field | Soft (best look) | Hard (safe max) | Notes |
 | --- | --- | --- | --- |
-| Title line 1 | 10–14 | **14** | Edo brush, uppercase. Typical title alphabet wraps at **15** (`line_wraps_to:2`) and pushes the titles block into confession. |
+| Title line 1 | 10–14 | **14** | Edo brush, uppercase. Soft-wrap long titles; photo stacks above so glyphs do not paint over the torn edge. |
 | Title line 2 | 9–14 | **14** | Same as line 1. |
-| Subtitle line 1 | 12–20 | **34** | Pink Edo @ 80px. Still one line through 34; wraps at **35**. Soft stays ≤20 so the column does not crowd the photo. |
-| Subtitle line 2 | 14–20 | **34** | Same as subtitle line 1. |
+| Subtitle line 1 | 12–14 | **14** | Pink Edo @ 80px in the 558px column (stops before photo torn edge @ 670). |
+| Subtitle line 2 | 12–14 | **14** | Same as subtitle line 1. Pink underline is also 558px. |
 | Confession (`description`) | 45–58 | **77** | Outfit 70px in a 663px box. Soft ≈ **3 lines** with ≥40px gap above location. Hard = last length before confession bottom crosses location top (**78** overlaps pin). |
 | City | 8–12 | **20** | One visual line (Cover appends `, `). Longer strings push location text into the photo hole (~21+). |
 | Country | 5–10 | **21** | One line under city. Breaks ~22 when location text enters the photo. |
