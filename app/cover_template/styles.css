@@ -100,7 +100,7 @@ body {
 .title-main {
   width: 100%;
   color: #37178c;
-  font-size: 154px;
+  font-size: 164px;
   line-height: 1.2;
   display: flex;
   flex-direction: column;
@@ -121,7 +121,8 @@ body {
 .confession {
   position: absolute;
   left: 92px;
-  top: 1159.5px;
+  /* Midpoint between pink underline bottom and .location top → equal gaps */
+  top: 1191.5px;
   width: 663px;
   transform: translateY(-50%);
   font-family: "Outfit", sans-serif;
@@ -173,7 +174,7 @@ body {
 /* —— Photo —— */
 .photo-wrap {
   position: absolute;
-  left: 719px;
+  left: 670px;
   top: 10px;
   width: 1782.6px;
   height: 2129.597px;
@@ -226,8 +227,8 @@ body {
   inset: 0;
   width: 100%;
   height: 100%;
-  /* Stretch to every pixel inside the torn hole (no letterboxing / crop gaps). */
-  object-fit: fill;
+  /* Cover the hole without stretching; crop overflow to keep aspect ratio. */
+  object-fit: cover;
   object-position: center center;
 }
 
@@ -550,7 +551,8 @@ body {
 
 .underline-pink {
   position: absolute;
-  inset: 40.42% 53.47% 56.02% 4.26%;
+  /* +16px down on 2160 canvas (~0.74%) vs original Figma inset */
+  inset: 41.16% 53.47% 55.28% 4.26%;
   overflow: hidden;
 }
 
