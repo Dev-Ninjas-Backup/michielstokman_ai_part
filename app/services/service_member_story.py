@@ -64,7 +64,7 @@ from app.services.service_ai import AIService
 from app.utils.prompts import SOCIAL_INTRO_HUMAN, SOCIAL_INTRO_SYSTEM
 from app.utils.text import story_card_excerpt
 from app.utils.story_title import sync_active_title
-from app.utils.story_image_prompt import try_generate_story_cover
+from app.utils.story_cover import try_generate_story_cover
 
 logger = logging.getLogger(__name__)
 
@@ -834,12 +834,13 @@ class MemberStoryService:
         Regenerates the AI cover art from the story's own content, matching the
         palette and composition rules defined for its type.
         """
-        from app.utils.story_image_prompt import try_generate_story_cover
+        from app.utils.story_cover import cover_generation_method, try_generate_story_cover, uses_template_pipeline
 
         story = _require_story(db, user, story_id)
         _require_not_processing(story)
 
-        if not settings.OPENAI_API_KEY:
+        # DALL-E path needs OpenAI; template path does not.
+        if not uses_template_pipeline(story) and not settings.OPENAI_API_KEY:
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                 detail="AI image generation is not configured on this server.",
@@ -850,13 +851,18 @@ class MemberStoryService:
                 detail="Generate the story before creating its artwork.",
             )
 
+        logger.info(
+            "Member cover regenerate story=%s method=%s",
+            story.id,
+            cover_generation_method(),
+        )
         try_generate_story_cover(
             db,
             story,
             image_prompt=None,
             allow_admin_fallback=False,
             replace_member_cover=True,
-            # Explicit regenerate: rebuild P2. Identity lock still applies at DALL-E.
+            # Explicit regenerate: rebuild P2 when on DALL-E. Identity lock still applies at DALL-E.
             force_rebuild=True,
         )
         db.commit()

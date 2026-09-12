@@ -284,10 +284,8 @@ def regenerate_story_covers(
     Queue collage covers for existing completed stories.
     Member-uploaded covers are never overwritten.
     """
-    from app.utils.story_image_prompt import (
-        cover_regeneration_worker,
-        list_stories_for_cover_regen,
-    )
+    from app.utils.story_cover import cover_regeneration_worker
+    from app.utils.story_image_prompt import list_stories_for_cover_regen
 
     stories = list_stories_for_cover_regen(
         db,

@@ -10,6 +10,13 @@ class Settings:
         self.ELEVENLABS_API_KEY: str | None = os.getenv("ELEVENLABS_API_KEY")
         self.OPENAI_API_KEY: str | None = os.getenv("OPENAI_API_KEY")
         self.OPENAI_IMAGE_MODEL: str = os.getenv("OPENAI_IMAGE_MODEL", "dall-e-3")
+        # Cover pipeline switch — instantly revertible. Default keeps DALL-E.
+        # "dalle"    → existing Grok prompt + DALL-E path (image_generator.py)
+        # "template" → app/cover_template HTML/CSS render for confession covers
+        _cover_method = (os.getenv("COVER_GENERATION_METHOD") or "dalle").strip().lower()
+        if _cover_method not in ("dalle", "template"):
+            _cover_method = "dalle"
+        self.COVER_GENERATION_METHOD: str = _cover_method
 
         # --- SuperGrok (xAI) or Alternative LLM settings ---
         self.LLM_BASE_URL: str = os.getenv("LLM_BASE_URL", "https://api.x.ai/v1")

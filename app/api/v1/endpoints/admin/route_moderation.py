@@ -744,7 +744,7 @@ def _regenerate_cover_worker(story_id: str) -> None:
 
     from app.core.db import SessionLocal
     from app.model.story import Story as StoryModel
-    from app.utils.story_image_prompt import try_generate_story_cover
+    from app.utils.story_cover import try_generate_story_cover
 
     logger = logging.getLogger(__name__)
     db = SessionLocal()
