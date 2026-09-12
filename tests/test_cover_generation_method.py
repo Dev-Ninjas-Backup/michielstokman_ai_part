@@ -167,6 +167,30 @@ def test_build_portrait_only_prompt_requests_headroom_framing():
     assert "aggressive cropping" in prompt
 
 
+def test_build_portrait_only_prompt_always_requires_rich_environment():
+    quiet = build_portrait_only_prompt(
+        _story(
+            situation="Sitting alone by a window at night in a quiet contemplative moment.",
+            title="Second Draft",
+        )
+    )
+    assert "rich environmental detail" in quiet
+    assert "never a flat, plain, or empty background" in quiet
+    assert "Do not default to a generic triumphant arms-out pose" in quiet
+    assert "arms outstretched" not in quiet
+
+
+def test_subtitle_wraps_long_trembled_line_with_wider_column():
+    long = "The hands that once trembled now rested"
+    payload = story_cover.story_to_cover_template_payload(_story(hero_tagline=long))
+    lines = [ln for ln in payload["subtitle"].split("\n") if ln]
+    assert all(len(ln) <= story_cover.SUBTITLE_LINE_HARD_LIMIT for ln in lines)
+    joined = " ".join(lines).lower()
+    # Wider soft limit should keep more of the phrase than the old ~22 soft cut.
+    assert "trembled" in joined
+    assert "rested" in joined or "hands" in joined
+
+
 def test_dalle_flag_delegates_to_unchanged_dalle_path():
     story = _story()
     db = MagicMock()

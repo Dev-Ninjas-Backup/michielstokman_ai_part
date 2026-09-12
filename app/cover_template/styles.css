@@ -83,6 +83,9 @@ body {
 }
 
 /* —— Titles —— */
+/* Photo frame left edge ≈ 670px; titles start at 92px.
+   Current subtitle span max-width was 720px AND centered in the 1253px titles
+   column (unused gutters). Widen + left-align so copy uses space toward the photo. */
 .titles {
   position: absolute;
   left: 92px;
@@ -90,21 +93,30 @@ body {
   width: 1253px;
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: flex-start;
   gap: 36px;
   text-transform: uppercase;
   font-family: "Edo", sans-serif;
   word-break: break-word;
+  /* Above .photo-wrap so long titles can overlap the torn photo edge (like author chip). */
+  z-index: 10;
+  overflow: visible;
+  pointer-events: none;
 }
 
 .title-main {
   width: 100%;
+  max-width: 1200px;
   color: #37178c;
   font-size: 164px;
   line-height: 1.2;
   display: flex;
   flex-direction: column;
   justify-content: center;
+  align-items: flex-start;
+  overflow: visible;
+  position: relative;
+  z-index: 1;
 }
 
 .subtitle {
@@ -115,12 +127,13 @@ body {
   display: flex;
   flex-direction: column;
   justify-content: center;
+  align-items: flex-start;
 }
 
-/* Each subtitle line is pre-truncated; keep one visual line and stay left of photo. */
+/* Was 720px centered; then 980px. Widen further toward/over photo left edge. */
 .subtitle > span {
   display: block;
-  max-width: 720px;
+  max-width: 1100px;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: clip;
@@ -204,6 +217,8 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
+  /* Below .titles (z-index 10) so long titles can overlap the photo edge. */
+  z-index: 1;
 }
 
 .photo-rotator {
@@ -575,9 +590,9 @@ body {
 .underline-pink {
   /* In-flow under .subtitle (was absolute inset assuming a 2-line subtitle).
      titles gap is 36px; pull up so the rule sits ~8px under the prior block.
-     Cap width so the stroke stays in the text column, not over the photo. */
+     Match widened subtitle column (was 720 / 913). */
   position: relative;
-  width: min(720px, 100%);
+  width: min(1100px, 100%);
   height: 77px;
   flex-shrink: 0;
   align-self: flex-start;

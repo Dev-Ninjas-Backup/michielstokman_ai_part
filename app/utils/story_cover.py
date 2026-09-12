@@ -31,7 +31,7 @@ logger = logging.getLogger(__name__)
 CONFESSION_DESCRIPTION_HARD_LIMIT = 77
 CONFESSION_DESCRIPTION_SOFT_LIMIT = 58  # ~3 lines with gap above location
 SUBTITLE_LINE_HARD_LIMIT = 34
-SUBTITLE_LINE_SOFT_LIMIT = 22  # Edo @ 80px; ≤20 soft in DYNAMIC, 22 fits this cover column
+SUBTITLE_LINE_SOFT_LIMIT = 28  # Wider left-aligned column (~980px) fits more Edo glyphs
 TITLE_LINE_HARD_LIMIT = 14
 
 COVER_METHOD_DALLE = "dalle"
