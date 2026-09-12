@@ -765,14 +765,16 @@ def _regenerate_cover_worker(story_id: str) -> None:
         except Exception as exc:
             logger.error("Cover regen failed for story %s: %s", story_id, exc, exc_info=True)
 
-        # Land on a real status either way so the card never sticks on "in progress".
-        db.refresh(story)
+        # Persist cover fields from try_generate BEFORE any refresh — a refresh
+        # here used to discard the new URL/key while the previous file was already
+        # deleted, leaving the dashboard with a 404.
         story.cover_status = (
             AssetReviewStatus.ready_for_review
             if (story.cover_image_url or "").strip()
             else AssetReviewStatus.missing
         )
         db.commit()
+        db.refresh(story)
     finally:
         db.close()
 
