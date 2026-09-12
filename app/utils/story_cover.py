@@ -1,17 +1,18 @@
-"""Cover generation router — DALL-E vs HTML cover_template.
+"""Cover generation router — DALL-E collage vs HTML cover_template + portrait.
 
 Controlled by ``COVER_GENERATION_METHOD`` (default ``dalle``).
 
 - ``dalle``    → unchanged path in ``story_image_prompt.try_generate_story_cover``
-                 (Grok IMAGE_PROMPT + ``image_generator.generate_ai_cover_image``).
+                 (Grok IMAGE_PROMPT / P2 full-collage + ``generate_ai_cover_image``).
                  Sets ``image_source=ai_generated``.
-- ``template`` → ``app/cover_template`` Playwright render for *confession* stories.
+- ``template`` → for *confession* stories only:
+                 1) portrait-only DALL-E prompt (``build_portrait_only_prompt``)
+                 2) Playwright ``cover_template`` with that photo in the slot
                  Sets ``image_source=template_v1``.
-                 Non-confession stories still use the DALL-E path.
+                 Non-confession stories still use the DALL-E collage path.
 
 Flip the env var back to ``dalle`` at any time to restore old behavior with no
-code changes. This module does not modify ``image_generator.py``,
-``story_image_prompt.py``, or Grok prompt builders.
+code changes. Full-collage P1/P2 builders remain intact for the dalle path.
 """
 from __future__ import annotations
 
@@ -43,7 +44,7 @@ def uses_template_pipeline(story: Story | None = None) -> bool:
         return False
     if story is None:
         return True
-    # Template art is confession-shaped; other types keep DALL-E for now.
+    # Template art is confession-shaped; other types keep DALL-E collage for now.
     return story.story_type == StoryType.confession
 
 
@@ -85,7 +86,11 @@ def _description_for_story(story: Story) -> str:
     return cleaned[:77]
 
 
-def story_to_cover_template_payload(story: Story) -> dict:
+def story_to_cover_template_payload(
+    story: Story,
+    *,
+    photo_url: str | None = None,
+) -> dict:
     """Map story row fields onto cover_template render / Cover.set payload keys."""
     city, country = _split_location(story)
     return {
@@ -99,9 +104,38 @@ def story_to_cover_template_payload(story: Story) -> dict:
         "city": city,
         "country": country,
         "is_explicit": bool(story.high_intensity),
-        # Portrait: use template default sample until a dedicated photo pipeline exists.
-        "photo_url": None,
+        # Portrait for the torn-photo hole (DALL-E portrait URL or None = sample).
+        "photo_url": photo_url,
     }
+
+
+def _generate_portrait_for_template(story: Story) -> tuple[str | None, str | None]:
+    """DALL-E portrait-only image for the template photo slot. Returns (url, key)."""
+    from app.utils.image_generator import generate_ai_cover_image
+    from app.utils.story_image_prompt import build_portrait_only_prompt
+
+    if not settings.OPENAI_API_KEY:
+        logger.warning(
+            "COVER_GENERATION_METHOD=template but OPENAI_API_KEY missing — "
+            "falling back to sample portrait for story %s",
+            story.id,
+        )
+        return None, None
+
+    prompt = build_portrait_only_prompt(story)
+    logger.info(
+        "Cover method=template_v1 portrait-only DALL-E story=%s author=%s prompt_words=%s",
+        story.id,
+        story.first_name,
+        len(prompt.split()),
+    )
+    return generate_ai_cover_image(
+        title=_active_title(story),
+        story_type=story.story_type.value if story.story_type else "confession",
+        author_name=(story.first_name or "Anonymous").strip() or "Anonymous",
+        image_prompt=prompt,
+        gender=story.gender,
+    )
 
 
 def _generate_template_cover(
@@ -110,18 +144,20 @@ def _generate_template_cover(
     *,
     allow_admin_fallback: bool,
 ) -> None:
-    """Render HTML cover_template → PNG → S3; set image_source=template_v1."""
+    """Portrait DALL-E → HTML cover_template → PNG → S3; image_source=template_v1."""
     from app.cover_template.render import render_cover_png_sync
     from app.utils.s3 import delete_s3_object, upload_image_to_s3
     from app.utils.story_image_prompt import _apply_admin_default_cover
 
-    payload = story_to_cover_template_payload(story)
+    portrait_url, portrait_key = _generate_portrait_for_template(story)
+    payload = story_to_cover_template_payload(story, photo_url=portrait_url)
     logger.info(
-        "Cover method=template_v1 story=%s type=%s author=%s title=%r",
+        "Cover method=template_v1 story=%s type=%s author=%s title=%r portrait=%s",
         story.id,
         story.story_type.value if story.story_type else None,
         payload.get("author_name"),
         payload.get("title"),
+        bool(portrait_url),
     )
 
     try:
@@ -131,6 +167,8 @@ def _generate_template_cover(
             "cover_template render failed for story %s (method=template_v1)",
             story.id,
         )
+        if portrait_key:
+            delete_s3_object(portrait_key)
         if allow_admin_fallback:
             _apply_admin_default_cover(db, story)
         return
@@ -140,6 +178,8 @@ def _generate_template_cover(
             "cover_template returned empty PNG for story %s (method=template_v1)",
             story.id,
         )
+        if portrait_key:
+            delete_s3_object(portrait_key)
         if allow_admin_fallback:
             _apply_admin_default_cover(db, story)
         return
@@ -156,14 +196,19 @@ def _generate_template_cover(
             story.id,
             cover_key,
         )
+        # Final cover replaces both the prior cover and the intermediate portrait.
         if previous_key and previous_key != cover_key:
             delete_s3_object(previous_key)
+        if portrait_key and portrait_key != cover_key:
+            delete_s3_object(portrait_key)
         return
 
     logger.warning(
         "S3 upload failed for template cover story %s (method=template_v1)",
         story.id,
     )
+    if portrait_key:
+        delete_s3_object(portrait_key)
     if allow_admin_fallback:
         _apply_admin_default_cover(db, story)
 
@@ -196,7 +241,7 @@ def try_generate_story_cover(
         )
         return
 
-    # Default / non-confession under template flag: original DALL-E path.
+    # Default / non-confession under template flag: original full-collage DALL-E path.
     from app.utils import story_image_prompt as dalle_path
 
     logger.info(
