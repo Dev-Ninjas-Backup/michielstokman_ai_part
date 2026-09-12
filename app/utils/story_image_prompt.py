@@ -7,6 +7,7 @@ build one from the finished story text so every cover reflects that story.
 from __future__ import annotations
 
 import logging
+import re
 from typing import Optional
 
 from sqlalchemy.orm import Session
@@ -62,6 +63,66 @@ def _cover_art_direction(story: Story) -> str:
     raw = STORY_HUMAN_TEMPLATE.split("IMAGE_PROMPT:", 1)[1].split("STORY:", 1)[0].strip()
     return raw.format(
         **cover_identity_template_vars(story.first_name, story.gender, story.location)
+    )
+
+
+def brief_story_mood_scene(story: Story) -> str:
+    """One-sentence mood/scene line for the portrait-only DALL-E prompt."""
+    situation = re.sub(r"\s+", " ", (story.situation or "").strip())
+    background = re.sub(r"\s+", " ", (story.background or "").strip())
+    title = (story.title or story.member_title or story.ai_generated_title or "").strip()
+
+    if situation:
+        sentence = situation
+    elif background:
+        sentence = background
+    elif title:
+        sentence = f"a quiet, emotionally charged moment reflecting the confession titled '{title}'"
+    else:
+        sentence = "a quiet moment of emotional honesty and release"
+
+    # Keep to roughly one sentence.
+    if "." in sentence:
+        sentence = sentence.split(".", 1)[0].strip() + "."
+    if len(sentence) > 220:
+        sentence = sentence[:217].rstrip() + "..."
+    if not sentence.endswith("."):
+        sentence += "."
+    return sentence
+
+
+def build_portrait_only_prompt(story: Story) -> str:
+    """Portrait-only DALL-E prompt for COVER_GENERATION_METHOD=template.
+
+    The HTML cover_template owns all collage text/badges/layout. DALL-E only
+    produces the person photograph for the photo slot. Reuses
+    ``CONFESSION_COVER_PHOTOGRAPHY_STYLE`` (same source as P1/P2 collage path).
+    """
+    from app.utils.prompts import CONFESSION_COVER_PHOTOGRAPHY_STYLE
+
+    gender = (story.gender or "person").strip().lower() or "person"
+    location = (
+        (story.location or "").strip()
+        or ", ".join(
+            p for p in ((story.city or "").strip(), (story.country or "").strip()) if p
+        )
+        or "an unspecified place"
+    )
+    if story.age is not None:
+        subject = f"a {story.age}-year-old {gender} person"
+    else:
+        subject = f"a {gender} adult"
+    mood = brief_story_mood_scene(story)
+
+    return (
+        "Generate a single portrait photograph, no text, no graphic design elements, "
+        "no logos, no borders, no collage — just the photograph itself, vertical orientation "
+        "(portrait aspect ratio, approximately 4:5).\n\n"
+        f"Subject: {subject}, in {location}, captured in a candid, emotionally genuine "
+        f"moment related to: {mood}\n\n"
+        f"{CONFESSION_COVER_PHOTOGRAPHY_STYLE}\n\n"
+        "The photo must fill the entire frame edge-to-edge with no white space, no borders, "
+        "no text overlays of any kind."
     )
 
 

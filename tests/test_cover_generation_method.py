@@ -4,10 +4,13 @@ from __future__ import annotations
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 from app.model.story import ImageSource, StoryType
 from app.utils import story_cover
+from app.utils.prompts import CONFESSION_COVER_PHOTOGRAPHY_STYLE
+from app.utils.story_image_prompt import (
+    brief_story_mood_scene,
+    build_portrait_only_prompt,
+)
 
 
 def _story(**kwargs):
@@ -27,6 +30,8 @@ def _story(**kwargs):
         high_intensity=True,
         hero_hook="A confession about shame, desire and finally choosing me.",
         hero_tagline="A Night That\nLiberated My Essence",
+        situation="Leaving a relationship that kept her small.",
+        background="Grew up between cities.",
         story_text="Longer story body here.",
         story_input=None,
         image_source=None,
@@ -65,6 +70,20 @@ def test_story_to_cover_template_payload_maps_fields():
     assert payload["is_explicit"] is True
     assert "shame" in payload["description"]
     assert payload["title"] == "To Wasteland On My Own"
+    assert payload["photo_url"] is None
+
+
+def test_build_portrait_only_prompt_is_not_collage_and_reuses_style():
+    prompt = build_portrait_only_prompt(_story())
+    assert CONFESSION_COVER_PHOTOGRAPHY_STYLE in prompt
+    assert "28-year-old female" in prompt
+    assert "Barcelona" in prompt
+    assert "no collage" in prompt.lower()
+    assert "no text" in prompt.lower()
+    assert "CONFESSION banner" not in prompt
+    assert "[INSERT GENERATED TITLE HERE]" not in prompt
+    mood = brief_story_mood_scene(_story())
+    assert "Leaving a relationship" in mood
 
 
 def test_dalle_flag_delegates_to_unchanged_dalle_path():
@@ -81,29 +100,52 @@ def test_dalle_flag_delegates_to_unchanged_dalle_path():
             assert kwargs["force_rebuild"] is True
 
 
-def test_template_flag_renders_and_sets_template_v1_source():
+def test_template_flag_uses_portrait_then_playwright():
     story = _story()
     db = MagicMock()
     with patch.object(story_cover.settings, "COVER_GENERATION_METHOD", "template"):
-        with patch(
-            "app.cover_template.render.render_cover_png_sync",
-            return_value=b"fake-png",
-        ) as render:
+        with patch.object(story_cover.settings, "OPENAI_API_KEY", "sk-test"):
             with patch(
-                "app.utils.s3.upload_image_to_s3",
-                return_value=("https://cdn/x.png", "images/x.png"),
-            ):
-                with patch("app.utils.s3.delete_s3_object"):
+                "app.utils.story_image_prompt.build_portrait_only_prompt",
+                return_value="portrait only prompt",
+            ) as build_p:
+                with patch(
+                    "app.utils.image_generator.generate_ai_cover_image",
+                    return_value=("https://cdn/portrait.jpg", "images/portrait.jpg"),
+                ) as dalle:
                     with patch(
-                        "app.utils.story_image_prompt.try_generate_story_cover"
-                    ) as dalle:
-                        story_cover.try_generate_story_cover(
-                            db, story, image_prompt="ignored"
-                        )
-                        render.assert_called_once()
-                        dalle.assert_not_called()
-                        assert story.image_source == ImageSource.template_v1
-                        assert story.cover_image_url == "https://cdn/x.png"
+                        "app.cover_template.render.render_cover_png_sync",
+                        return_value=b"fake-png",
+                    ) as render:
+                        with patch(
+                            "app.utils.s3.upload_image_to_s3",
+                            return_value=("https://cdn/cover.png", "images/cover.png"),
+                        ):
+                            with patch("app.utils.s3.delete_s3_object") as delete_obj:
+                                with patch(
+                                    "app.utils.story_image_prompt.try_generate_story_cover"
+                                ) as collage:
+                                    story_cover.try_generate_story_cover(
+                                        db, story, image_prompt="ignored-collage"
+                                    )
+                                    build_p.assert_called_once()
+                                    dalle.assert_called_once()
+                                    assert (
+                                        dalle.call_args.kwargs["image_prompt"]
+                                        == "portrait only prompt"
+                                    )
+                                    render.assert_called_once()
+                                    payload = render.call_args.args[0]
+                                    assert (
+                                        payload["photo_url"]
+                                        == "https://cdn/portrait.jpg"
+                                    )
+                                    collage.assert_not_called()
+                                    assert story.image_source == ImageSource.template_v1
+                                    assert any(
+                                        c.args and c.args[0] == "images/portrait.jpg"
+                                        for c in delete_obj.call_args_list
+                                    )
 
 
 def test_template_flag_meditation_falls_back_to_dalle():
