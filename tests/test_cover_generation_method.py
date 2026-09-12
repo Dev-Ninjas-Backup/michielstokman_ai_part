@@ -71,8 +71,8 @@ def test_story_to_cover_template_payload_maps_fields():
     assert payload["country"] == "Spain"
     assert payload["is_explicit"] is True
     assert "shame" in payload["description"]
-    # Title is wrap-capped to ≤14 chars/line for the brush headline.
-    assert payload["title"] == "To Wasteland\nOn My Own"
+    # Title is first two words (complete) so the brush headline stays left of the photo.
+    assert payload["title"] == "To\nWasteland"
     assert payload["photo_url"] is None
 
 
@@ -155,8 +155,11 @@ def test_subtitle_wraps_and_truncates_to_hard_line_limit():
     assert all(len(line) <= story_cover.SUBTITLE_LINE_HARD_LIMIT for line in lines)
     # Soft wrap keeps line1 near the soft width so Edo glyphs do not spill into the photo.
     assert len(lines[0]) <= story_cover.SUBTITLE_LINE_SOFT_LIMIT + 2
-    assert "held" in payload["subtitle"].lower()
+    joined = " ".join(lines).lower()
+    assert "memory" in joined
+    # Never mid-word (e.g. HEL from HELD).
     assert not any(re.search(r"\bHEL$", line, re.I) for line in lines)
+    assert not any(re.search(r"\bBOUNDAR$", line, re.I) for line in lines)
 
 
 def test_build_portrait_only_prompt_requests_headroom_framing():
@@ -180,15 +183,17 @@ def test_build_portrait_only_prompt_always_requires_rich_environment():
     assert "arms outstretched" not in quiet
 
 
-def test_subtitle_wraps_long_trembled_line_with_wider_column():
+def test_subtitle_stays_within_torn_border_column():
+    """Long taglines wrap/truncate to complete words that fit left of the photo."""
     long = "The hands that once trembled now rested"
     payload = story_cover.story_to_cover_template_payload(_story(hero_tagline=long))
     lines = [ln for ln in payload["subtitle"].split("\n") if ln]
     assert all(len(ln) <= story_cover.SUBTITLE_LINE_HARD_LIMIT for ln in lines)
     joined = " ".join(lines).lower()
-    # Wider soft limit should keep more of the phrase than the old ~22 soft cut.
+    assert "hands" in joined
     assert "trembled" in joined
-    assert "rested" in joined or "hands" in joined
+    # "now rested" may drop when the column is full — never mid-word.
+    assert "trembl" not in joined.replace("trembled", "")
 
 
 def test_dalle_flag_delegates_to_unchanged_dalle_path():

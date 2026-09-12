@@ -490,7 +490,7 @@ YOU'VE **NEVER** DARED TO SAY.
 Rules:
 - English only. ALL CAPS.
 - Exactly two lines, separated by a single newline.
-- Each line ≤ 34 characters (including spaces). Soft target ≤ 28 per line.
+- Each line ≤ 14 characters (including spaces). Soft target ≤ 14 per line.
 - 8–16 words total.
 - Mark exactly one word with **WORD** — the emotional punch (like NEVER).
 - Write a unique line for THIS piece. Do not copy the example. Do not use the story title.
@@ -505,7 +505,7 @@ Title: {title}
 ## Full text
 {story_text}
 
-Write the two-line brush headline now (each line ≤34 characters).
+Write the two-line brush headline now (each line ≤14 characters).
 """
 
 

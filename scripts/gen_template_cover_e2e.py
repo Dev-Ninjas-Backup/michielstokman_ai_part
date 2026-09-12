@@ -193,7 +193,7 @@ def _run_one(sample: dict, *, has_key: bool) -> dict:
         "rich_env_in_prompt": "rich environmental detail" in prompt,
         "arms_out_default_absent": "arms outstretched" not in prompt,
         "confession_clears_location": (conf.get("bottom") or 0) < loc_top,
-        "title_extends_past_photo_left": (title_box.get("right") or 0) > 670,
+        "title_stays_left_of_photo": (title_box.get("right") or 0) <= 670,
         "underline_gap": geom.get("underline_gap"),
         "geometry": geom,
     }

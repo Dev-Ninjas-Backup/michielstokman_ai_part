@@ -16,10 +16,10 @@
         class="cover"
         id="cover"
         aria-label="TTL cover"
-        data-title-line1="TO WASTELAND"
-        data-title-line2="ON MY OWN"
+        data-title-line1="TO"
+        data-title-line2="MY OWN"
         data-subtitle-line1="A NIGHT THAT"
-        data-subtitle-line2="LIBERATED MY ESSENCE"
+        data-subtitle-line2="LIBERATED MY"
         data-confession="A confession about shame, desire and finally choosing me."
         data-city="BARCELONA,"
         data-country="SPAIN"
@@ -32,6 +32,22 @@
       >
         <div class="bird" aria-hidden="true">
           <img src="./assets/vector-deco.svg" alt="" width="202" height="161" />
+        </div>
+
+        <!-- Titles under photo in stacking (photo z-index higher) — no paint over torn edge. -->
+        <div class="titles">
+          <h1 class="title-main">
+            <span data-bind="title-line1">TO</span>
+            <span data-bind="title-line2">MY OWN</span>
+          </h1>
+          <p class="subtitle">
+            <span data-bind="subtitle-line1">A NIGHT THAT</span>
+            <span data-bind="subtitle-line2">LIBERATED MY</span>
+          </p>
+          <!-- In-flow under subtitle (or title when subtitle empty) — not a fixed Y. -->
+          <div class="underline-pink" aria-hidden="true">
+            <img src="./assets/underline-pink.png" alt="" />
+          </div>
         </div>
 
         <p class="confession" data-bind="confession">
@@ -70,22 +86,6 @@
                 <img src="./assets/photo-accent.svg" alt="" />
               </div>
             </div>
-          </div>
-        </div>
-
-        <!-- Titles AFTER photo + z-index:10 so long lines paint over the torn edge. -->
-        <div class="titles">
-          <h1 class="title-main">
-            <span data-bind="title-line1">TO WASTELAND</span>
-            <span data-bind="title-line2">ON MY OWN</span>
-          </h1>
-          <p class="subtitle">
-            <span data-bind="subtitle-line1">A NIGHT THAT</span>
-            <span data-bind="subtitle-line2">LIBERATED MY ESSENCE</span>
-          </p>
-          <!-- In-flow under subtitle (or title when subtitle empty) — not a fixed Y. -->
-          <div class="underline-pink" aria-hidden="true">
-            <img src="./assets/underline-pink.png" alt="" />
           </div>
         </div>
 
