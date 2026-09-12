@@ -27,6 +27,9 @@ from app.model.story import ImageSource, Story, StoryType
 
 logger = logging.getLogger(__name__)
 
+# Hard confession/description char limit from cover_template/DYNAMIC.md
+CONFESSION_DESCRIPTION_HARD_LIMIT = 77
+
 COVER_METHOD_DALLE = "dalle"
 COVER_METHOD_TEMPLATE = "template"
 # Logged / stored marker for the HTML pipeline (image_source enum value).
@@ -67,23 +70,57 @@ def _active_title(story: Story) -> str:
 
 
 def _subtitle_for_story(story: Story) -> str:
-    tag = (story.hero_tagline or "").strip()
-    if tag:
-        return tag
-    # Keep two-line layout stable when no tagline is stored yet.
-    return "A Night That\nLiberated My Essence"
+    # None → keep the classic two-line default for layout stability.
+    # Explicit "" → allow empty subtitle (pink underline sits under the title).
+    tag = getattr(story, "hero_tagline", None)
+    if tag is None:
+        return "A Night That\nLiberated My Essence"
+    return str(tag).strip()
+
+
+def truncate_at_last_word(text: str, max_chars: int = CONFESSION_DESCRIPTION_HARD_LIMIT) -> str:
+    """Trim to max_chars at the last complete word — never mid-word.
+
+    Also drops a trailing function-word fragment (a/an/the/in/…) so the
+    confession does not end on a dangling article after the hard cut.
+    """
+    cleaned = re.sub(r"\s+", " ", (text or "").strip())
+    if not cleaned:
+        return ""
+    if len(cleaned) <= max_chars:
+        result = cleaned
+    else:
+        cut = cleaned[:max_chars]
+        # If we landed on a word boundary, keep the hard cut.
+        if max_chars >= len(cleaned) or cleaned[max_chars].isspace():
+            result = cut.rstrip()
+        else:
+            sp = cut.rfind(" ")
+            if sp <= 0:
+                # Single overlong token — last resort hard cut (still ≤ max_chars).
+                result = cut.rstrip()
+            else:
+                result = cut[:sp].rstrip()
+
+    # Avoid "... eyes closed in a" / "... breath visible in the".
+    dangling = re.compile(
+        r"\b(a|an|the|in|on|of|to|for|and|or|with|at|by|from)\s*$",
+        re.I,
+    )
+    while dangling.search(result) and " " in result:
+        result = result.rsplit(" ", 1)[0].rstrip()
+    return result
 
 
 def _description_for_story(story: Story) -> str:
     hook = (story.hero_hook or "").strip()
     if hook:
-        return re.sub(r"\s+", " ", hook)
+        return truncate_at_last_word(hook)
     raw = (story.story_text or story.story_input or "").strip()
     if not raw:
         return "A confession about shame, desire and finally choosing me."
-    cleaned = re.sub(r"\s+", " ", raw)
-    # Soft confession limit from cover_template/DYNAMIC.md
-    return cleaned[:77]
+    # Hard limit from cover_template/DYNAMIC.md — last complete word only.
+    return truncate_at_last_word(raw)
 
 
 def story_to_cover_template_payload(

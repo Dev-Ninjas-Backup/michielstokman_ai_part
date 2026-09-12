@@ -117,6 +117,16 @@ body {
   justify-content: center;
 }
 
+/* Collapse fully empty subtitle so the pink rule sits under the title instead. */
+.subtitle:not(:has(span:not(:empty))) {
+  display: none;
+}
+
+/* Hide empty subtitle line spans so 1-line subtitles don't reserve a blank row. */
+.subtitle > span:empty {
+  display: none;
+}
+
 /* —— Confession —— */
 .confession {
   position: absolute;
@@ -130,8 +140,9 @@ body {
   font-size: 70px;
   line-height: 1.5;
   color: #301c05;
-  word-break: break-word;
-  overflow-wrap: anywhere;
+  /* Prefer whole-word wraps; never force mid-word breaks for normal copy. */
+  word-break: normal;
+  overflow-wrap: break-word;
 }
 
 /* —— Location —— */
@@ -550,9 +561,14 @@ body {
 }
 
 .underline-pink {
-  position: absolute;
-  /* +16px down on 2160 canvas (~0.74%) vs original Figma inset */
-  inset: 41.16% 53.47% 55.28% 4.26%;
+  /* In-flow under .subtitle (was absolute inset assuming a 2-line subtitle).
+     titles gap is 36px; pull up so the rule sits ~8px under the prior block. */
+  position: relative;
+  width: 913px;
+  height: 77px;
+  flex-shrink: 0;
+  align-self: flex-start;
+  margin-top: -28px;
   overflow: hidden;
 }
 

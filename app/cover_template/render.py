@@ -263,3 +263,87 @@ def render_cover_png_sync(data: dict[str, Any] | None = None, output_path: Path 
         output_path.write_bytes(png)
         logger.info("Wrote cover preview to %s", output_path)
     return png
+
+
+_GEOMETRY_JS = """() => {
+  const q = (s) => document.querySelector(s);
+  const box = (el) => {
+    if (!el) return null;
+    const r = el.getBoundingClientRect();
+    return {
+      top: Math.round(r.top),
+      bottom: Math.round(r.bottom),
+      left: Math.round(r.left),
+      right: Math.round(r.right),
+      height: Math.round(r.height),
+    };
+  };
+  const subtitle = q('.subtitle');
+  const underline = q('.underline-pink');
+  const confession = q('.confession');
+  const titleMain = q('.title-main');
+  const subBox = box(subtitle);
+  const underBox = box(underline);
+  const titleBox = box(titleMain);
+  // When subtitle is empty/hidden, treat title bottom as the anchor above the rule.
+  const anchorBottom =
+    subBox && subBox.height > 0 ? subBox.bottom : titleBox ? titleBox.bottom : null;
+  return {
+    title: titleBox,
+    subtitle: subBox,
+    underline: underBox,
+    confession: box(confession),
+    confession_text: confession ? confession.textContent : null,
+    subtitle_bottom: anchorBottom,
+    underline_top: underBox ? underBox.top : null,
+    underline_gap:
+      anchorBottom != null && underBox
+        ? Math.round(underBox.top - anchorBottom)
+        : null,
+  };
+}"""
+
+
+async def measure_cover_geometry(data: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Return subtitle/underline/confession boxes after Cover.set (2160 canvas)."""
+    from playwright.async_api import async_playwright
+
+    payload = {**SAMPLE_DATA, **(data or {})}
+    cover_set = payload_to_cover_set(payload)
+
+    with _static_server() as origin:
+        async with async_playwright() as playwright:
+            browser = await playwright.chromium.launch(
+                args=[
+                    "--no-sandbox",
+                    "--disable-dev-shm-usage",
+                    "--disable-gpu",
+                    "--disable-software-rasterizer",
+                    "--font-render-hinting=none",
+                ],
+            )
+            page = await browser.new_page(
+                viewport={"width": CANVAS_WIDTH, "height": CANVAS_HEIGHT},
+                device_scale_factor=1,
+            )
+            await page.goto(f"{origin}/index.html", wait_until="load")
+            await page.wait_for_function(
+                "() => window.Cover && typeof window.Cover.set === 'function'"
+            )
+            await page.evaluate(
+                """(fields) => {
+                    window.Cover.set(fields);
+                    window.Cover.fit();
+                }""",
+                cover_set,
+            )
+            await page.evaluate(_WAIT_ASSETS_JS)
+            geom = await page.evaluate(_GEOMETRY_JS)
+            await browser.close()
+    return geom
+
+
+def measure_cover_geometry_sync(data: dict[str, Any] | None = None) -> dict[str, Any]:
+    import asyncio
+
+    return asyncio.run(measure_cover_geometry(data))

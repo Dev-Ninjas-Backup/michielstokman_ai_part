@@ -91,14 +91,102 @@ def brief_story_mood_scene(story: Story) -> str:
     return sentence
 
 
+_CELEBRATION_RE = re.compile(
+    r"\b(celebrat\w*|triumphant|arms?\s+out|release|liberat\w*|euphori\w*|"
+    r"face\s+(?:to|toward)\s+(?:the\s+)?sky|finally\s+free)\b",
+    re.I,
+)
+
+
+def portrait_pose_instruction(story: Story) -> str:
+    """Story-derived pose/body-language block for the portrait-only prompt.
+
+    Prefers concrete physical actions from situation/background over the
+    collage path's default arms-out / face-skyward euphoria pose.
+    """
+    scene = " ".join(
+        p
+        for p in (
+            re.sub(r"\s+", " ", (story.situation or "").strip()),
+            re.sub(r"\s+", " ", (story.background or "").strip()),
+            brief_story_mood_scene(story),
+        )
+        if p
+    )
+    lower = scene.lower()
+
+    actions: list[str] = []
+    if re.search(r"\bhold(?:ing|s)?\b.{0,40}\b(letter|note|paper|photo|bag|cup|coat)\b", lower):
+        m = re.search(
+            r"\bhold(?:ing|s)?\b.{0,40}\b(letter|note|paper|photo|bag|cup|coat)\b",
+            lower,
+        )
+        actions.append(f"holding a {m.group(1)}" if m else "holding an object from the scene")
+    elif re.search(r"\bhold(?:ing|s)?\b", lower):
+        actions.append("holding the object described in the scene")
+    if re.search(r"\bsitt?(?:ing|s|en)?\b", lower):
+        actions.append("sitting")
+    if re.search(r"\bwalk(?:ing|s|ed)?\b", lower):
+        actions.append("walking")
+    if re.search(r"\blean(?:ing|s|ed)?\b|\brailing\b|\bbalcony\b", lower):
+        actions.append("leaning on a railing or balcony edge")
+    if re.search(r"\bstand(?:ing|s)?\b|\bdock\b|\bplatform\b|\bharbour\b|\bharbor\b", lower):
+        actions.append("standing in place within the scene")
+    if re.search(r"\blook(?:ing)?\s+out\b|\bgazing\b|\bstaring\b", lower):
+        actions.append("looking out over the surroundings, not toward camera")
+    if re.search(r"\beyes?\s+closed\b|\bquiet\b|\bcontemplat\w*\b|\bthoughtful\b", lower):
+        actions.append("quiet, contemplative expression (eyes soft or closed)")
+    if re.search(r"\bbreath\b|\bsteam\b|\bwinter\b|\bcold\b", lower):
+        actions.append("breath visible in cold air if the setting is cold")
+
+    if actions:
+        # De-dupe while preserving order.
+        seen: set[str] = set()
+        unique = []
+        for a in actions:
+            if a not in seen:
+                seen.add(a)
+                unique.append(a)
+        stance = "; ".join(unique)
+    else:
+        stance = (
+            "a naturalistic stance that fits this exact scene — quiet and grounded, "
+            "not theatrical"
+        )
+
+    allow_arms_out = bool(_CELEBRATION_RE.search(lower))
+    arms_rule = (
+        "A triumphant arms-out / face-skyward pose is allowed because the story "
+        "explicitly involves release or celebration."
+        if allow_arms_out
+        else (
+            "Do not default to a generic triumphant arms-out pose unless the story "
+            "explicitly involves release/celebration. Reflect the story's specific "
+            "physical action or stance where one is described (sitting, holding an "
+            "object, walking, leaning, etc.)."
+        )
+    )
+
+    return (
+        f"Pose / body language (required, story-specific): {stance}. "
+        "Subject shows genuine emotion through open body language OR quiet, "
+        "contemplative body language — whichever matches the story's tone. "
+        f"{arms_rule}"
+    )
+
+
 def build_portrait_only_prompt(story: Story) -> str:
     """Portrait-only DALL-E prompt for COVER_GENERATION_METHOD=template.
 
     The HTML cover_template owns all collage text/badges/layout. DALL-E only
     produces the person photograph for the photo slot. Reuses
-    ``CONFESSION_COVER_PHOTOGRAPHY_STYLE`` (same source as P1/P2 collage path).
+    ``CONFESSION_COVER_PHOTOGRAPHY_LOOK`` (same look source as P1/P2) but does
+    **not** inject the collage default arms-out pose — pose comes from the story.
     """
-    from app.utils.prompts import CONFESSION_COVER_PHOTOGRAPHY_STYLE
+    from app.utils.prompts import (
+        CONFESSION_COVER_PHOTOGRAPHY_LOOK,
+        CONFESSION_COVER_PHOTOGRAPHY_PORTRAIT_CLOSING,
+    )
 
     gender = (story.gender or "person").strip().lower() or "person"
     location = (
@@ -113,6 +201,7 @@ def build_portrait_only_prompt(story: Story) -> str:
     else:
         subject = f"a {gender} adult"
     mood = brief_story_mood_scene(story)
+    pose = portrait_pose_instruction(story)
 
     return (
         "Generate a single portrait photograph, no text, no graphic design elements, "
@@ -120,7 +209,9 @@ def build_portrait_only_prompt(story: Story) -> str:
         "(portrait aspect ratio, approximately 4:5).\n\n"
         f"Subject: {subject}, in {location}, captured in a candid, emotionally genuine "
         f"moment related to: {mood}\n\n"
-        f"{CONFESSION_COVER_PHOTOGRAPHY_STYLE}\n\n"
+        f"{pose}\n\n"
+        f"{CONFESSION_COVER_PHOTOGRAPHY_LOOK}"
+        f"{CONFESSION_COVER_PHOTOGRAPHY_PORTRAIT_CLOSING}\n\n"
         "The photo must fill the entire frame edge-to-edge with no white space, no borders, "
         "no text overlays of any kind."
     )
