@@ -291,7 +291,18 @@ class AIService:
 
     @staticmethod
     def persist_hero_hook(story_row, story_text: str) -> None:
-        """Sets story.hero_hook and story.hero_tagline from the LLM."""
+        """Sets story.hero_hook and story.hero_tagline from the LLM.
+
+        Clamps to cover_template hard limits so HTML covers never receive
+        overflow copy even if the model ignores the prompt caps.
+        """
+        from app.utils.story_cover import (
+            SUBTITLE_LINE_HARD_LIMIT,
+            SUBTITLE_LINE_SOFT_LIMIT,
+            format_two_line_field,
+            truncate_at_sentence,
+        )
+
         story_type = (
             story_row.story_type.value
             if getattr(story_row.story_type, "value", None)
@@ -302,13 +313,22 @@ class AIService:
             story_type=story_type,
             title=story_row.title,
         )
-        story_row.hero_hook = hook or build_excerpt(story_text, max_chars=400)
+        raw_hook = hook or build_excerpt(story_text, max_chars=400)
+        story_row.hero_hook = truncate_at_sentence(raw_hook) if raw_hook else None
         tagline = AIService.generate_hero_tagline(
             story_text,
             story_type=story_type,
             title=story_row.title,
         )
-        story_row.hero_tagline = tagline
+        story_row.hero_tagline = (
+            format_two_line_field(
+                tagline,
+                SUBTITLE_LINE_HARD_LIMIT,
+                wrap_soft_limit=SUBTITLE_LINE_SOFT_LIMIT,
+            )
+            if tagline
+            else None
+        )
 
     @staticmethod
     def _llm_text(response) -> str:

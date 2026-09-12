@@ -1,6 +1,7 @@
 """Tests for COVER_GENERATION_METHOD routing (dalle default vs template)."""
 from __future__ import annotations
 
+import re
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
@@ -70,7 +71,8 @@ def test_story_to_cover_template_payload_maps_fields():
     assert payload["country"] == "Spain"
     assert payload["is_explicit"] is True
     assert "shame" in payload["description"]
-    assert payload["title"] == "To Wasteland On My Own"
+    # Title is wrap-capped to ≤14 chars/line for the brush headline.
+    assert payload["title"] == "To Wasteland\nOn My Own"
     assert payload["photo_url"] is None
 
 
@@ -126,12 +128,7 @@ def test_description_truncates_at_last_complete_word():
     desc = payload["description"]
     assert len(desc) <= story_cover.CONFESSION_DESCRIPTION_HARD_LIMIT
     assert long_hook.startswith(desc)
-    assert desc == story_cover.truncate_at_last_word(long_hook)
     assert not desc.endswith(("aft", "co", "the", "a", "in"))
-    # Next source char after desc must be whitespace (word boundary) when truncated.
-    if len(long_hook) > len(desc):
-        assert long_hook[len(desc)] == " "
-
     dangling = (
         "On a Lagos balcony at night with city lights behind her, eyes closed in a "
         "quiet moment of choosing herself."
@@ -139,6 +136,35 @@ def test_description_truncates_at_last_complete_word():
     trimmed = story_cover.truncate_at_last_word(dangling)
     assert trimmed.endswith("eyes closed")
     assert not trimmed.endswith(("in a", " in", " a"))
+
+
+def test_description_prefers_complete_sentence_within_soft_limit():
+    hook = (
+        "I paused at the door. Everything after that still burns when I remember it now."
+    )
+    desc = story_cover.truncate_at_sentence(hook)
+    assert desc == "I paused at the door."
+    assert len(desc) <= story_cover.CONFESSION_DESCRIPTION_SOFT_LIMIT
+
+
+def test_subtitle_wraps_and_truncates_to_hard_line_limit():
+    long = "The memory stirred but my boundaries held"
+    payload = story_cover.story_to_cover_template_payload(_story(hero_tagline=long))
+    lines = payload["subtitle"].split("\n")
+    assert 1 <= len(lines) <= 2
+    assert all(len(line) <= story_cover.SUBTITLE_LINE_HARD_LIMIT for line in lines)
+    # Soft wrap keeps line1 near the soft width so Edo glyphs do not spill into the photo.
+    assert len(lines[0]) <= story_cover.SUBTITLE_LINE_SOFT_LIMIT + 2
+    assert "held" in payload["subtitle"].lower()
+    assert not any(re.search(r"\bHEL$", line, re.I) for line in lines)
+
+
+def test_build_portrait_only_prompt_requests_headroom_framing():
+    prompt = build_portrait_only_prompt(_story())
+    assert "full head and shoulders" in prompt
+    assert "4:5" in prompt
+    assert "adequate headroom" in prompt
+    assert "aggressive cropping" in prompt
 
 
 def test_dalle_flag_delegates_to_unchanged_dalle_path():

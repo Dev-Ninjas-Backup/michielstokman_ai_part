@@ -27,8 +27,12 @@ from app.model.story import ImageSource, Story, StoryType
 
 logger = logging.getLogger(__name__)
 
-# Hard confession/description char limit from cover_template/DYNAMIC.md
+# Hard limits from cover_template/DYNAMIC.md (empirically measured).
 CONFESSION_DESCRIPTION_HARD_LIMIT = 77
+CONFESSION_DESCRIPTION_SOFT_LIMIT = 58  # ~3 lines with gap above location
+SUBTITLE_LINE_HARD_LIMIT = 34
+SUBTITLE_LINE_SOFT_LIMIT = 22  # Edo @ 80px; ≤20 soft in DYNAMIC, 22 fits this cover column
+TITLE_LINE_HARD_LIMIT = 14
 
 COVER_METHOD_DALLE = "dalle"
 COVER_METHOD_TEMPLATE = "template"
@@ -66,7 +70,8 @@ def _split_location(story: Story) -> tuple[str, str]:
 
 
 def _active_title(story: Story) -> str:
-    return (story.title or story.member_title or story.ai_generated_title or "Untitled").strip()
+    raw = (story.title or story.member_title or story.ai_generated_title or "Untitled").strip()
+    return format_two_line_field(raw, TITLE_LINE_HARD_LIMIT)
 
 
 def _subtitle_for_story(story: Story) -> str:
@@ -74,8 +79,16 @@ def _subtitle_for_story(story: Story) -> str:
     # Explicit "" → allow empty subtitle (pink underline sits under the title).
     tag = getattr(story, "hero_tagline", None)
     if tag is None:
-        return "A Night That\nLiberated My Essence"
-    return str(tag).strip()
+        return format_two_line_field(
+            "A Night That\nLiberated My Essence",
+            SUBTITLE_LINE_HARD_LIMIT,
+            wrap_soft_limit=SUBTITLE_LINE_SOFT_LIMIT,
+        )
+    return format_two_line_field(
+        str(tag),
+        SUBTITLE_LINE_HARD_LIMIT,
+        wrap_soft_limit=SUBTITLE_LINE_SOFT_LIMIT,
+    )
 
 
 def truncate_at_last_word(text: str, max_chars: int = CONFESSION_DESCRIPTION_HARD_LIMIT) -> str:
@@ -112,15 +125,92 @@ def truncate_at_last_word(text: str, max_chars: int = CONFESSION_DESCRIPTION_HAR
     return result
 
 
+def truncate_at_sentence(
+    text: str,
+    *,
+    soft_limit: int = CONFESSION_DESCRIPTION_SOFT_LIMIT,
+    hard_limit: int = CONFESSION_DESCRIPTION_HARD_LIMIT,
+) -> str:
+    """Prefer a complete sentence within soft_limit; else word-cut at hard_limit.
+
+    Used for cover confession copy so the blurb does not end mid-thought or
+    overflow into the location block.
+    """
+    cleaned = re.sub(r"\s+", " ", (text or "").strip())
+    if not cleaned:
+        return ""
+
+    # Prefer the longest prefix that ends a sentence within soft, then hard.
+    for limit in (soft_limit, hard_limit):
+        window = cleaned if len(cleaned) <= limit else cleaned[:limit]
+        best_end = -1
+        for m in re.finditer(r"[.!?]", window):
+            best_end = m.end()
+        if best_end > 0:
+            sentence = window[:best_end].strip()
+            # Reject tiny fragments like "I." when more copy exists.
+            if len(sentence) >= 12 or len(cleaned) <= limit:
+                return sentence
+
+    return truncate_at_last_word(cleaned, hard_limit)
+
+
+def format_two_line_field(
+    text: str,
+    line_limit: int,
+    *,
+    wrap_soft_limit: int | None = None,
+) -> str:
+    """Split/wrap into at most two lines, each word-truncated to ``line_limit``.
+
+    When wrapping a single long line, prefer breaking near ``wrap_soft_limit``
+    (Edo brush subtitle soft width) so glyphs do not spill into the photo.
+    Strips Grok emphasis markers (``**word**``). Empty input → empty string.
+    """
+    raw = (text or "").replace("\r\n", "\n").strip()
+    if not raw:
+        return ""
+    # Taglines may include **PUNCH** markers — cover template is plain text.
+    raw = re.sub(r"\*\*([^*]+)\*\*", r"\1", raw)
+    raw = re.sub(r"[ \t]+", " ", raw)
+
+    parts = [p.strip() for p in raw.split("\n") if p.strip()]
+    if not parts:
+        return ""
+
+    wrap_at = wrap_soft_limit if wrap_soft_limit is not None else line_limit
+
+    if len(parts) == 1 and len(parts[0]) > wrap_at:
+        # Wrap a single long line into two cover lines at a word boundary.
+        line = parts[0]
+        cut = truncate_at_last_word(line, wrap_at)
+        if len(cut) < max(8, wrap_at // 3):
+            cut = truncate_at_last_word(line, line_limit)
+        rest = line[len(cut) :].strip()
+        # Line 2 may use the hard limit so punch-words (e.g. "held") are kept;
+        # line 1 uses soft wrap so glyphs stay out of the photo column.
+        line2 = truncate_at_last_word(rest, line_limit) if rest else ""
+        return f"{cut}\n{line2}".strip() if line2 else cut
+
+    line1 = truncate_at_last_word(parts[0], line_limit)
+    if len(parts) == 1:
+        return line1
+    # Remaining parts join into line 2 (still capped).
+    line2 = truncate_at_last_word(" ".join(parts[1:]), line_limit)
+    if not line2:
+        return line1
+    return f"{line1}\n{line2}"
+
+
 def _description_for_story(story: Story) -> str:
     hook = (story.hero_hook or "").strip()
     if hook:
-        return truncate_at_last_word(hook)
+        return truncate_at_sentence(hook)
     raw = (story.story_text or story.story_input or "").strip()
     if not raw:
         return "A confession about shame, desire and finally choosing me."
-    # Hard limit from cover_template/DYNAMIC.md — last complete word only.
-    return truncate_at_last_word(raw)
+    # Hard/soft limits from cover_template/DYNAMIC.md — prefer full sentence.
+    return truncate_at_sentence(raw)
 
 
 def story_to_cover_template_payload(
