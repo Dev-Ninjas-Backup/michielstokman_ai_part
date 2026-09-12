@@ -30,9 +30,12 @@ logger = logging.getLogger(__name__)
 # Hard limits from cover_template/DYNAMIC.md (empirically measured).
 CONFESSION_DESCRIPTION_HARD_LIMIT = 77
 CONFESSION_DESCRIPTION_SOFT_LIMIT = 58  # ~3 lines with gap above location
-SUBTITLE_LINE_HARD_LIMIT = 34
-SUBTITLE_LINE_SOFT_LIMIT = 28  # Wider left-aligned column (~980px) fits more Edo glyphs
+# Subtitle stays in the 558px beige column (left of torn edge @ 670).
+# Title may use a wider box; photo paints above so excess is not visible on the image.
+SUBTITLE_LINE_HARD_LIMIT = 14
+SUBTITLE_LINE_SOFT_LIMIT = 14
 TITLE_LINE_HARD_LIMIT = 14
+TITLE_LINE_SOFT_LIMIT = 12
 
 COVER_METHOD_DALLE = "dalle"
 COVER_METHOD_TEMPLATE = "template"
@@ -70,8 +73,30 @@ def _split_location(story: Story) -> tuple[str, str]:
 
 
 def _active_title(story: Story) -> str:
+    """Two-line brush title using complete words that fit left of the torn edge.
+
+    Long phrases are reduced to the first two words (one per line) so Edo @ 164px
+    does not clip mid-glyph against the 558px title column.
+    """
     raw = (story.title or story.member_title or story.ai_generated_title or "Untitled").strip()
-    return format_two_line_field(raw, TITLE_LINE_HARD_LIMIT)
+    raw = re.sub(r"\s+", " ", raw.replace("\r\n", "\n")).strip()
+    if not raw:
+        return "Untitled"
+
+    parts = [p.strip() for p in raw.split("\n") if p.strip()]
+    if len(parts) >= 2:
+        # Honor explicit two-line titles, but keep each line to complete words in budget.
+        return format_two_line_field(
+            f"{parts[0]}\n{parts[1]}",
+            TITLE_LINE_HARD_LIMIT,
+            wrap_soft_limit=TITLE_LINE_SOFT_LIMIT,
+        )
+
+    words = parts[0].split()
+    if len(words) == 1:
+        return words[0]
+    # One complete word per line — fits the beige column for typical title words.
+    return f"{words[0]}\n{words[1]}"
 
 
 def _subtitle_for_story(story: Story) -> str:
@@ -80,7 +105,7 @@ def _subtitle_for_story(story: Story) -> str:
     tag = getattr(story, "hero_tagline", None)
     if tag is None:
         return format_two_line_field(
-            "A Night That\nLiberated My Essence",
+            "A Night That\nLiberated My",
             SUBTITLE_LINE_HARD_LIMIT,
             wrap_soft_limit=SUBTITLE_LINE_SOFT_LIMIT,
         )
