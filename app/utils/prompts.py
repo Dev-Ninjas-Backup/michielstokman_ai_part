@@ -442,11 +442,15 @@ HERO_HOOK_SYSTEM = """\
 You write a short public teaser for Transform to Liberation, a platform of
 intimate audio confessions and meditations.
 
-Given a finished piece, pick or lightly reshape 2–4 sentences that make a
-listener urgently curious — sensory, unfinished, emotionally charged. Do not
-spoil the ending. Do not summarise the whole story. Do not add quotation
-marks around the whole answer. Write in English, first person when the source
-is first person.
+Given a finished piece, write ONE complete sentence (or at most two very short
+sentences) that makes a listener urgently curious — sensory, unfinished,
+emotionally charged. Do not spoil the ending. Do not summarise the whole story.
+Do not add quotation marks around the whole answer. Write in English, first
+person when the source is first person.
+
+HARD LIMIT (cover + card): the entire teaser must be at most 77 characters
+including spaces (soft target ≤ 58). Prefer a single complete sentence that
+ends with . ! or ? — never trail off mid-thought.
 
 Return ONLY the teaser paragraph. No title, no labels, no markdown.
 """
@@ -459,7 +463,7 @@ Title: {title}
 ## Full text
 {story_text}
 
-Write the teaser now.
+Write the teaser now (≤77 characters, complete sentence).
 """
 
 
@@ -476,7 +480,8 @@ YOU'VE **NEVER** DARED TO SAY.
 
 Rules:
 - English only. ALL CAPS.
-- Two short lines, separated by a single newline.
+- Exactly two lines, separated by a single newline.
+- Each line ≤ 34 characters (including spaces). Soft target ≤ 22 per line.
 - 8–16 words total.
 - Mark exactly one word with **WORD** — the emotional punch (like NEVER).
 - Write a unique line for THIS piece. Do not copy the example. Do not use the story title.
@@ -491,7 +496,7 @@ Title: {title}
 ## Full text
 {story_text}
 
-Write the two-line brush headline now.
+Write the two-line brush headline now (each line ≤34 characters).
 """
 
 
