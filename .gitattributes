@@ -1,0 +1,9 @@
+# core.autocrlf=true is set on Windows checkouts, which rewrites working-tree
+# files to CRLF on the next checkout. That breaks `bash scripts/...` locally and
+# breaks any script copied into a Linux container. Pin LF for the files where
+# line endings are load-bearing. Stored blobs are LF.
+*.sh        text eol=lf
+Dockerfile  text eol=lf
+*.yml       text eol=lf
+*.yaml      text eol=lf
+*.py        text eol=lf

@@ -14,6 +14,35 @@ jobs:
     steps:
       - name: Check out the code
         uses: actions/checkout@v6
+        with:
+          # Merge inspection needs both parents and the tree a clean merge would
+          # have produced, so the default shallow clone is not enough.
+          fetch-depth: 0
+
+      - name: Check merge integrity
+        # The folderOpen task and the font dropper both arrived through merge
+        # commits -- including pull requests #36, #42 and #44, which claimed to
+        # remove them and reinstated both. Every other check in this workflow
+        # inspects file content and so trusts whatever tree the merge produced;
+        # this one checks how the tree was produced.
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD: ${{ github.event.pull_request.head.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+          PUSH_AFTER: ${{ github.sha }}
+        run: |
+          ZERO=0000000000000000000000000000000000000000
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            from="$PR_BASE"; to="$PR_HEAD"
+          else
+            from="$PUSH_BEFORE"; to="$PUSH_AFTER"
+          fi
+          if [ -z "$from" ] || [ "$from" = "$ZERO" ]; then
+            echo "No comparison base for this event; nothing to inspect."
+            exit 0
+          fi
+          bash scripts/check_merge_integrity.sh "$from..$to"
 
       - name: Reject editor auto-run configuration
         run: |
