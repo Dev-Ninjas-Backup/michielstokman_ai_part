@@ -38,7 +38,7 @@
         el.textContent = value.replace(/,\s*$/, "") + ", ";
         return;
       }
-      el.textContent = value;
+      el.textContent = value == null ? "" : String(value);
     });
   }
 

@@ -6,10 +6,11 @@ from unittest.mock import MagicMock, patch
 
 from app.model.story import ImageSource, StoryType
 from app.utils import story_cover
-from app.utils.prompts import CONFESSION_COVER_PHOTOGRAPHY_STYLE
+from app.utils.prompts import CONFESSION_COVER_PHOTOGRAPHY_LOOK
 from app.utils.story_image_prompt import (
     brief_story_mood_scene,
     build_portrait_only_prompt,
+    portrait_pose_instruction,
 )
 
 
@@ -75,15 +76,69 @@ def test_story_to_cover_template_payload_maps_fields():
 
 def test_build_portrait_only_prompt_is_not_collage_and_reuses_style():
     prompt = build_portrait_only_prompt(_story())
-    assert CONFESSION_COVER_PHOTOGRAPHY_STYLE in prompt
+    assert CONFESSION_COVER_PHOTOGRAPHY_LOOK in prompt
+    assert "arms outstretched" not in prompt
     assert "28-year-old female" in prompt
     assert "Barcelona" in prompt
     assert "no collage" in prompt.lower()
     assert "no text" in prompt.lower()
+    assert "Do not default to a generic triumphant arms-out pose" in prompt
     assert "CONFESSION banner" not in prompt
     assert "[INSERT GENERATED TITLE HERE]" not in prompt
     mood = brief_story_mood_scene(_story())
     assert "Leaving a relationship" in mood
+
+
+def test_portrait_pose_follows_story_physical_action():
+    holding = portrait_pose_instruction(
+        _story(
+            situation="On a winter Berlin U-Bahn platform holding a letter after goodbye."
+        )
+    )
+    assert "holding a letter" in holding.lower()
+    assert "Do not default to a generic triumphant arms-out pose" in holding
+
+    dock = portrait_pose_instruction(
+        _story(
+            situation="Standing alone on a cold harbour dock at dusk, looking out over the water."
+        )
+    )
+    assert "standing" in dock.lower()
+    assert "looking out" in dock.lower()
+
+    balcony = portrait_pose_instruction(
+        _story(
+            situation="On a Lagos balcony at night, eyes closed in a quiet contemplative moment."
+        )
+    )
+    assert "leaning" in balcony.lower() or "balcony" in balcony.lower()
+    assert "contemplative" in balcony.lower()
+
+
+def test_description_truncates_at_last_complete_word():
+    long_hook = (
+        "Standing alone on a cold harbour dock at dusk, looking out over the water "
+        "after finally telling the truth."
+    )
+    # Old buggy cut landed mid-word on "aft".
+    assert long_hook[:77].endswith("aft")
+    payload = story_cover.story_to_cover_template_payload(_story(hero_hook=long_hook))
+    desc = payload["description"]
+    assert len(desc) <= story_cover.CONFESSION_DESCRIPTION_HARD_LIMIT
+    assert long_hook.startswith(desc)
+    assert desc == story_cover.truncate_at_last_word(long_hook)
+    assert not desc.endswith(("aft", "co", "the", "a", "in"))
+    # Next source char after desc must be whitespace (word boundary) when truncated.
+    if len(long_hook) > len(desc):
+        assert long_hook[len(desc)] == " "
+
+    dangling = (
+        "On a Lagos balcony at night with city lights behind her, eyes closed in a "
+        "quiet moment of choosing herself."
+    )
+    trimmed = story_cover.truncate_at_last_word(dangling)
+    assert trimmed.endswith("eyes closed")
+    assert not trimmed.endswith(("in a", " in", " a"))
 
 
 def test_dalle_flag_delegates_to_unchanged_dalle_path():

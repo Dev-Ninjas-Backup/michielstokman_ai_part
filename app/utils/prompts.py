@@ -15,19 +15,38 @@ from typing import Optional
 from app.schemas.schema_ai import StoryGenerateRequest, StoryType
 
 
-# Fixed portrait treatment for confession covers (P1 + P2). Scene/subject still
-# vary per story; only this photographic color/look is locked.
-CONFESSION_COVER_PHOTOGRAPHY_STYLE = (
+# Fixed portrait treatment for confession covers. Scene/subject still vary per
+# story; only this photographic color/look is locked. LOOK is shared by the
+# collage (P1/P2) and template portrait-only paths; COLLAGE_BODY keeps the
+# euphoric default pose for full-collage covers only.
+CONFESSION_COVER_PHOTOGRAPHY_LOOK = (
     "Photography style (always apply, non-negotiable): black-and-white with warm sepia toning, "
     "high-contrast, visible film grain — reminiscent of vintage analog documentary photography, "
     "not clean digital. Golden-hour or backlit natural lighting creating dramatic rim-light or "
-    "silhouette effect. Subject shows genuine emotion — release, freedom, quiet joy, or catharsis — "
+    "silhouette effect."
+)
+
+CONFESSION_COVER_PHOTOGRAPHY_COLLAGE_BODY = (
+    " Subject shows genuine emotion — release, freedom, quiet joy, or catharsis — "
     "through open body language (arms outstretched, face tilted toward sky, eyes closed, or a natural "
     "candid laugh), hair and clothing in motion from wind. Outdoor natural setting (coastline, "
     "mountains, open field, or campfire at dusk) matching the story's location and mood. Composition "
     "feels candid and editorial, like a lifestyle magazine feature — never a posed studio headshot, "
     "never looking directly at camera unless laughing candidly. Avoid glossy, overly polished, or "
     "stock-photo aesthetics."
+)
+
+CONFESSION_COVER_PHOTOGRAPHY_STYLE = (
+    CONFESSION_COVER_PHOTOGRAPHY_LOOK + CONFESSION_COVER_PHOTOGRAPHY_COLLAGE_BODY
+)
+
+# Shared closing for template portrait-only prompts (no collage pose defaults).
+CONFESSION_COVER_PHOTOGRAPHY_PORTRAIT_CLOSING = (
+    " Outdoor or candid indoor natural setting matching the story's location and mood. Composition "
+    "feels candid and editorial, like a lifestyle magazine feature — never a posed studio headshot, "
+    "never looking directly at camera unless caught in a natural, unposed laugh. Avoid glossy, "
+    "overly polished, or stock-photo aesthetics. Hair and clothing may show natural movement from "
+    "wind if outdoors."
 )
 
 

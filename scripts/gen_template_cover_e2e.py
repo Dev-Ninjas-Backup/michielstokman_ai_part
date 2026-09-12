@@ -24,30 +24,42 @@ from app.model.story import StoryType  # noqa: E402
 from app.utils.confession_style_preview import SAMPLES  # noqa: E402
 from app.utils.image_generator import generate_ai_cover_image  # noqa: E402
 from app.utils.s3 import delete_s3_object  # noqa: E402
-from app.utils.story_cover import story_to_cover_template_payload  # noqa: E402
+from app.utils.story_cover import (  # noqa: E402
+    story_to_cover_template_payload,
+    truncate_at_last_word,
+)
 from app.utils.story_image_prompt import build_portrait_only_prompt  # noqa: E402
 
 OUT = ROOT / "scratch" / "template_cover_e2e"
+
+# Distinct subtitle shapes to verify pink underline tracks content height:
+# Liam = 2 lines, Amara = 1 line, Jonas = empty (underline under title block).
+_SUBTITLES = {
+    "01_liam_maine": "A Night That\nLiberated My Essence",
+    "02_amara_lagos": "Choosing Myself",
+    "03_jonas_berlin": "",
+}
+
+_MOODS = {
+    "01_liam_maine": (
+        "Standing alone on a cold harbour dock at dusk, looking out over the water "
+        "after finally telling the truth."
+    ),
+    "02_amara_lagos": (
+        "On a Lagos balcony at night with city lights behind her, eyes closed in a "
+        "quiet moment of choosing herself."
+    ),
+    "03_jonas_berlin": (
+        "On a winter Berlin U-Bahn platform holding a letter, breath visible in the "
+        "cold air after a hard goodbye."
+    ),
+}
 
 
 def _story_from_sample(sample: dict) -> SimpleNamespace:
     loc = sample["location"]
     city, country = (loc.split(",", 1) + [""])[:2] if "," in loc else (loc, "")
-    moods = {
-        "01_liam_maine": (
-            "Standing alone on a cold harbour dock at dusk, looking out over the water "
-            "after finally telling the truth."
-        ),
-        "02_amara_lagos": (
-            "On a Lagos balcony at night with city lights behind her, eyes closed in a "
-            "quiet moment of choosing herself."
-        ),
-        "03_jonas_berlin": (
-            "On a winter Berlin U-Bahn platform holding a letter, breath visible in the "
-            "cold air after a hard goodbye."
-        ),
-    }
-    mood = moods.get(sample["slug"], f"A candid emotional moment in {loc}.")
+    mood = _MOODS.get(sample["slug"], f"A candid emotional moment in {loc}.")
     return SimpleNamespace(
         id=f"e2e-{sample['slug']}",
         story_type=StoryType.confession,
@@ -62,8 +74,9 @@ def _story_from_sample(sample: dict) -> SimpleNamespace:
         country=country.strip(),
         location=loc,
         high_intensity=True,
-        hero_hook=mood[:77],
-        hero_tagline="A Night That\nLiberated My Essence",
+        # Word-safe hard limit (never mid-word) — same path as production.
+        hero_hook=truncate_at_last_word(mood),
+        hero_tagline=_SUBTITLES.get(sample["slug"], "A Night That\nLiberated My Essence"),
         situation=mood,
         background=f"Lives in {loc}.",
         story_text=mood,
@@ -101,11 +114,24 @@ def main() -> int:
             )
 
         payload = story_to_cover_template_payload(story, photo_url=portrait_url)
-        print(f"Playwright composite for {sample['slug']}…", flush=True)
+        print(
+            f"Playwright composite for {sample['slug']} "
+            f"(subtitle={payload['subtitle']!r} desc={payload['description']!r})…",
+            flush=True,
+        )
         png = render_cover_png_sync(payload)
         out_png = OUT / f"{sample['slug']}_composite.png"
         out_png.write_bytes(png)
         print(f"  wrote {out_png} ({len(png)} bytes)", flush=True)
+
+        from app.cover_template.render import measure_cover_geometry_sync
+
+        geom = measure_cover_geometry_sync(payload)
+        print(
+            f"  geometry subtitle_bottom={geom.get('subtitle_bottom')} "
+            f"underline_top={geom.get('underline_top')} gap={geom.get('underline_gap')}",
+            flush=True,
+        )
 
         # Drop intermediate portrait so S3 is not littered by this test.
         if portrait_key:
@@ -115,12 +141,17 @@ def main() -> int:
             {
                 "slug": sample["slug"],
                 "title": sample["title"],
+                "subtitle": payload["subtitle"],
+                "description": payload["description"],
+                "description_len": len(payload["description"]),
                 "used_dalle_portrait": bool(portrait_url),
                 "prompt_file": str(prompt_path),
                 "composite_file": str(out_png),
                 "prompt_words": len(prompt.split()),
-                "style_in_prompt": "Photography style (always apply, non-negotiable)"
+                "pose_in_prompt": "Pose / body language (required, story-specific)"
                 in prompt,
+                "arms_out_default_absent": "arms outstretched" not in prompt,
+                "geometry": geom,
             }
         )
 
