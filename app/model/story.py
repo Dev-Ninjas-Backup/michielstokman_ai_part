@@ -39,9 +39,10 @@ class SubmissionStatus(str, enum.Enum):
 
 class ImageSource(str, enum.Enum):
     """Where the cover image on a story came from."""
-    ai_generated = "ai_generated"
+    ai_generated = "ai_generated"  # DALL-E pipeline (COVER_GENERATION_METHOD=dalle)
     user_uploaded = "user_uploaded"
     admin_default = "admin_default"
+    template_v1 = "template_v1"  # HTML cover_template (COVER_GENERATION_METHOD=template)
 
 
 class SubmissionMode(str, enum.Enum):

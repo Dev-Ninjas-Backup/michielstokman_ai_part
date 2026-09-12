@@ -12,6 +12,7 @@ from app.api.v1.endpoints import routes_ai, routes_auth, routes_payment, routes_
 from app.api.v1.endpoints import routes_user_dashboard, routes_feedback, routes_liberation, routes_liberation_catalog
 from app.api.v1.endpoints import routes_my_stories
 from app.api.v1.endpoints import routes_cover_template_test
+from app.api.v1.endpoints import routes_confession_cover_style_test
 from app.api.v1.endpoints.admin import route_admin_dashboard, route_moderation, route_liberation_admin, route_admin_chat, route_photo_management, route_voice_review, route_billing_admin, route_admin_users
 from app.schemas.schema_system import HealthResponse
 
@@ -128,6 +129,11 @@ app.include_router(
     routes_cover_template_test.router,
     prefix="/v1",
     tags=["Test - Cover Template"],
+)
+app.include_router(
+    routes_confession_cover_style_test.router,
+    prefix="/v1",
+    tags=["Test - Confession Cover Style"],
 )
 
 # ---------------------------------------------------------------------------

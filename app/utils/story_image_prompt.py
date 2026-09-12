@@ -21,6 +21,23 @@ STORY_EXCERPT_CHARS = 6000
 INPUT_EXCERPT_CHARS = 1500
 
 
+def ensure_confession_photography_style(prompt: str, story: Story) -> str:
+    """Append the fixed confession photo style if missing (P1 or P2 output)."""
+    from app.model.story import StoryType
+    from app.utils.prompts import CONFESSION_COVER_PHOTOGRAPHY_STYLE
+
+    story_type = getattr(story, "story_type", None)
+    if story_type != StoryType.confession:
+        return prompt
+    text = (prompt or "").strip()
+    if not text:
+        return text
+    # Already present (Grok followed instructions) — do not duplicate.
+    if "Photography style (always apply, non-negotiable)" in text:
+        return text
+    return f"{text} {CONFESSION_COVER_PHOTOGRAPHY_STYLE}".strip()
+
+
 def substitute_cover_placeholders(
     prompt: str,
     *,
@@ -50,10 +67,24 @@ def _cover_art_direction(story: Story) -> str:
 
 def build_image_prompt_from_story(story: Story) -> str:
     """Ask the LLM for a story-specific DALL-E prompt after generation completes."""
+    from app.model.story import StoryType
+    from app.utils.prompts import CONFESSION_COVER_PHOTOGRAPHY_STYLE
+
     excerpt = (story.story_text or "")[:STORY_EXCERPT_CHARS]
     input_excerpt = (story.story_input or "")[:INPUT_EXCERPT_CHARS]
     tags = ", ".join(story.tags or [])
     growth = ", ".join(story.growth_areas or [])
+
+    confession_style_block = ""
+    if story.story_type == StoryType.confession:
+        confession_style_block = (
+            "\n\nCONFESSION PHOTOGRAPHY STYLE (NON-NEGOTIABLE): "
+            "Per-story subject age/gender/location/activity/mood MUST still vary "
+            "from the narrated story. Only the photographic treatment is fixed. "
+            "Your returned prompt MUST include this exact paragraph verbatim "
+            "(append after the scene description; do not rewrite or omit it):\n"
+            f"{CONFESSION_COVER_PHOTOGRAPHY_STYLE}\n"
+        )
 
     llm = get_story_llm(temperature=0.8)
     response = llm.invoke(
@@ -73,7 +104,8 @@ def build_image_prompt_from_story(story: Story) -> str:
         f"Situation: {story.situation or 'unspecified'}\n"
         f"Themes/tags: {tags or 'none'}\n"
         f"Growth areas: {growth or 'none'}\n\n"
-        f"Art direction:\n{_cover_art_direction(story)}\n\n"
+        f"Art direction:\n{_cover_art_direction(story)}\n"
+        f"{confession_style_block}\n"
         f"Member's original submission:\n{input_excerpt}\n\n"
         f"Narrated story:\n{excerpt}\n\n"
         "The cover scene must visually reflect THIS specific story — its setting, "
@@ -81,7 +113,8 @@ def build_image_prompt_from_story(story: Story) -> str:
         f"The tape text MUST read exactly: {story.first_name or 'Anonymous'}. "
         f"The portrait MUST depict a {story.gender or 'unspecified'} person."
     )
-    return response.content.strip()
+    built = response.content.strip()
+    return ensure_confession_photography_style(built, story)
 
 
 def resolve_image_prompt(
@@ -100,11 +133,17 @@ def resolve_image_prompt(
 
     generated = (generated_prompt or "").strip()
     if generated:
-        return substitute_cover_placeholders(generated, title=title, author_name=author)
+        return ensure_confession_photography_style(
+            substitute_cover_placeholders(generated, title=title, author_name=author),
+            story,
+        )
 
     stored = (getattr(story, "image_prompt", None) or "").strip()
     if stored and not force_rebuild:
-        return substitute_cover_placeholders(stored, title=title, author_name=author)
+        return ensure_confession_photography_style(
+            substitute_cover_placeholders(stored, title=title, author_name=author),
+            story,
+        )
 
     if not (story.story_text or "").strip():
         return None
@@ -116,7 +155,10 @@ def resolve_image_prompt(
     built = build_image_prompt_from_story(story)
     if not built:
         return None
-    return substitute_cover_placeholders(built, title=title, author_name=author)
+    return ensure_confession_photography_style(
+        substitute_cover_placeholders(built, title=title, author_name=author),
+        story,
+    )
 
 
 def _apply_admin_default_cover(db: Session, story: Story) -> None:
