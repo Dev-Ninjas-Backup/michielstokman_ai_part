@@ -22,12 +22,16 @@ from app.schemas.schema_ai import StoryGenerateRequest, StoryType
 CONFESSION_COVER_PHOTOGRAPHY_LOOK = (
     "Photography style (always apply, non-negotiable): black-and-white with warm sepia toning, "
     "high-contrast, visible film grain — reminiscent of vintage analog documentary photography, "
-    "not clean digital. Golden-hour, window, lamp, or backlit natural lighting creating dramatic "
-    "rim-light, soft catchlights, or silhouette when the scene calls for it. Render natural skin "
-    "texture (pores, fine lines, flyaway hair) — never airbrushed beauty retouch. Show believable "
-    "fabric folds and material response to light. Prefer shallow depth of field with a readable "
-    "mid-ground (furniture edge, window frame, railing, horizon) — not infinite empty bokeh. "
-    "Allow volumetric air (dust, mist, rain streaks, breath in cold) when the story setting allows."
+    "not clean digital. The warm sepia tone must be clearly visible and rich, not desaturated or "
+    "neutral gray — err toward a deeper amber/warm-brown cast rather than a flat black-and-white "
+    "with minimal tint. Avoid cold, neutral, or desaturated tone — this must never look like a "
+    "plain grayscale photo with no warmth. Golden-hour, window, lamp, or backlit natural lighting "
+    "creating dramatic rim-light, soft catchlights, or silhouette when the scene calls for it. "
+    "Render natural skin texture (pores, fine lines, flyaway hair) — never airbrushed beauty "
+    "retouch. Show believable fabric folds and material response to light. Prefer shallow depth "
+    "of field with a readable mid-ground (furniture edge, window frame, railing, horizon) — not "
+    "infinite empty bokeh. Allow volumetric air (dust, mist, rain streaks, breath in cold) when "
+    "the story setting allows."
 )
 
 CONFESSION_COVER_PHOTOGRAPHY_COLLAGE_BODY = (
@@ -62,9 +66,13 @@ CONFESSION_COVER_PORTRAIT_ENVIRONMENT = (
     "detail and atmosphere appropriate to THIS story's setting and location — at least two "
     "concrete background anchors visible in frame (e.g. window frame and rain-streaked glass, "
     "city lights and balcony railing, harbor water and dock pilings, bed and bedside lamp, "
-    "cafe table and street beyond). Make the environment aesthetically distinct per confession. "
-    "Show visible light sources, depth, texture, and grounding elements — never a flat, plain, "
-    "or empty background."
+    "cafe table and street beyond). The scene must feel emotionally intimate and evocative — "
+    "prioritize a clean, evocative environment with 1–2 strong atmospheric elements (not a "
+    "cluttered multi-object workshop/scene) so the emotional tone of the story reads clearly "
+    "at a glance. Avoid busy, documentary-style clutter that distracts from the subject's "
+    "emotional state. Make the environment aesthetically distinct per confession. Show visible "
+    "light sources, depth, texture, and grounding elements — never a flat, plain, or empty "
+    "background."
 )
 
 

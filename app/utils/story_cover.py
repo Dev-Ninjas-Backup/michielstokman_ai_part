@@ -142,8 +142,16 @@ def _pack_words_to_lines(
 
 
 def _active_title(story: Story) -> str:
-    """Brush title packed with complete words for fluid wrap up to the torn edge."""
+    """Brush title packed with complete words for fluid wrap up to the torn edge.
+
+    Very short titles (≤3 words that fit the hard line) stay on one line so we
+    do not invent a blank second Edo row for cases like ``The Salt``.
+    """
     raw = (story.title or story.member_title or story.ai_generated_title or "Untitled").strip()
+    raw = re.sub(r"\s+", " ", raw)
+    words = raw.split()
+    if words and len(words) <= 3 and len(raw) <= TITLE_LINE_HARD_LIMIT:
+        return raw
     packed = _pack_words_to_lines(
         raw,
         per_line=TITLE_LINE_SOFT_LIMIT,
@@ -175,8 +183,8 @@ def _subtitle_for_story(story: Story) -> str:
 def truncate_at_last_word(text: str, max_chars: int = CONFESSION_DESCRIPTION_HARD_LIMIT) -> str:
     """Trim to max_chars at the last complete word — never mid-word.
 
-    Also drops a trailing function-word fragment (a/an/the/in/…) so the
-    confession does not end on a dangling article after the hard cut.
+    Also drops trailing function-words and dangling punctuation so the
+    confession does not end on ``… heavy,`` or ``… in a``.
     """
     cleaned = re.sub(r"\s+", " ", (text or "").strip())
     if not cleaned:
@@ -196,13 +204,29 @@ def truncate_at_last_word(text: str, max_chars: int = CONFESSION_DESCRIPTION_HAR
             else:
                 result = cut[:sp].rstrip()
 
-    # Avoid "... eyes closed in a" / "... breath visible in the".
+    return _cleanup_truncated_phrase(result)
+
+
+def _cleanup_truncated_phrase(text: str) -> str:
+    """Strip dangling articles/conjunctions and trailing clause punctuation."""
+    result = (text or "").strip()
+    if not result:
+        return ""
+
     dangling = re.compile(
-        r"\b(a|an|the|in|on|of|to|for|and|or|with|at|by|from)\s*$",
+        r"\b(a|an|the|in|on|of|to|for|and|or|with|at|by|from|as|but|nor|so|yet|"
+        r"into|onto|upon|over|under|like|than|then|that|this|these|those|my|our|"
+        r"his|her|their|its)\s*$",
         re.I,
     )
-    while dangling.search(result) and " " in result:
-        result = result.rsplit(" ", 1)[0].rstrip()
+    # Repeat: drop a dangling function word, then strip trailing ,;:—-
+    for _ in range(8):
+        prev = result
+        while dangling.search(result) and " " in result:
+            result = result.rsplit(" ", 1)[0].rstrip()
+        result = re.sub(r"[\s,;:—–\-]+$", "", result).rstrip()
+        if result == prev:
+            break
     return result
 
 
@@ -212,26 +236,48 @@ def truncate_at_sentence(
     soft_limit: int = CONFESSION_DESCRIPTION_SOFT_LIMIT,
     hard_limit: int = CONFESSION_DESCRIPTION_HARD_LIMIT,
 ) -> str:
-    """Prefer a complete sentence within soft_limit; else word-cut at hard_limit.
+    """Prefer a complete sentence within soft, then hard; else cleaned word-cut.
 
-    Used for cover confession copy so the blurb does not end mid-thought or
-    overflow into the location block.
+    Prefers ``.!?`` first. If none, a ``;`` clause is treated as a sentence and
+    normalized to end with ``.`` — so Salt-style copy like
+    ``…salt; the wanting settled heavy,`` becomes ``…salt.`` instead of a
+    dangling comma. Trailing ``,`` / conjunctions are always stripped.
     """
     cleaned = re.sub(r"\s+", " ", (text or "").strip())
     if not cleaned:
         return ""
 
-    # Prefer the longest prefix that ends a sentence within soft, then hard.
-    for limit in (soft_limit, hard_limit):
+    def _last_match_within(limit: int, pattern: str) -> str | None:
         window = cleaned if len(cleaned) <= limit else cleaned[:limit]
         best_end = -1
-        for m in re.finditer(r"[.!?]", window):
+        for m in re.finditer(pattern, window):
             best_end = m.end()
-        if best_end > 0:
-            sentence = window[:best_end].strip()
-            # Reject tiny fragments like "I." when more copy exists.
-            if len(sentence) >= 12 or len(cleaned) <= limit:
-                return sentence
+        if best_end <= 0:
+            return None
+        sentence = window[:best_end].strip()
+        # Reject tiny fragments like "I." when more copy exists.
+        if len(sentence) >= 12 or len(cleaned) <= limit:
+            return sentence
+        return None
+
+    for limit in (soft_limit, hard_limit):
+        hit = _last_match_within(limit, r"[.!?]")
+        if hit:
+            return hit
+
+    # No .!? — promote a semicolon clause to a clean sentence end.
+    for limit in (soft_limit, hard_limit):
+        hit = _last_match_within(limit, r";")
+        if hit:
+            clause = _cleanup_truncated_phrase(hit.rstrip(";").strip())
+            if clause:
+                return clause if clause.endswith((".", "!", "?")) else f"{clause}."
+
+    # Still incomplete but contains `;` somewhere (e.g. under soft with trailing ,).
+    if ";" in cleaned:
+        first = _cleanup_truncated_phrase(cleaned.split(";", 1)[0].strip())
+        if len(first) >= 12:
+            return first if first.endswith((".", "!", "?")) else f"{first}."
 
     return truncate_at_last_word(cleaned, hard_limit)
 

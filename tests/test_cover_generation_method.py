@@ -130,7 +130,7 @@ def test_description_truncates_at_last_complete_word():
     desc = payload["description"]
     assert len(desc) <= story_cover.CONFESSION_DESCRIPTION_HARD_LIMIT
     assert long_hook.startswith(desc)
-    assert not desc.endswith(("aft", "co", "the", "a", "in"))
+    assert not desc.endswith(("aft", "co", "the", "a", "in", ","))
     dangling = (
         "On a Lagos balcony at night with city lights behind her, eyes closed in a "
         "quiet moment of choosing herself."
@@ -147,6 +147,38 @@ def test_description_prefers_complete_sentence_within_soft_limit():
     desc = story_cover.truncate_at_sentence(hook)
     assert desc == "I paused at the door."
     assert len(desc) <= story_cover.CONFESSION_DESCRIPTION_SOFT_LIMIT
+
+
+def test_description_strips_trailing_comma_and_prefers_earlier_sentence():
+    """Comma-ending mid-clause must not ship; prefer prior .!? when present."""
+    hook = (
+        "The silence found me first. Salt settled heavy, like a weight I could not name."
+    )
+    desc = story_cover.truncate_at_sentence(hook)
+    assert desc == "The silence found me first."
+    assert not desc.endswith(",")
+
+    mid = (
+        "Salt settled heavy, fog on the glass and tools on the bench under cold light "
+        "while the workshop hummed past any soft limit"
+    )
+    cut = story_cover.truncate_at_sentence(mid)
+    assert len(cut) <= story_cover.CONFESSION_DESCRIPTION_HARD_LIMIT
+    assert not cut.endswith((",", ";", "and", "the", "a"))
+    assert "salt" in cut.lower() or "settled" in cut.lower()
+
+
+def test_salt_description_prefers_semicolon_clause_over_trailing_comma():
+    """The Salt cover copy: semicolon clause → clean sentence, no dangling comma."""
+    hook = "Her wrist smelled of salt; the wanting settled heavy,"
+    desc = story_cover.truncate_at_sentence(hook)
+    assert desc == "Her wrist smelled of salt."
+    assert not desc.endswith(",")
+    payload = story_cover.story_to_cover_template_payload(
+        _story(hero_hook=hook, title="The Salt", hero_tagline="Salt stays on the wrist you")
+    )
+    assert payload["description"] == "Her wrist smelled of salt."
+    assert payload["title"] == "The Salt"
 
 
 def test_subtitle_wraps_and_truncates_to_hard_line_limit():
@@ -180,6 +212,13 @@ def test_confession_look_keeps_sepia_bw_and_adds_realism_cues():
     assert "skin texture" in look
     assert "depth of field" in look
     assert "fabric folds" in look
+    assert "amber" in look or "warm-brown" in look
+    assert "plain grayscale" in look
+    from app.utils.prompts import CONFESSION_COVER_PORTRAIT_ENVIRONMENT
+
+    env = CONFESSION_COVER_PORTRAIT_ENVIRONMENT.lower()
+    assert "emotionally intimate" in env
+    assert "clutter" in env
 
 
 def test_build_portrait_only_prompt_always_requires_rich_environment():
