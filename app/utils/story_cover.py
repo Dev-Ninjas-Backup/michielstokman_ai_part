@@ -30,12 +30,15 @@ logger = logging.getLogger(__name__)
 # Hard limits from cover_template/DYNAMIC.md (empirically measured).
 CONFESSION_DESCRIPTION_HARD_LIMIT = 77
 CONFESSION_DESCRIPTION_SOFT_LIMIT = 58  # ~3 lines with gap above location
-# Subtitle stays in the 558px beige column (left of torn edge @ 670).
-# Title may use a wider box; photo paints above so excess is not visible on the image.
-SUBTITLE_LINE_HARD_LIMIT = 14
-SUBTITLE_LINE_SOFT_LIMIT = 14
+# Fluid wrap inside the 558px beige column (torn edge @ 670). CSS wraps; Python
+# packs complete words so height stays within title ≤3 / subtitle ≤2 visual lines.
+TITLE_LINE_SOFT_LIMIT = 6  # ~one wide Edo@164 word per packed line in 558px
 TITLE_LINE_HARD_LIMIT = 14
-TITLE_LINE_SOFT_LIMIT = 12
+# 2 packed lines ≈ ≤3 CSS wraps max; keeps block above confession (top: 1000).
+TITLE_MAX_VISUAL_LINES = 2
+SUBTITLE_LINE_SOFT_LIMIT = 16  # ~one Edo@80 line in 558px
+SUBTITLE_LINE_HARD_LIMIT = 20
+SUBTITLE_MAX_VISUAL_LINES = 2
 
 COVER_METHOD_DALLE = "dalle"
 COVER_METHOD_TEMPLATE = "template"
@@ -72,31 +75,82 @@ def _split_location(story: Story) -> tuple[str, str]:
     return loc, ""
 
 
-def _active_title(story: Story) -> str:
-    """Two-line brush title using complete words that fit left of the torn edge.
+def _pack_words_to_lines(
+    text: str,
+    *,
+    per_line: int,
+    max_lines: int,
+    hard_limit: int | None = None,
+) -> str:
+    """Pack complete words into up to ``max_lines`` lines (soft width ``per_line``).
 
-    Long phrases are reduced to the first two words (one per line) so Edo @ 164px
-    does not clip mid-glyph against the 558px title column.
+    Returns newline-separated lines for Cover.set line1/line2 (extra lines beyond
+    two are joined into line2). Never splits mid-word when the token fits
+    ``hard_limit`` (defaults to ``per_line``).
     """
+    token_cap = hard_limit if hard_limit is not None else per_line
+    cleaned = re.sub(r"\s+", " ", (text or "").replace("\r\n", "\n").strip())
+    if not cleaned:
+        return ""
+    # Honor explicit newlines as hard breaks, then re-pack each segment.
+    segments = [p.strip() for p in cleaned.split("\n") if p.strip()]
+    words: list[str] = []
+    for seg in segments:
+        words.extend(seg.split())
+
+    lines: list[str] = []
+    current = ""
+    for word in words:
+        if len(word) > per_line:
+            # Finish the current soft line, then place the long token alone.
+            if current:
+                lines.append(current)
+                current = ""
+                if len(lines) >= max_lines:
+                    break
+            if len(word) <= token_cap:
+                lines.append(word)
+            else:
+                # Last resort for a single overlong token.
+                lines.append(truncate_at_last_word(word, token_cap) or word[:token_cap])
+            if len(lines) >= max_lines:
+                break
+            continue
+
+        trial = f"{current} {word}".strip() if current else word
+        if len(trial) <= per_line:
+            current = trial
+            continue
+        if current:
+            lines.append(current)
+            if len(lines) >= max_lines:
+                current = ""
+                break
+        current = word
+
+    if current and len(lines) < max_lines:
+        lines.append(current)
+
+    if not lines:
+        return ""
+    # Cover template has two binds: fold line3+ into line2 with spaces (CSS wraps).
+    if len(lines) == 1:
+        return lines[0]
+    if len(lines) == 2:
+        return f"{lines[0]}\n{lines[1]}"
+    return f"{lines[0]}\n{' '.join(lines[1:max_lines])}"
+
+
+def _active_title(story: Story) -> str:
+    """Brush title packed with complete words for fluid wrap up to the torn edge."""
     raw = (story.title or story.member_title or story.ai_generated_title or "Untitled").strip()
-    raw = re.sub(r"\s+", " ", raw.replace("\r\n", "\n")).strip()
-    if not raw:
-        return "Untitled"
-
-    parts = [p.strip() for p in raw.split("\n") if p.strip()]
-    if len(parts) >= 2:
-        # Honor explicit two-line titles, but keep each line to complete words in budget.
-        return format_two_line_field(
-            f"{parts[0]}\n{parts[1]}",
-            TITLE_LINE_HARD_LIMIT,
-            wrap_soft_limit=TITLE_LINE_SOFT_LIMIT,
-        )
-
-    words = parts[0].split()
-    if len(words) == 1:
-        return words[0]
-    # One complete word per line — fits the beige column for typical title words.
-    return f"{words[0]}\n{words[1]}"
+    packed = _pack_words_to_lines(
+        raw,
+        per_line=TITLE_LINE_SOFT_LIMIT,
+        max_lines=TITLE_MAX_VISUAL_LINES,
+        hard_limit=TITLE_LINE_HARD_LIMIT,
+    )
+    return packed or "Untitled"
 
 
 def _subtitle_for_story(story: Story) -> str:
@@ -104,15 +158,17 @@ def _subtitle_for_story(story: Story) -> str:
     # Explicit "" → allow empty subtitle (pink underline sits under the title).
     tag = getattr(story, "hero_tagline", None)
     if tag is None:
-        return format_two_line_field(
-            "A Night That\nLiberated My",
-            SUBTITLE_LINE_HARD_LIMIT,
-            wrap_soft_limit=SUBTITLE_LINE_SOFT_LIMIT,
+        return _pack_words_to_lines(
+            "A Night That Liberated My Essence",
+            per_line=SUBTITLE_LINE_SOFT_LIMIT,
+            max_lines=SUBTITLE_MAX_VISUAL_LINES,
+            hard_limit=SUBTITLE_LINE_HARD_LIMIT,
         )
-    return format_two_line_field(
+    return _pack_words_to_lines(
         str(tag),
-        SUBTITLE_LINE_HARD_LIMIT,
-        wrap_soft_limit=SUBTITLE_LINE_SOFT_LIMIT,
+        per_line=SUBTITLE_LINE_SOFT_LIMIT,
+        max_lines=SUBTITLE_MAX_VISUAL_LINES,
+        hard_limit=SUBTITLE_LINE_HARD_LIMIT,
     )
 
 

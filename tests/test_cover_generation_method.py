@@ -72,8 +72,9 @@ def test_story_to_cover_template_payload_maps_fields():
     assert payload["country"] == "Spain"
     assert payload["is_explicit"] is True
     assert "shame" in payload["description"]
-    # Title is first two words (complete) so the brush headline stays left of the photo.
-    assert payload["title"] == "To\nWasteland"
+    # Title packs complete words for fluid wrap (≤3 visual lines in the beige column).
+    assert "To" in payload["title"]
+    assert "Wasteland" in payload["title"]
     assert payload["photo_url"] is None
 
 
@@ -151,11 +152,9 @@ def test_description_prefers_complete_sentence_within_soft_limit():
 def test_subtitle_wraps_and_truncates_to_hard_line_limit():
     long = "The memory stirred but my boundaries held"
     payload = story_cover.story_to_cover_template_payload(_story(hero_tagline=long))
-    lines = payload["subtitle"].split("\n")
+    lines = [ln for ln in payload["subtitle"].split("\n") if ln]
     assert 1 <= len(lines) <= 2
     assert all(len(line) <= story_cover.SUBTITLE_LINE_HARD_LIMIT for line in lines)
-    # Soft wrap keeps line1 near the soft width so Edo glyphs do not spill into the photo.
-    assert len(lines[0]) <= story_cover.SUBTITLE_LINE_SOFT_LIMIT + 2
     joined = " ".join(lines).lower()
     assert "memory" in joined
     # Never mid-word (e.g. HEL from HELD).
@@ -235,7 +234,7 @@ def test_quiet_lisbon_window_prompt_has_scene_richness_not_arms_out():
 
 
 def test_subtitle_stays_within_torn_border_column():
-    """Long taglines wrap/truncate to complete words that fit left of the photo."""
+    """Long taglines pack complete words that fluid-wrap left of the photo."""
     long = "The hands that once trembled now rested"
     payload = story_cover.story_to_cover_template_payload(_story(hero_tagline=long))
     lines = [ln for ln in payload["subtitle"].split("\n") if ln]
@@ -243,8 +242,21 @@ def test_subtitle_stays_within_torn_border_column():
     joined = " ".join(lines).lower()
     assert "hands" in joined
     assert "trembled" in joined
-    # "now rested" may drop when the column is full — never mid-word.
+    # Never mid-word.
     assert "trembl" not in joined.replace("trembled", "")
+
+
+def test_title_packs_short_words_onto_shared_lines():
+    """Fluid packing puts multiple short words on a line (not one-word-only)."""
+    payload = story_cover.story_to_cover_template_payload(
+        _story(title="On My Own Way Home Tonight")
+    )
+    joined = payload["title"].replace("\n", " ")
+    assert "On" in joined and "My" in joined
+    # Soft width 6 allows "On My" / "Own Way" style packing.
+    assert len(joined.split()) >= 3
+    lines = [ln for ln in payload["title"].split("\n") if ln]
+    assert all(len(ln) <= story_cover.TITLE_LINE_HARD_LIMIT for ln in lines)
 
 
 def test_dalle_flag_delegates_to_unchanged_dalle_path():

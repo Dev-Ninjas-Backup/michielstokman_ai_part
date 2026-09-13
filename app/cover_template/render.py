@@ -28,8 +28,8 @@ CANVAS_WIDTH = 2160
 CANVAS_HEIGHT = 2160
 
 SAMPLE_DATA = {
-    "title": "To\nMy Own",
-    "subtitle": "A Night That\nLiberated My",
+    "title": "Second Draft\nOf A Love",
+    "subtitle": "A Night That\nLiberated My Essence",
     "description": "A confession about\nshame, desire and\nfinally choosing me.",
     "author_name": "Lisa",
     "age": "28",
