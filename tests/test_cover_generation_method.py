@@ -108,7 +108,7 @@ def test_portrait_pose_follows_story_physical_action():
         )
     )
     assert "standing" in dock.lower()
-    assert "looking out" in dock.lower()
+    assert "gaze directed" in dock.lower() or "looking out" in dock.lower()
 
     balcony = portrait_pose_instruction(
         _story(
@@ -167,7 +167,9 @@ def test_build_portrait_only_prompt_requests_headroom_framing():
     assert "full head and shoulders" in prompt
     assert "4:5" in prompt
     assert "adequate headroom" in prompt
-    assert "aggressive cropping" in prompt
+    assert "bent-neck" in prompt.lower() or "bent/crooked neck" in prompt.lower()
+    assert "Anti-repetition" in prompt
+    assert "Narrative moment to depict" in prompt
 
 
 def test_confession_look_keeps_sepia_bw_and_adds_realism_cues():
@@ -194,6 +196,8 @@ def test_build_portrait_only_prompt_always_requires_rich_environment():
     assert "arms outstretched" not in quiet
     assert "Physically ground the subject" in quiet
     assert "Scene detail:" in quiet
+    assert "Do NOT use a bent/crooked neck" in quiet
+    assert "Narrator alone" in quiet
 
 
 def test_quiet_lisbon_window_prompt_has_scene_richness_not_arms_out():
@@ -222,6 +226,7 @@ def test_quiet_lisbon_window_prompt_has_scene_richness_not_arms_out():
 
     prompt = build_portrait_only_prompt(story)
     assert "Scene detail:" in prompt
+    assert "Narrative moment to depict" in prompt
     assert "window" in prompt.lower()
     assert "rain" in prompt.lower() or "dusk" in prompt.lower()
     assert "at least two concrete background anchors" in prompt
@@ -231,6 +236,25 @@ def test_quiet_lisbon_window_prompt_has_scene_richness_not_arms_out():
     assert "Do not default to a generic triumphant arms-out pose" in prompt
     assert "arms outstretched" not in prompt
     assert "triumphant arms-out / face-skyward pose is allowed" not in prompt
+    assert "Do NOT use a bent/crooked neck" in prompt
+
+
+def test_partner_story_allows_second_person_and_intimacy_when_intense():
+    story = _story(
+        high_intensity=True,
+        situation="In bed with my partner after we finally told the truth.",
+        story_text=(
+            "We lay together in the hotel bedroom. I kissed him and felt the sheets "
+            "rumple under my bare shoulder."
+        ),
+    )
+    prompt = build_portrait_only_prompt(story)
+    assert "second person" in prompt.lower()
+    assert "partner" in prompt.lower() or "embrace" in prompt.lower()
+    assert "tasteful editorial" in prompt.lower() or "bare shoulders" in prompt.lower()
+    assert "Do NOT use a bent/crooked neck" in prompt
+    pose = portrait_pose_instruction(story)
+    assert "bent/crooked neck" in pose
 
 
 def test_subtitle_stays_within_torn_border_column():

@@ -116,6 +116,100 @@ _SCENE_PROP_RE = re.compile(
     re.I,
 )
 
+_CELEBRATION_RE = re.compile(
+    r"\b(celebrat\w*|triumphant|arms?\s+out|release|liberat\w*|euphori\w*|"
+    r"face\s+(?:to|toward)\s+(?:the\s+)?sky|finally\s+free)\b",
+    re.I,
+)
+_MULTI_PERSON_RE = re.compile(
+    r"\b("
+    r"partner|lover|boyfriend|girlfriend|husband|wife|spouse|fiancé|fiancee|"
+    r"couple|together|embrace|embracing|kiss(?:ing|ed)?|holding\s+(?:him|her|each\s+other)|"
+    r"in\s+(?:his|her|their)\s+arms|we\s+(?:lay|lie|sat|sit|stood|stand|danced|kiss)|"
+    r"two\s+people|another\s+person|with\s+(?:him|her|them)|beside\s+(?:him|her|them)"
+    r")\b",
+    re.I,
+)
+_INTIMACY_RE = re.compile(
+    r"\b("
+    r"bed|bedroom|sheets|undress|naked|bare|skin|kiss|embrace|desire|lust|"
+    r"arousal|intimate|intimacy|sexual|sex|lover|afterglow|shirtless|lingerie|"
+    r"collarbone|shoulder|breath(?:ing)?\s+on|touch(?:ing|ed)?"
+    r")\b",
+    re.I,
+)
+# Habitual stock pose the model overuses — always banned unless story says otherwise.
+_NECK_BAN = (
+    "Neck and head carriage (required): keep the neck naturally aligned with the spine — "
+    "upright or only a slight natural turn. Do NOT use a bent/crooked neck, chin tucked "
+    "into chest, or the cliché soft head-tilt / three-quarter downturned gaze that repeats "
+    "across covers. Vary head angle from story action (looking at a person, a window, a "
+    "phone, the horizon at eye level, laughing mid-motion) — not a default coy tilt."
+)
+
+
+def _story_blob(story: Story, *, story_chars: int = 900) -> str:
+    return " ".join(
+        p
+        for p in (
+            re.sub(r"\s+", " ", (story.situation or "").strip()),
+            re.sub(r"\s+", " ", (story.background or "").strip()),
+            re.sub(r"\s+", " ", (story.hero_hook or "").strip()),
+            re.sub(
+                r"\s+",
+                " ",
+                (story.story_text or story.story_input or "").strip(),
+            )[:story_chars],
+        )
+        if p
+    )
+
+
+def _story_allows_multi_person(story: Story) -> bool:
+    return bool(_MULTI_PERSON_RE.search(_story_blob(story)))
+
+
+def _story_wants_semi_explicit(story: Story) -> bool:
+    if bool(getattr(story, "high_intensity", False)):
+        return True
+    return bool(_INTIMACY_RE.search(_story_blob(story)))
+
+
+def portrait_narrative_moment(story: Story) -> str:
+    """Story-first moment the photograph must depict (not a generic mood line)."""
+    situation = re.sub(r"\s+", " ", (story.situation or "").strip())
+    excerpt = re.sub(
+        r"\s+", " ", (story.story_text or story.story_input or "").strip()
+    )
+    # Prefer situation + first ~2 sentences of story body for a concrete beat.
+    beats: list[str] = []
+    if situation:
+        beats.append(situation.rstrip(".") + ".")
+    if excerpt:
+        parts = re.split(r"(?<=[.!?])\s+", excerpt)
+        for sent in parts:
+            s = sent.strip()
+            if not s:
+                continue
+            # Skip pure meta / address-to-reader lines if possible.
+            if re.match(r"^(dear |hi |hello |my name)", s, re.I):
+                continue
+            beats.append(s if s.endswith((".", "!", "?")) else s + ".")
+            if len(beats) >= 3:
+                break
+    if not beats:
+        beats.append(brief_story_mood_scene(story))
+
+    moment = " ".join(beats)
+    if len(moment) > 480:
+        moment = moment[:477].rstrip() + "..."
+    return (
+        "Narrative moment to depict (mandatory — invent nothing that contradicts this): "
+        f"{moment} "
+        "The photograph must read as THIS confession's scene, not a reused stock cover pose "
+        "or empty sky portrait."
+    )
+
 
 def portrait_scene_detail(story: Story) -> str:
     """Compact story-grounded setting/props/weather cues for portrait prompts.
@@ -123,12 +217,7 @@ def portrait_scene_detail(story: Story) -> str:
     Pulls concrete nouns from situation, background, and a short story excerpt.
     Kept ~40–60 words; English; never asks for text in the image.
     """
-    chunks = [
-        re.sub(r"\s+", " ", (story.situation or "").strip()),
-        re.sub(r"\s+", " ", (story.background or "").strip()),
-        re.sub(r"\s+", " ", (story.story_text or story.story_input or "").strip())[:500],
-    ]
-    blob = " ".join(c for c in chunks if c)
+    blob = _story_blob(story, story_chars=500)
     if not blob:
         return (
             "Scene detail: intimate lived-in environment with tangible surfaces and "
@@ -156,13 +245,13 @@ def portrait_scene_detail(story: Story) -> str:
     if props:
         parts.append("Include prop/clothing cue if natural: " + ", ".join(props[:3]) + ".")
     if not settings and not weather and not props:
-        # Fall back to trimmed situation so quiet stories still get specificity.
         mood = brief_story_mood_scene(story)
         parts.append(f"Ground the frame in: {mood.rstrip('.')}.")
 
     parts.append(
-        "Show tangible mid-ground detail (no empty sky-only backdrop); no readable text "
-        "in the image."
+        "Build an aesthetic, cinematic environment unique to this story "
+        "(architecture, furniture, weather, light) — no empty sky-only backdrop; "
+        "no readable text in the image."
     )
     text = "Scene detail: " + " ".join(parts)
     if len(text) > 420:
@@ -170,29 +259,46 @@ def portrait_scene_detail(story: Story) -> str:
     return text
 
 
-_CELEBRATION_RE = re.compile(
-    r"\b(celebrat\w*|triumphant|arms?\s+out|release|liberat\w*|euphori\w*|"
-    r"face\s+(?:to|toward)\s+(?:the\s+)?sky|finally\s+free)\b",
-    re.I,
-)
+def portrait_cast_instruction(story: Story) -> str:
+    """Solo vs multi-person cast from the confession text."""
+    if _story_allows_multi_person(story):
+        return (
+            "Cast (story-required): Include a second person when the confession involves "
+            "a partner or shared moment — visible interaction (embrace, conversation, "
+            "walking together, sitting close). The narrator remains the primary subject "
+            "and stays fully readable in frame; the other person may be partial, behind, "
+            "or secondary. Do not invent a crowd."
+        )
+    return (
+        "Cast: Narrator alone unless the story clearly includes another person. "
+        "Do not add random bystanders."
+    )
+
+
+def portrait_intimacy_instruction(story: Story) -> str:
+    """Tasteful semi-explicit cues when intensity/intimacy is story-true."""
+    if not _story_wants_semi_explicit(story):
+        return (
+            "Tone / wardrobe: Keep clothing and body language honest to the story — "
+            "everyday or editorial, not gratuitously revealing."
+        )
+    return (
+        "Tone / wardrobe (story allows intimate / high-intensity heat): Suggest adult "
+        "intimacy aesthetically — close proximity, rumpled sheets or open collar, bare "
+        "shoulders or collarbones, skin catching light, charged stillness or touch — "
+        "tasteful editorial, not pornographic. No graphic sex acts, no full frontal "
+        "nudity, no fetish framing. Stay artistic and story-motivated."
+    )
 
 
 def portrait_pose_instruction(story: Story) -> str:
     """Story-derived pose/body-language block for the portrait-only prompt.
 
     Prefers concrete physical actions from situation/background over the
-    collage path's default arms-out / face-skyward euphoria pose.
+    collage path's default arms-out / face-skyward euphoria pose. Actively
+    bans the bent-neck / soft-tilt stock pose that repeats across covers.
     """
-    scene = " ".join(
-        p
-        for p in (
-            re.sub(r"\s+", " ", (story.situation or "").strip()),
-            re.sub(r"\s+", " ", (story.background or "").strip()),
-            brief_story_mood_scene(story),
-        )
-        if p
-    )
-    lower = scene.lower()
+    lower = _story_blob(story).lower()
 
     actions: list[str] = []
     if re.search(r"\bhold(?:ing|s)?\b.{0,40}\b(letter|note|paper|photo|bag|cup|coat)\b", lower):
@@ -203,7 +309,11 @@ def portrait_pose_instruction(story: Story) -> str:
         actions.append(f"holding a {m.group(1)}" if m else "holding an object from the scene")
     elif re.search(r"\bhold(?:ing|s)?\b", lower):
         actions.append("holding the object described in the scene")
-    if re.search(r"\bsitt?(?:ing|s|en)?\b", lower):
+    if re.search(r"\bdanc(?:ing|e|ed)\b", lower):
+        actions.append("mid-motion dancing or moving to music")
+    if re.search(r"\brun(?:ning|s)?\b|\bjogg(?:ing|ed)?\b", lower):
+        actions.append("in motion — running or brisk walking")
+    if re.search(r"\bsitt?(?:ing|s|en)?\b|\bsat\b", lower):
         actions.append("sitting")
     if re.search(r"\bwalk(?:ing|s|ed)?\b", lower):
         actions.append("walking")
@@ -211,26 +321,32 @@ def portrait_pose_instruction(story: Story) -> str:
         actions.append("leaning on a railing or balcony edge")
     if re.search(r"\bstand(?:ing|s)?\b|\bdock\b|\bplatform\b|\bharbour\b|\bharbor\b", lower):
         actions.append("standing in place within the scene")
+    if re.search(r"\bembrac(?:e|ing|ed)\b|\bin\s+(?:his|her|their)\s+arms\b", lower):
+        actions.append("in an embrace matching the story")
+    if re.search(r"\bkiss(?:ing|ed)?\b", lower):
+        actions.append("close faces / almost-kiss or kiss as the story implies")
     if re.search(r"\blook(?:ing)?\s+out\b|\bgazing\b|\bstaring\b", lower):
-        actions.append("looking out over the surroundings, not toward camera")
-    if re.search(r"\beyes?\s+closed\b|\bquiet\b|\bcontemplat\w*\b|\bthoughtful\b", lower):
-        actions.append("quiet, contemplative expression (eyes soft or closed)")
+        actions.append("gaze directed into the scene at eye level (not chin-down)")
+    # Only when eyes/contemplation are explicit — do NOT trigger on lone "quiet".
+    if re.search(r"\beyes?\s+closed\b|\bcontemplat\w*\b|\bthoughtful\b|\bmeditat\w*\b", lower):
+        actions.append("expression matches contemplation — eyes soft or closed if written")
+    if re.search(r"\blaugh(?:ing|ed|s)?\b|\bsmil(?:ing|ed|e)\b", lower):
+        actions.append("natural laugh or smile mid-moment")
     if re.search(r"\bbreath\b|\bsteam\b|\bwinter\b|\bcold\b", lower):
         actions.append("breath visible in cold air if the setting is cold")
 
     if actions:
-        # De-dupe while preserving order.
         seen: set[str] = set()
         unique = []
         for a in actions:
             if a not in seen:
                 seen.add(a)
                 unique.append(a)
-        stance = "; ".join(unique)
+        stance = "; ".join(unique[:6])
     else:
         stance = (
-            "a naturalistic stance that fits this exact scene — quiet and grounded, "
-            "not theatrical"
+            "a dynamic, story-true body posture taken from the narrated action — "
+            "change it per confession; never reuse the same soft-tilt stock pose"
         )
 
     allow_arms_out = bool(_CELEBRATION_RE.search(lower))
@@ -241,23 +357,24 @@ def portrait_pose_instruction(story: Story) -> str:
         else (
             "Do not default to a generic triumphant arms-out pose unless the story "
             "explicitly involves release/celebration. Reflect the story's specific "
-            "physical action or stance where one is described (sitting, holding an "
-            "object, walking, leaning, etc.)."
+            "physical action or stance where one is described."
         )
     )
     grounded = (
         ""
         if allow_arms_out
         else (
-            " Physically ground the subject in-frame — sitting on, leaning against, or "
-            "holding something visible — so they do not float in empty tone."
+            " Physically ground the subject in-frame — sitting on, leaning against, "
+            "walking through, or holding something visible — so they do not float in "
+            "empty tone."
         )
     )
 
     return (
-        f"Pose / body language (required, story-specific): {stance}. "
-        "Subject shows genuine emotion through open body language OR quiet, "
-        "contemplative body language — whichever matches the story's tone. "
+        f"Pose / body language (required, story-specific, must vary per story): {stance}. "
+        f"{_NECK_BAN} "
+        "Body language matches the confession's energy (joyful, tense, intimate, "
+        "resolute, exhausted) — do not force the same contemplative template every time. "
         f"{arms_rule}{grounded}"
     )
 
@@ -289,24 +406,39 @@ def build_portrait_only_prompt(story: Story) -> str:
     else:
         subject = f"a {gender} adult"
     mood = brief_story_mood_scene(story)
+    narrative = portrait_narrative_moment(story)
     scene_detail = portrait_scene_detail(story)
+    cast = portrait_cast_instruction(story)
+    intimacy = portrait_intimacy_instruction(story)
     pose = portrait_pose_instruction(story)
+    multi = _story_allows_multi_person(story)
+    framing = (
+        "Compose as a 4:5 vertical photographic frame with the narrator's full head "
+        "and shoulders readable and adequate headroom. "
+        + (
+            "When a second person is present, keep the narrator dominant and both "
+            "figures inside the frame without awkward edge crops."
+            if multi
+            else "Keep the narrator clearly primary; skip random bystanders."
+        )
+        + " Show the aesthetic environment around them — do not crop to a face-only void."
+    )
 
     return (
-        "Generate a single portrait photograph, no text, no graphic design elements, "
-        "no logos, no borders, no collage — just the photograph itself, vertical orientation "
+        "Generate a single photographic image, no text, no graphic design elements, "
+        "no logos, no borders, no collage — vertical orientation "
         "(portrait aspect ratio, approximately 4:5).\n\n"
-        f"Subject: {subject}, in {location}, captured in a candid, emotionally genuine "
-        f"moment related to: {mood}\n\n"
+        f"Primary subject: {subject}, in {location}. "
+        f"Story beat (one line): {mood}\n\n"
+        f"{narrative}\n\n"
         f"{scene_detail}\n\n"
+        f"{cast}\n\n"
+        f"{intimacy}\n\n"
         f"{pose}\n\n"
         f"{CONFESSION_COVER_PORTRAIT_ENVIRONMENT}\n\n"
-        "Compose the shot so the main subject's full head and shoulders (at minimum) "
-        "remain within the vertical frame with adequate headroom and no awkward cropping "
-        "at the top or sides — frame as a 4:5 vertical portrait shot specifically, not a "
-        "wider scene that requires aggressive cropping later. Environmental detail must "
-        "remain visible around the subject; do not let a second person push the main "
-        "subject out of frame.\n\n"
+        f"{framing}\n\n"
+        "Anti-repetition: each confession must look different in posture, framing, "
+        "and scene — never recycle the same bent-neck contemplative cover formula.\n\n"
         f"{CONFESSION_COVER_PHOTOGRAPHY_LOOK}"
         f"{CONFESSION_COVER_PHOTOGRAPHY_PORTRAIT_CLOSING}\n\n"
         "The photo must fill the entire frame edge-to-edge with no white space, no borders, "
