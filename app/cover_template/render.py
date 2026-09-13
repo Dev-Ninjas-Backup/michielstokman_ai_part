@@ -243,6 +243,15 @@ async def render_cover_png(data: dict[str, Any] | None = None) -> bytes:
                 cover_set,
             )
             await page.evaluate(_WAIT_ASSETS_JS)
+            # Re-fit after fonts settle so long titles use max size within 2 lines.
+            await page.evaluate(
+                """() => {
+                    if (window.Cover && window.Cover.fitCopyFonts) {
+                        window.Cover.fitCopyFonts();
+                    }
+                    window.Cover.fit();
+                }"""
+            )
             inner = await page.evaluate(
                 "() => ({ w: window.innerWidth, h: window.innerHeight, "
                 "scale: document.getElementById('cover').style.transform })"
@@ -338,6 +347,14 @@ async def measure_cover_geometry(data: dict[str, Any] | None = None) -> dict[str
                 cover_set,
             )
             await page.evaluate(_WAIT_ASSETS_JS)
+            await page.evaluate(
+                """() => {
+                    if (window.Cover && window.Cover.fitCopyFonts) {
+                        window.Cover.fitCopyFonts();
+                    }
+                    window.Cover.fit();
+                }"""
+            )
             geom = await page.evaluate(_GEOMETRY_JS)
             await browser.close()
     return geom

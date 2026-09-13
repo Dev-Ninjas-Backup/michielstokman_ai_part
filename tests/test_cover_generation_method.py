@@ -184,17 +184,62 @@ def test_salt_description_prefers_semicolon_clause_over_trailing_comma():
 def test_subtitle_wraps_and_truncates_to_hard_line_limit():
     long = "The memory stirred but my boundaries held"
     payload = story_cover.story_to_cover_template_payload(_story(hero_tagline=long))
-    lines = [ln for ln in payload["subtitle"].split("\n") if ln]
-    assert 1 <= len(lines) <= 2
-    assert all(len(line) <= story_cover.SUBTITLE_LINE_HARD_LIMIT for line in lines)
-    joined = " ".join(lines).lower()
-    assert "memory" in joined
-    # Never mid-word (e.g. HEL from HELD).
-    assert not any(re.search(r"\bHEL$", line, re.I) for line in lines)
-    assert not any(re.search(r"\bBOUNDAR$", line, re.I) for line in lines)
+    # Single span preferred — CSS wraps inside the beige column.
+    sub = payload["subtitle"]
+    budget = story_cover.SUBTITLE_LINE_HARD_LIMIT * story_cover.SUBTITLE_MAX_VISUAL_LINES
+    assert len(sub) <= budget
+    assert "\n" not in sub or all(
+        len(ln) <= story_cover.SUBTITLE_LINE_HARD_LIMIT for ln in sub.split("\n") if ln
+    )
+    assert "memory" in sub.lower()
+    assert not re.search(r"\bHEL$", sub, re.I)
+    assert not re.search(r"\bBOUNDAR$", sub, re.I)
 
 
-def test_build_portrait_only_prompt_requests_headroom_framing():
+def test_subtitle_stays_within_torn_border_column():
+    """Long taglines fill one span (CSS wraps) left of the torn photo edge."""
+    long = "The hands that once trembled now rested"
+    payload = story_cover.story_to_cover_template_payload(_story(hero_tagline=long))
+    sub = payload["subtitle"]
+    budget = story_cover.SUBTITLE_LINE_HARD_LIMIT * story_cover.SUBTITLE_MAX_VISUAL_LINES
+    assert len(sub) <= budget
+    assert "hands" in sub.lower()
+    assert "trembled" in sub.lower()
+    assert "trembl" not in sub.lower().replace("trembled", "")
+
+
+def test_title_fills_beige_column_without_skinny_stacks():
+    """Titles use a full-width span so CSS wraps — not THE / IRON one-word stacks."""
+    payload = story_cover.story_to_cover_template_payload(
+        _story(title="The Iron and the Grain")
+    )
+    title = payload["title"]
+    assert title == "The Iron and the Grain"
+    assert "\n" not in title
+    budget = story_cover.TITLE_LINE_HARD_LIMIT * story_cover.TITLE_MAX_VISUAL_LINES
+    assert len(title) <= budget
+
+    long_title = story_cover.story_to_cover_template_payload(
+        _story(title="On My Own Way Home Tonight Forever More Words")
+    )["title"]
+    assert "On" in long_title and "My" in long_title
+    assert len(long_title) <= budget
+
+
+def test_iron_subtitle_keeps_full_carried_tagline():
+    """Long cellar tagline stays within budget as one wrap span (no mid-word cut)."""
+    tag = "A CELLAR TO LAY DOWN WHAT YOU'VE **CARRIED** TOO LONG"
+    payload = story_cover.story_to_cover_template_payload(_story(hero_tagline=tag))
+    sub = payload["subtitle"]
+    assert "CARRIED" in sub.upper()
+    assert "**" not in sub
+    assert "LONG" in sub.upper()
+    budget = story_cover.SUBTITLE_LINE_HARD_LIMIT * story_cover.SUBTITLE_MAX_VISUAL_LINES
+    assert len(sub) <= budget
+    assert "\n" not in sub
+
+
+def test_portrait_prompt_includes_framing_and_anti_repetition():
     prompt = build_portrait_only_prompt(_story())
     assert "full head and shoulders" in prompt
     assert "4:5" in prompt
@@ -294,32 +339,6 @@ def test_partner_story_allows_second_person_and_intimacy_when_intense():
     assert "Do NOT use a bent/crooked neck" in prompt
     pose = portrait_pose_instruction(story)
     assert "bent/crooked neck" in pose
-
-
-def test_subtitle_stays_within_torn_border_column():
-    """Long taglines pack complete words that fluid-wrap left of the photo."""
-    long = "The hands that once trembled now rested"
-    payload = story_cover.story_to_cover_template_payload(_story(hero_tagline=long))
-    lines = [ln for ln in payload["subtitle"].split("\n") if ln]
-    assert all(len(ln) <= story_cover.SUBTITLE_LINE_HARD_LIMIT for ln in lines)
-    joined = " ".join(lines).lower()
-    assert "hands" in joined
-    assert "trembled" in joined
-    # Never mid-word.
-    assert "trembl" not in joined.replace("trembled", "")
-
-
-def test_title_packs_short_words_onto_shared_lines():
-    """Fluid packing puts multiple short words on a line (not one-word-only)."""
-    payload = story_cover.story_to_cover_template_payload(
-        _story(title="On My Own Way Home Tonight")
-    )
-    joined = payload["title"].replace("\n", " ")
-    assert "On" in joined and "My" in joined
-    # Soft width 6 allows "On My" / "Own Way" style packing.
-    assert len(joined.split()) >= 3
-    lines = [ln for ln in payload["title"].split("\n") if ln]
-    assert all(len(ln) <= story_cover.TITLE_LINE_HARD_LIMIT for ln in lines)
 
 
 def test_dalle_flag_delegates_to_unchanged_dalle_path():
