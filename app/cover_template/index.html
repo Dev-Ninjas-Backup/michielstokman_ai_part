@@ -34,38 +34,41 @@
           <img src="./assets/vector-deco.svg" alt="" width="202" height="161" />
         </div>
 
-        <!-- Titles under photo in stacking (photo z-index higher) — no paint over torn edge. -->
-        <div class="titles">
-          <h1 class="title-main">
-            <span data-bind="title-line1">SECOND DRAFT</span>
-            <span data-bind="title-line2">OF A LOVE</span>
-          </h1>
-          <p class="subtitle">
-            <span data-bind="subtitle-line1">A NIGHT THAT</span>
-            <span data-bind="subtitle-line2">LIBERATED MY ESSENCE</span>
-          </p>
-          <!-- In-flow under subtitle (or title when subtitle empty) — not a fixed Y. -->
-          <div class="underline-pink" aria-hidden="true">
-            <img src="./assets/underline-pink.png" alt="" />
+        <!-- Left copy column: titles → confession → location flow with gap
+             (no fixed tops). Stays under photo in stacking (z-index 1 vs 2). -->
+        <div class="left-copy">
+          <div class="titles">
+            <h1 class="title-main">
+              <span data-bind="title-line1">SECOND DRAFT</span>
+              <span data-bind="title-line2">OF A LOVE</span>
+            </h1>
+            <p class="subtitle">
+              <span data-bind="subtitle-line1">A NIGHT THAT</span>
+              <span data-bind="subtitle-line2">LIBERATED MY ESSENCE</span>
+            </p>
+            <!-- In-flow under subtitle (or title when subtitle empty) — not a fixed Y. -->
+            <div class="underline-pink" aria-hidden="true">
+              <img src="./assets/underline-pink.png" alt="" />
+            </div>
           </div>
-        </div>
 
-        <p class="confession" data-bind="confession">
-          A confession about shame, desire and finally choosing me.
-        </p>
-
-        <div class="location">
-          <div class="location-pin" aria-hidden="true">
-            <img src="./assets/icon-pin.svg" alt="" width="104" height="140" />
-          </div>
-          <p class="location-text">
-            <span data-bind="city">BARCELONA, </span>
-            <span data-bind="country">SPAIN</span>
+          <p class="confession" data-bind="confession">
+            A confession about shame, desire and finally choosing me.
           </p>
-        </div>
 
-        <div class="underline-orange" aria-hidden="true">
-          <img src="./assets/underline-orange.png" alt="" />
+          <div class="location">
+            <div class="location-pin" aria-hidden="true">
+              <img src="./assets/icon-pin.svg" alt="" width="104" height="140" />
+            </div>
+            <p class="location-text">
+              <span data-bind="city">BARCELONA, </span>
+              <span data-bind="country">SPAIN</span>
+            </p>
+          </div>
+
+          <div class="underline-orange" aria-hidden="true">
+            <img src="./assets/underline-orange.png" alt="" />
+          </div>
         </div>
 
         <div class="photo-wrap" aria-hidden="true">

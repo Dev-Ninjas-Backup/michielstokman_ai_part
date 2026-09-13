@@ -82,31 +82,46 @@ body {
   height: 100%;
 }
 
-/* —— Titles —— */
+/* —— Left copy column (titles → confession → location) —— */
 /* Beige column ends at the white torn edge (photo-wrap left ≈ 670px).
-   Text is fluid left-aligned word-wrap inside 558px — never justified, never
-   painted over the photo (titles z-index 1, photo z-index 2). */
-.titles {
+   Vertical spacing is flex gap — short titles collapse empty space instead of
+   leaving a fixed gap above confession. Stacking: left-copy z-index 1 under
+   photo z-index 2 (never paint over the torn edge). */
+.left-copy {
   position: absolute;
   left: 92px;
   top: 271.48px;
-  width: 1253px;
+  width: 663px;
+  max-width: calc(670px - 92px);
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 36px;
-  text-transform: uppercase;
-  font-family: "Edo", sans-serif;
-  text-align: left;
+  gap: 28px;
   z-index: 1;
   overflow: visible;
   pointer-events: none;
 }
 
+.titles {
+  position: relative;
+  left: auto;
+  top: auto;
+  width: 100%;
+  max-width: 558px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 20px;
+  text-transform: uppercase;
+  font-family: "Edo", sans-serif;
+  text-align: left;
+  overflow: visible;
+}
+
 .title-main {
   width: 100%;
   max-width: 558px;
-  /* Cap height so wrapped title clears subtitle + confession (top: 1000). */
+  /* Cap wrap height; does not reserve empty 2-line space when copy is short. */
   max-height: calc(164px * 1.2 * 2);
   color: #37178c;
   font-size: 164px;
@@ -124,6 +139,11 @@ body {
   white-space: normal;
   overflow-wrap: break-word;
   word-break: normal;
+}
+
+/* Empty packed title lines must not reserve a blank row. */
+.title-main > span:empty {
+  display: none;
 }
 
 .subtitle {
@@ -161,12 +181,11 @@ body {
 
 /* —— Confession —— */
 .confession {
-  position: absolute;
-  left: 92px;
-  /* Slot between pink underline and .location — top-aligned, not centered,
-     so taller copy grows downward only up to max-height (never into the pin). */
-  top: 1000px;
-  width: 663px;
+  position: relative;
+  left: auto;
+  top: auto;
+  width: 100%;
+  max-width: 663px;
   /* ~3 lines at 70px / 1.5; hard-limit copy is pre-truncated in story_cover. */
   max-height: 315px;
   overflow: hidden;
@@ -175,19 +194,19 @@ body {
   font-size: 70px;
   line-height: 1.5;
   color: #301c05;
-  /* Prefer whole-word wraps; never force mid-word breaks for normal copy. */
   word-break: normal;
   overflow-wrap: break-word;
 }
 
 /* —— Location —— */
 .location {
-  position: absolute;
-  left: 92px;
-  top: 1417px;
+  position: relative;
+  left: auto;
+  top: auto;
   display: flex;
   align-items: center;
   gap: 48px;
+  width: 100%;
 }
 
 .location-pin {
@@ -605,7 +624,7 @@ body {
   height: 77px;
   flex-shrink: 0;
   align-self: flex-start;
-  margin-top: -28px;
+  margin-top: -36px;
   overflow: hidden;
 }
 
@@ -618,8 +637,14 @@ body {
 }
 
 .underline-orange {
-  position: absolute;
-  inset: 73.06% 75.42% 25.65% 6.16%;
+  /* In-flow under location — follows short/tall copy columns. */
+  position: relative;
+  width: 400px;
+  max-width: 100%;
+  height: 28px;
+  flex-shrink: 0;
+  align-self: flex-start;
+  margin-top: -24px;
   overflow: hidden;
 }
 
