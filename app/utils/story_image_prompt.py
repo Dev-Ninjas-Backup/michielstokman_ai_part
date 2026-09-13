@@ -91,6 +91,85 @@ def brief_story_mood_scene(story: Story) -> str:
     return sentence
 
 
+_SCENE_SETTING_RE = re.compile(
+    r"\b("
+    r"window|windowsill|balcony|railing|harbor|harbour|dock|pier|coast|beach|shore|"
+    r"street|alley|cafe|café|kitchen|bedroom|bed|sofa|chair|table|doorway|stairs|"
+    r"bridge|park|forest|mountain|field|campfire|car|train|hotel|bathroom|mirror|"
+    r"rooftop|apartment|flat|studio|church|bar|club|office"
+    r")\b",
+    re.I,
+)
+_SCENE_WEATHER_RE = re.compile(
+    r"\b("
+    r"dusk|dawn|sunset|sunrise|night|midnight|morning|afternoon|golden hour|"
+    r"rain|rainy|rain-streaked|storm|fog|mist|snow|winter|cold|humid|overcast|"
+    r"cloudy|wind|windy"
+    r")\b",
+    re.I,
+)
+_SCENE_PROP_RE = re.compile(
+    r"\b("
+    r"coat|jacket|scarf|notebook|letter|note|photo|bag|cup|glass|wine|cigarette|"
+    r"phone|book|keys|umbrella|blanket|sweater|dress|shirt"
+    r")\b",
+    re.I,
+)
+
+
+def portrait_scene_detail(story: Story) -> str:
+    """Compact story-grounded setting/props/weather cues for portrait prompts.
+
+    Pulls concrete nouns from situation, background, and a short story excerpt.
+    Kept ~40–60 words; English; never asks for text in the image.
+    """
+    chunks = [
+        re.sub(r"\s+", " ", (story.situation or "").strip()),
+        re.sub(r"\s+", " ", (story.background or "").strip()),
+        re.sub(r"\s+", " ", (story.story_text or story.story_input or "").strip())[:500],
+    ]
+    blob = " ".join(c for c in chunks if c)
+    if not blob:
+        return (
+            "Scene detail: intimate lived-in environment with tangible surfaces and "
+            "practical light matching the subject's location — no empty void."
+        )
+
+    settings = list(dict.fromkeys(m.group(1).lower() for m in _SCENE_SETTING_RE.finditer(blob)))
+    weather = list(dict.fromkeys(m.group(1).lower() for m in _SCENE_WEATHER_RE.finditer(blob)))
+    props = list(dict.fromkeys(m.group(1).lower() for m in _SCENE_PROP_RE.finditer(blob)))
+
+    location = (
+        (story.location or "").strip()
+        or ", ".join(
+            p for p in ((story.city or "").strip(), (story.country or "").strip()) if p
+        )
+    )
+
+    parts: list[str] = []
+    if location:
+        parts.append(f"Place cues for {location}.")
+    if settings:
+        parts.append("Visible setting: " + ", ".join(settings[:4]) + ".")
+    if weather:
+        parts.append("Time/weather: " + ", ".join(weather[:3]) + ".")
+    if props:
+        parts.append("Include prop/clothing cue if natural: " + ", ".join(props[:3]) + ".")
+    if not settings and not weather and not props:
+        # Fall back to trimmed situation so quiet stories still get specificity.
+        mood = brief_story_mood_scene(story)
+        parts.append(f"Ground the frame in: {mood.rstrip('.')}.")
+
+    parts.append(
+        "Show tangible mid-ground detail (no empty sky-only backdrop); no readable text "
+        "in the image."
+    )
+    text = "Scene detail: " + " ".join(parts)
+    if len(text) > 420:
+        text = text[:417].rstrip() + "..."
+    return text
+
+
 _CELEBRATION_RE = re.compile(
     r"\b(celebrat\w*|triumphant|arms?\s+out|release|liberat\w*|euphori\w*|"
     r"face\s+(?:to|toward)\s+(?:the\s+)?sky|finally\s+free)\b",
@@ -166,12 +245,20 @@ def portrait_pose_instruction(story: Story) -> str:
             "object, walking, leaning, etc.)."
         )
     )
+    grounded = (
+        ""
+        if allow_arms_out
+        else (
+            " Physically ground the subject in-frame — sitting on, leaning against, or "
+            "holding something visible — so they do not float in empty tone."
+        )
+    )
 
     return (
         f"Pose / body language (required, story-specific): {stance}. "
         "Subject shows genuine emotion through open body language OR quiet, "
         "contemplative body language — whichever matches the story's tone. "
-        f"{arms_rule}"
+        f"{arms_rule}{grounded}"
     )
 
 
@@ -202,6 +289,7 @@ def build_portrait_only_prompt(story: Story) -> str:
     else:
         subject = f"a {gender} adult"
     mood = brief_story_mood_scene(story)
+    scene_detail = portrait_scene_detail(story)
     pose = portrait_pose_instruction(story)
 
     return (
@@ -210,6 +298,7 @@ def build_portrait_only_prompt(story: Story) -> str:
         "(portrait aspect ratio, approximately 4:5).\n\n"
         f"Subject: {subject}, in {location}, captured in a candid, emotionally genuine "
         f"moment related to: {mood}\n\n"
+        f"{scene_detail}\n\n"
         f"{pose}\n\n"
         f"{CONFESSION_COVER_PORTRAIT_ENVIRONMENT}\n\n"
         "Compose the shot so the main subject's full head and shoulders (at minimum) "

@@ -83,9 +83,9 @@ body {
 }
 
 /* —— Titles —— */
-/* Photo-wrap left = 670px (white torn border). Subtitle + pink rule stay in the
-   beige column (max 558px). Title may be longer but stacks UNDER .photo-wrap so
-   anything past the torn edge is covered — never painted on top of the photo. */
+/* Beige column ends at the white torn edge (photo-wrap left ≈ 670px).
+   Text is fluid left-aligned word-wrap inside 558px — never justified, never
+   painted over the photo (titles z-index 1, photo z-index 2). */
 .titles {
   position: absolute;
   left: 92px;
@@ -97,6 +97,7 @@ body {
   gap: 36px;
   text-transform: uppercase;
   font-family: "Edo", sans-serif;
+  text-align: left;
   z-index: 1;
   overflow: visible;
   pointer-events: none;
@@ -105,12 +106,14 @@ body {
 .title-main {
   width: 100%;
   max-width: 558px;
+  /* Cap height so wrapped title clears subtitle + confession (top: 1000). */
+  max-height: calc(164px * 1.2 * 2);
   color: #37178c;
   font-size: 164px;
   line-height: 1.2;
   display: flex;
   flex-direction: column;
-  justify-content: center;
+  justify-content: flex-start;
   align-items: flex-start;
   overflow: hidden;
 }
@@ -118,28 +121,32 @@ body {
 .title-main > span {
   display: block;
   max-width: 100%;
-  overflow: hidden;
-  white-space: nowrap;
+  white-space: normal;
+  overflow-wrap: break-word;
+  word-break: normal;
 }
 
 .subtitle {
   width: 100%;
+  max-width: 558px;
+  max-height: calc(80px * 1.2 * 2);
   color: #eb2874;
   font-size: 80px;
   line-height: 1.2;
   display: flex;
   flex-direction: column;
-  justify-content: center;
+  justify-content: flex-start;
   align-items: flex-start;
+  overflow: hidden;
 }
 
-/* Cap at beige column — left of white torn border (670 − 92 − gutter). */
+/* Fluid wrap within the beige column (left of torn border). */
 .subtitle > span {
   display: block;
-  max-width: 558px;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: clip;
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: break-word;
+  word-break: normal;
 }
 
 /* Collapse fully empty subtitle so the pink rule sits under the title instead. */
@@ -591,7 +598,7 @@ body {
 }
 
 .underline-pink {
-  /* In-flow under .subtitle. Width matches subtitle column — stops at torn border. */
+  /* In-flow under .subtitle — full beige column width to the torn edge. */
   position: relative;
   width: 558px;
   max-width: 100%;
