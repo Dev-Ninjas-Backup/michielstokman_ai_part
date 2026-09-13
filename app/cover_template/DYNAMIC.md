@@ -30,10 +30,10 @@ Measured 2026-09-12 against the **current** template (post clip-path / torn-bord
 
 | Field | Soft (best look) | Hard (safe max) | Notes |
 | --- | --- | --- | --- |
-| Title line 1 | 6–10 | **14** | Edo brush @ 164px; fluid wrap in 558px column (≤2 packed / visual lines so copy clears confession). |
-| Title line 2 | 6–10 | **14** | Same; short words may share a packed line. |
-| Subtitle line 1 | 14–16 | **20** | Pink Edo @ 80px; fluid wrap in 558px (≤2 visual lines). Soft ≈ one visual line. |
-| Subtitle line 2 | 14–16 | **20** | Same as subtitle line 1. Pink underline is 558px to the torn edge. |
+| Title line 1 | 12–16 | **22** | Prefer one span; CSS wraps in ~880px beige (to white tear, past photo-wrap 670). `Cover.fitCopyFonts` shrinks Edo (72–164px) so copy stays ≤2 lines under the photo layer. |
+| Title line 2 | 12–16 | **22** | Optional 2nd packed line; usually empty when line1 holds the full title. |
+| Subtitle line 1 | 22–28 | **32** | One span preferred; pink Edo 30–80px via `fitCopyFonts`; ≤2 visual lines in ~880px. |
+| Subtitle line 2 | 22–28 | **32** | Optional; pink underline is 880px toward the torn edge. |
 | Confession (`description`) | 45–58 | **77** | Outfit 70px in a 663px box. Soft ≈ **3 lines** with ≥40px gap above location. Hard = last length before confession bottom crosses location top (**78** overlaps pin). |
 | City | 8–12 | **20** | One visual line (Cover appends `, `). Longer strings push location text into the photo hole (~21+). |
 | Country | 5–10 | **21** | One line under city. Breaks ~22 when location text enters the photo. |

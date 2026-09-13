@@ -169,6 +169,61 @@
     bindText(cover, "explicit", label);
   }
 
+  /**
+   * Largest font-size that keeps copy within ``maxLines`` inside the beige
+   * column (max-width). Shrinks long titles like "The Iron and the Grain" so
+   * they fill horizontal space without clipping or crossing the torn edge.
+   * If even ``minPx`` overflows, keeps shrinking down to ``floorPx``.
+   */
+  function fitBlockFont(el, minPx, maxPx, maxLines, floorPx) {
+    if (!el) return;
+    var text = (el.textContent || "").replace(/\s+/g, " ").trim();
+    if (!text) {
+      el.style.fontSize = "";
+      return;
+    }
+    var lineRatio = 1.2;
+    var floor = floorPx != null ? floorPx : Math.max(24, Math.floor(minPx * 0.5));
+    var lo = minPx;
+    var hi = maxPx;
+    var best = minPx;
+    function maxH(px) {
+      return px * lineRatio * maxLines + 2;
+    }
+    function fits(px) {
+      el.style.fontSize = px + "px";
+      return el.scrollHeight <= maxH(px);
+    }
+    while (lo <= hi) {
+      var mid = (lo + hi) >> 1;
+      if (fits(mid)) {
+        best = mid;
+        lo = mid + 1;
+      } else {
+        hi = mid - 1;
+      }
+    }
+    while (best > floor && !fits(best)) {
+      best -= 1;
+    }
+    el.style.fontSize = best + "px";
+  }
+
+  function fitCopyFonts(cover) {
+    cover = cover || coverEl();
+    if (!cover) return;
+    fitBlockFont($(".title-main", cover), 88, 164, 2, 72);
+    fitBlockFont($(".subtitle", cover), 48, 80, 2, 30);
+  }
+
+  function afterFonts(fn) {
+    if (document.fonts && document.fonts.ready) {
+      document.fonts.ready.then(fn).catch(fn);
+    } else {
+      fn();
+    }
+  }
+
   function applyFromDataset(cover) {
     var d = cover.dataset;
     setTitles(cover, {
@@ -228,6 +283,7 @@
       });
     }
 
+    fitCopyFonts(cover);
     return get();
   }
 
@@ -265,7 +321,10 @@
     var cover = coverEl();
     if (!cover) return;
     applyFromDataset(cover);
-    fit();
+    afterFonts(function () {
+      fitCopyFonts(cover);
+      fit();
+    });
     window.addEventListener("resize", fit);
   }
 
@@ -279,6 +338,7 @@
     set: set,
     get: get,
     fit: fit,
+    fitCopyFonts: fitCopyFonts,
     assets: ASSETS,
   };
 })(typeof window !== "undefined" ? window : this);

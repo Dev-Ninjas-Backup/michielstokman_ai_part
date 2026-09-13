@@ -83,16 +83,15 @@ body {
 }
 
 /* —— Left copy column (titles → confession → location) —— */
-/* Beige column ends at the white torn edge (photo-wrap left ≈ 670px).
-   Vertical spacing is flex gap — short titles collapse empty space instead of
-   leaving a fixed gap above confession. Stacking: left-copy z-index 1 under
-   photo z-index 2 (never paint over the torn edge). */
+/* Visible beige runs to the white torn edge (~1050px), not photo-wrap's
+   left:670 (rotated/scaled frame; transparent until the tear). Titles may
+   use that gap; z-index keeps copy under opaque photo (never over it). */
 .left-copy {
   position: absolute;
   left: 92px;
   top: 271.48px;
-  width: 663px;
-  max-width: calc(670px - 92px);
+  width: 900px;
+  max-width: calc(1000px - 92px);
   display: flex;
   flex-direction: column;
   align-items: flex-start;
@@ -107,7 +106,8 @@ body {
   left: auto;
   top: auto;
   width: 100%;
-  max-width: 558px;
+  /* Fill beige up to (not over) the white torn edge. */
+  max-width: 880px;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
@@ -120,21 +120,19 @@ body {
 
 .title-main {
   width: 100%;
-  max-width: 558px;
-  /* Cap wrap height; does not reserve empty 2-line space when copy is short. */
-  max-height: calc(164px * 1.2 * 2);
+  max-width: 880px;
+  /* Cap at 2 lines relative to current font-size (JS may shrink long titles). */
+  max-height: calc(2 * 1.2em);
   color: #37178c;
-  font-size: 164px;
+  font-size: 164px; /* Cover.fitCopyFonts may lower this to fill ≤2 lines */
   line-height: 1.2;
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-start;
-  align-items: flex-start;
+  display: block; /* one/two spans wrap naturally to fill width */
   overflow: hidden;
 }
 
 .title-main > span {
   display: block;
+  width: 100%;
   max-width: 100%;
   white-space: normal;
   overflow-wrap: break-word;
@@ -148,21 +146,19 @@ body {
 
 .subtitle {
   width: 100%;
-  max-width: 558px;
-  max-height: calc(80px * 1.2 * 2);
+  max-width: 880px;
+  max-height: calc(2 * 1.2em);
   color: #eb2874;
-  font-size: 80px;
+  font-size: 80px; /* Cover.fitCopyFonts may lower this for long taglines */
   line-height: 1.2;
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-start;
-  align-items: flex-start;
+  display: block;
   overflow: hidden;
 }
 
 /* Fluid wrap within the beige column (left of torn border). */
 .subtitle > span {
   display: block;
+  width: 100%;
   max-width: 100%;
   white-space: normal;
   overflow-wrap: break-word;
@@ -185,7 +181,7 @@ body {
   left: auto;
   top: auto;
   width: 100%;
-  max-width: 663px;
+  max-width: 880px;
   /* ~3 lines at 70px / 1.5; hard-limit copy is pre-truncated in story_cover. */
   max-height: 315px;
   overflow: hidden;
@@ -619,7 +615,7 @@ body {
 .underline-pink {
   /* In-flow under .subtitle — full beige column width to the torn edge. */
   position: relative;
-  width: 558px;
+  width: 880px;
   max-width: 100%;
   height: 77px;
   flex-shrink: 0;

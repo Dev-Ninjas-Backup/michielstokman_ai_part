@@ -30,14 +30,15 @@ logger = logging.getLogger(__name__)
 # Hard limits from cover_template/DYNAMIC.md (empirically measured).
 CONFESSION_DESCRIPTION_HARD_LIMIT = 77
 CONFESSION_DESCRIPTION_SOFT_LIMIT = 58  # ~3 lines with gap above location
-# Fluid wrap inside the 558px beige column (torn edge @ 670). CSS wraps; Python
-# packs complete words so height stays within title ≤3 / subtitle ≤2 visual lines.
-TITLE_LINE_SOFT_LIMIT = 6  # ~one wide Edo@164 word per packed line in 558px
-TITLE_LINE_HARD_LIMIT = 14
-# 2 packed lines ≈ ≤3 CSS wraps max; keeps block above confession (top: 1000).
+# Fluid wrap inside the beige column (white torn edge ~1000–1050; titles max-width ~880).
+# Pack toward HARD so lines fill horizontal space; CSS wraps glyphs within max-width.
+# cover.js fitCopyFonts shrinks Edo so long titles stay ≤2 lines; copy stays under photo.
+TITLE_LINE_SOFT_LIMIT = 16  # fill the wider beige column
+TITLE_LINE_HARD_LIMIT = 22
+# Prefer one Cover.set span when copy fits ~2 visual lines — CSS wraps to fill width.
 TITLE_MAX_VISUAL_LINES = 2
-SUBTITLE_LINE_SOFT_LIMIT = 16  # ~one Edo@80 line in 558px
-SUBTITLE_LINE_HARD_LIMIT = 20
+SUBTITLE_LINE_SOFT_LIMIT = 28
+SUBTITLE_LINE_HARD_LIMIT = 32
 SUBTITLE_MAX_VISUAL_LINES = 2
 
 COVER_METHOD_DALLE = "dalle"
@@ -141,18 +142,48 @@ def _pack_words_to_lines(
     return f"{lines[0]}\n{' '.join(lines[1:max_lines])}"
 
 
-def _active_title(story: Story) -> str:
-    """Brush title packed with complete words for fluid wrap up to the torn edge.
+def _strip_emphasis(text: str) -> str:
+    """Remove Grok ``**punch**`` markers for plain cover text."""
+    cleaned = re.sub(r"\*\*([^*]+)\*\*", r"\1", text or "")
+    return re.sub(r"\s+", " ", cleaned.replace("\r\n", "\n")).strip()
 
-    Very short titles (≤3 words that fit the hard line) stay on one line so we
-    do not invent a blank second Edo row for cases like ``The Salt``.
+
+def _fill_column_text(
+    text: str,
+    *,
+    per_line: int,
+    max_lines: int,
+    hard_limit: int,
+) -> str:
+    """Pack copy to fill the beige column without crossing the torn edge.
+
+    Prefer a **single** Cover.set span sized to ``max_lines * hard_limit`` so
+    CSS wraps across the full max-width (avoids skinny stacks like ``THE`` /
+    ``IRON`` with unused space to the torn edge). Multi-line packing is only
+    a fallback when word-boundary truncation cannot fit the budget.
     """
+    cleaned = _strip_emphasis(text)
+    if not cleaned:
+        return ""
+    budget = hard_limit * max_lines
+    if len(cleaned) <= budget:
+        return cleaned
+    # One span truncated at a word boundary — CSS fluid-wraps inside max-width.
+    one = truncate_at_last_word(cleaned, budget)
+    if one:
+        return one
+    return _pack_words_to_lines(
+        cleaned,
+        per_line=per_line,
+        max_lines=max_lines,
+        hard_limit=hard_limit,
+    )
+
+
+def _active_title(story: Story) -> str:
+    """Brush title that fills the beige column; CSS wraps up to the torn edge."""
     raw = (story.title or story.member_title or story.ai_generated_title or "Untitled").strip()
-    raw = re.sub(r"\s+", " ", raw)
-    words = raw.split()
-    if words and len(words) <= 3 and len(raw) <= TITLE_LINE_HARD_LIMIT:
-        return raw
-    packed = _pack_words_to_lines(
+    packed = _fill_column_text(
         raw,
         per_line=TITLE_LINE_SOFT_LIMIT,
         max_lines=TITLE_MAX_VISUAL_LINES,
@@ -162,17 +193,12 @@ def _active_title(story: Story) -> str:
 
 
 def _subtitle_for_story(story: Story) -> str:
-    # None → keep the classic two-line default for layout stability.
+    # None → keep the classic default for layout stability.
     # Explicit "" → allow empty subtitle (pink underline sits under the title).
     tag = getattr(story, "hero_tagline", None)
     if tag is None:
-        return _pack_words_to_lines(
-            "A Night That Liberated My Essence",
-            per_line=SUBTITLE_LINE_SOFT_LIMIT,
-            max_lines=SUBTITLE_MAX_VISUAL_LINES,
-            hard_limit=SUBTITLE_LINE_HARD_LIMIT,
-        )
-    return _pack_words_to_lines(
+        tag = "A Night That Liberated My Essence"
+    return _fill_column_text(
         str(tag),
         per_line=SUBTITLE_LINE_SOFT_LIMIT,
         max_lines=SUBTITLE_MAX_VISUAL_LINES,
