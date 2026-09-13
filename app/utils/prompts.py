@@ -50,8 +50,9 @@ CONFESSION_COVER_PHOTOGRAPHY_PORTRAIT_CLOSING = (
     "visible depth and atmosphere — never a flat studio void. Prefer practical light that fits "
     "the story (window light, lamp glow, street lamps, overcast daylight) over a generic dramatic "
     "empty sky. Composition feels candid and editorial, like a lifestyle magazine feature — never "
-    "a posed studio headshot, never looking directly at camera unless caught in a natural, unposed "
-    "laugh. Avoid glossy, overly polished, or stock-photo aesthetics. Hair and clothing may show "
+    "a posed studio headshot. Eye contact with camera is allowed only when it feels candid and "
+    "story-true; otherwise look into the scene at a natural eye level (not a bent-neck soft tilt). "
+    "Avoid glossy, overly polished, or stock-photo aesthetics. Hair and clothing may show "
     "natural movement from wind if outdoors."
 )
 
@@ -61,8 +62,9 @@ CONFESSION_COVER_PORTRAIT_ENVIRONMENT = (
     "detail and atmosphere appropriate to THIS story's setting and location — at least two "
     "concrete background anchors visible in frame (e.g. window frame and rain-streaked glass, "
     "city lights and balcony railing, harbor water and dock pilings, bed and bedside lamp, "
-    "cafe table and street beyond). Show visible light sources, depth, texture, and grounding "
-    "elements — never a flat, plain, or empty background."
+    "cafe table and street beyond). Make the environment aesthetically distinct per confession. "
+    "Show visible light sources, depth, texture, and grounding elements — never a flat, plain, "
+    "or empty background."
 )
 
 
