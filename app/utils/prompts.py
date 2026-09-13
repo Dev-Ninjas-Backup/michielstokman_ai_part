@@ -22,8 +22,12 @@ from app.schemas.schema_ai import StoryGenerateRequest, StoryType
 CONFESSION_COVER_PHOTOGRAPHY_LOOK = (
     "Photography style (always apply, non-negotiable): black-and-white with warm sepia toning, "
     "high-contrast, visible film grain — reminiscent of vintage analog documentary photography, "
-    "not clean digital. Golden-hour or backlit natural lighting creating dramatic rim-light or "
-    "silhouette effect."
+    "not clean digital. Golden-hour, window, lamp, or backlit natural lighting creating dramatic "
+    "rim-light, soft catchlights, or silhouette when the scene calls for it. Render natural skin "
+    "texture (pores, fine lines, flyaway hair) — never airbrushed beauty retouch. Show believable "
+    "fabric folds and material response to light. Prefer shallow depth of field with a readable "
+    "mid-ground (furniture edge, window frame, railing, horizon) — not infinite empty bokeh. "
+    "Allow volumetric air (dust, mist, rain streaks, breath in cold) when the story setting allows."
 )
 
 CONFESSION_COVER_PHOTOGRAPHY_COLLAGE_BODY = (
@@ -43,19 +47,22 @@ CONFESSION_COVER_PHOTOGRAPHY_STYLE = (
 # Shared closing for template portrait-only prompts (no collage pose defaults).
 CONFESSION_COVER_PHOTOGRAPHY_PORTRAIT_CLOSING = (
     " Outdoor or candid indoor natural setting matching the story's location and mood, with "
-    "visible depth and atmosphere — never a flat studio void. Composition feels candid and "
-    "editorial, like a lifestyle magazine feature — never a posed studio headshot, never "
-    "looking directly at camera unless caught in a natural, unposed laugh. Avoid glossy, "
-    "overly polished, or stock-photo aesthetics. Hair and clothing may show natural movement "
-    "from wind if outdoors."
+    "visible depth and atmosphere — never a flat studio void. Prefer practical light that fits "
+    "the story (window light, lamp glow, street lamps, overcast daylight) over a generic dramatic "
+    "empty sky. Composition feels candid and editorial, like a lifestyle magazine feature — never "
+    "a posed studio headshot, never looking directly at camera unless caught in a natural, unposed "
+    "laugh. Avoid glossy, overly polished, or stock-photo aesthetics. Hair and clothing may show "
+    "natural movement from wind if outdoors."
 )
 
 # Always required for template portraits — independent of quiet vs dramatic pose.
 CONFESSION_COVER_PORTRAIT_ENVIRONMENT = (
     "Regardless of the subject's pose or emotional tone, always include rich environmental "
-    "detail and atmosphere appropriate to the setting — visible light sources, depth, texture, "
-    "and background elements that ground the scene (e.g. window light, city lights, natural "
-    "landscape, interior textures) — never a flat, plain, or empty background."
+    "detail and atmosphere appropriate to THIS story's setting and location — at least two "
+    "concrete background anchors visible in frame (e.g. window frame and rain-streaked glass, "
+    "city lights and balcony railing, harbor water and dock pilings, bed and bedside lamp, "
+    "cafe table and street beyond). Show visible light sources, depth, texture, and grounding "
+    "elements — never a flat, plain, or empty background."
 )
 
 
@@ -490,7 +497,7 @@ YOU'VE **NEVER** DARED TO SAY.
 Rules:
 - English only. ALL CAPS.
 - Exactly two lines, separated by a single newline.
-- Each line ≤ 14 characters (including spaces). Soft target ≤ 14 per line.
+- Each line ≤ 16 characters (including spaces). Soft target ≤ 16 per line.
 - 8–16 words total.
 - Mark exactly one word with **WORD** — the emotional punch (like NEVER).
 - Write a unique line for THIS piece. Do not copy the example. Do not use the story title.
@@ -505,7 +512,7 @@ Title: {title}
 ## Full text
 {story_text}
 
-Write the two-line brush headline now (each line ≤14 characters).
+Write the two-line brush headline now (each line ≤16 characters).
 """
 
 

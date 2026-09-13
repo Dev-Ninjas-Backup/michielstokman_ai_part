@@ -12,6 +12,7 @@ from app.utils.story_image_prompt import (
     brief_story_mood_scene,
     build_portrait_only_prompt,
     portrait_pose_instruction,
+    portrait_scene_detail,
 )
 
 
@@ -170,6 +171,16 @@ def test_build_portrait_only_prompt_requests_headroom_framing():
     assert "aggressive cropping" in prompt
 
 
+def test_confession_look_keeps_sepia_bw_and_adds_realism_cues():
+    look = CONFESSION_COVER_PHOTOGRAPHY_LOOK.lower()
+    assert "sepia" in look
+    assert "black-and-white" in look
+    assert "film grain" in look
+    assert "skin texture" in look
+    assert "depth of field" in look
+    assert "fabric folds" in look
+
+
 def test_build_portrait_only_prompt_always_requires_rich_environment():
     quiet = build_portrait_only_prompt(
         _story(
@@ -179,8 +190,48 @@ def test_build_portrait_only_prompt_always_requires_rich_environment():
     )
     assert "rich environmental detail" in quiet
     assert "never a flat, plain, or empty background" in quiet
+    assert "at least two concrete background anchors" in quiet
     assert "Do not default to a generic triumphant arms-out pose" in quiet
     assert "arms outstretched" not in quiet
+    assert "Physically ground the subject" in quiet
+    assert "Scene detail:" in quiet
+
+
+def test_quiet_lisbon_window_prompt_has_scene_richness_not_arms_out():
+    """Quiet Lisbon confession: environmental richness, grounded pose, no arms-out."""
+    story = _story(
+        first_name="Elena",
+        city="Lisbon",
+        country="Portugal",
+        location="Lisbon, Portugal",
+        title="Second Draft",
+        situation=(
+            "Sitting by a rain-streaked apartment window at dusk in Lisbon, "
+            "coat on the chair, notebook open, quiet contemplative moment."
+        ),
+        background="A writer rewriting the ending of her own life.",
+        story_text=(
+            "Rain on the window. The harbor lights below. She held the notebook "
+            "and did not look at the camera."
+        ),
+        high_intensity=False,
+    )
+    detail = portrait_scene_detail(story)
+    assert "Scene detail:" in detail
+    assert "window" in detail.lower()
+    assert "Lisbon" in detail
+
+    prompt = build_portrait_only_prompt(story)
+    assert "Scene detail:" in prompt
+    assert "window" in prompt.lower()
+    assert "rain" in prompt.lower() or "dusk" in prompt.lower()
+    assert "at least two concrete background anchors" in prompt
+    assert "practical light" in prompt
+    assert "skin texture" in prompt
+    assert "Physically ground the subject" in prompt
+    assert "Do not default to a generic triumphant arms-out pose" in prompt
+    assert "arms outstretched" not in prompt
+    assert "triumphant arms-out / face-skyward pose is allowed" not in prompt
 
 
 def test_subtitle_stays_within_torn_border_column():
