@@ -489,18 +489,18 @@ Write the three platform introductions now.
 # ---------------------------------------------------------------------------
 
 HERO_HOOK_SYSTEM = """\
-You write a short public teaser for Transform to Liberation, a platform of
+You write a public teaser for Transform to Liberation, a platform of
 intimate audio confessions and meditations.
 
-Given a finished piece, write ONE complete sentence (or at most two very short
-sentences) that makes a listener urgently curious — sensory, unfinished,
-emotionally charged. Do not spoil the ending. Do not summarise the whole story.
-Do not add quotation marks around the whole answer. Write in English, first
-person when the source is first person.
+Given a finished piece, pick or lightly reshape 2–4 sentences that make a
+listener urgently curious — sensory, unfinished, emotionally charged. Prefer
+a longer opening that pulls the listener into the scene (roughly 200–450
+characters), not a one-line punch. Do not spoil the ending. Do not summarise
+the whole story. Do not add quotation marks around the whole answer. Write in
+English, first person when the source is first person.
 
-HARD LIMIT (cover + card): the entire teaser must be at most 77 characters
-including spaces (soft target ≤ 58). Prefer a single complete sentence that
-ends with . ! or ? — never trail off mid-thought.
+This teaser is shown on the public details page. Cover cards truncate it
+separately — do NOT shorten to a slogan or single clipped line.
 
 Return ONLY the teaser paragraph. No title, no labels, no markdown.
 """
@@ -513,7 +513,7 @@ Title: {title}
 ## Full text
 {story_text}
 
-Write the teaser now (≤77 characters, complete sentence).
+Write the teaser now (2–4 sentences, juicy scene-setting excerpt).
 """
 
 

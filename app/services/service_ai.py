@@ -293,14 +293,14 @@ class AIService:
     def persist_hero_hook(story_row, story_text: str) -> None:
         """Sets story.hero_hook and story.hero_tagline from the LLM.
 
-        Clamps to cover_template hard limits so HTML covers never receive
-        overflow copy even if the model ignores the prompt caps.
+        Stores a full details-page teaser (2–4 sentences). Cover cards clamp
+        description length separately in story_to_cover_template_payload —
+        do not apply the 77-char cover limit here.
         """
         from app.utils.story_cover import (
             SUBTITLE_LINE_HARD_LIMIT,
             SUBTITLE_LINE_SOFT_LIMIT,
             format_two_line_field,
-            truncate_at_sentence,
         )
 
         story_type = (
@@ -313,8 +313,12 @@ class AIService:
             story_type=story_type,
             title=story_row.title,
         )
-        raw_hook = hook or build_excerpt(story_text, max_chars=400)
-        story_row.hero_hook = truncate_at_sentence(raw_hook) if raw_hook else None
+        raw_hook = hook or build_excerpt(story_text, max_chars=450)
+        if raw_hook:
+            # Light cleanup only — keep multi-sentence teasers intact.
+            story_row.hero_hook = re.sub(r"\s+", " ", raw_hook).strip()
+        else:
+            story_row.hero_hook = None
         tagline = AIService.generate_hero_tagline(
             story_text,
             story_type=story_type,
