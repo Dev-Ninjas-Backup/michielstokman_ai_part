@@ -48,11 +48,22 @@ def admin_metrics_chat(
                 "metrics_snapshot": metrics_snapshot,
             },
         )
+    except ValueError as e:
+        err = str(e)
+        if "API key" in err or "api_key" in err.lower() or "XAI_API_KEY" in err:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Admin chat AI service unavailable — API key not configured on server.",
+            )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=err[:200])
     except Exception as e:
         err = str(e)
         if "API key" in err or "Incorrect API" in err or "api_key" in err:
             raise HTTPException(
-                status_code=503,
-                detail="Admin chat AI service unavailable — API key not configured on server."
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Admin chat AI service unavailable — API key not configured on server.",
             )
-        raise HTTPException(status_code=500, detail=f"Admin chat failed: {err[:200]}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Admin chat failed: {err[:200]}",
+        )
