@@ -7,12 +7,18 @@ from unittest.mock import MagicMock, patch
 
 from app.model.story import ImageSource, StoryType
 from app.utils import story_cover
-from app.utils.prompts import CONFESSION_COVER_PHOTOGRAPHY_LOOK
+from app.utils.prompts import (
+    CONFESSION_COVER_ANTI_AI_LOOK,
+    CONFESSION_COVER_BRAND_COLLECTION,
+    CONFESSION_COVER_ENERGY,
+    CONFESSION_COVER_PHOTOGRAPHY_LOOK,
+)
 from app.utils.story_image_prompt import (
     brief_story_mood_scene,
     build_portrait_only_prompt,
     portrait_pose_instruction,
     portrait_scene_detail,
+    portrait_story_analysis,
 )
 
 
@@ -279,7 +285,13 @@ def test_build_portrait_only_prompt_always_requires_rich_environment():
     assert "Do not default to a generic triumphant arms-out pose" in quiet
     assert "arms outstretched" not in quiet
     assert "Physically ground the subject" in quiet
-    assert "Scene detail:" in quiet
+    assert "STORY ANALYSIS" in quiet
+    assert "Emotional state" in quiet
+    assert "Distinctive visual details from the confession" in quiet
+    assert "Atmosphere:" in quiet
+    assert CONFESSION_COVER_ENERGY in quiet
+    assert CONFESSION_COVER_BRAND_COLLECTION in quiet
+    assert CONFESSION_COVER_ANTI_AI_LOOK in quiet
     assert "Do NOT use a bent/crooked neck" in quiet
     assert "Narrator alone" in quiet
 
@@ -308,8 +320,14 @@ def test_quiet_lisbon_window_prompt_has_scene_richness_not_arms_out():
     assert "window" in detail.lower()
     assert "Lisbon" in detail
 
+    analysis = portrait_story_analysis(story)
+    assert "STORY ANALYSIS" in analysis
+    assert "Emotional state" in analysis
+    assert "window" in analysis.lower()
+    assert "quiet" in analysis.lower() or "vulnerable" in analysis.lower()
+
     prompt = build_portrait_only_prompt(story)
-    assert "Scene detail:" in prompt
+    assert "STORY ANALYSIS" in prompt
     assert "Narrative moment to depict" in prompt
     assert "window" in prompt.lower()
     assert "rain" in prompt.lower() or "dusk" in prompt.lower()
@@ -321,6 +339,8 @@ def test_quiet_lisbon_window_prompt_has_scene_richness_not_arms_out():
     assert "arms outstretched" not in prompt
     assert "triumphant arms-out / face-skyward pose is allowed" not in prompt
     assert "Do NOT use a bent/crooked neck" in prompt
+    assert "do not force wild or provocative" in prompt.lower()
+    assert CONFESSION_COVER_PHOTOGRAPHY_LOOK in prompt
 
 
 def test_partner_story_allows_second_person_and_intimacy_when_intense():
@@ -339,6 +359,151 @@ def test_partner_story_allows_second_person_and_intimacy_when_intense():
     assert "Do NOT use a bent/crooked neck" in prompt
     pose = portrait_pose_instruction(story)
     assert "bent/crooked neck" in pose
+
+
+def _quiet_vulnerable_story():
+    return _story(
+        first_name="Elena",
+        gender="female",
+        age=29,
+        city="Lisbon",
+        country="Portugal",
+        location="Lisbon, Portugal",
+        title="Second Draft",
+        high_intensity=False,
+        hero_hook="I sat with the shame and the quiet longing and did not look away.",
+        situation=(
+            "Sitting by a rain-streaked apartment window at dusk in Lisbon, "
+            "coat on the chair, notebook open, quiet contemplative vulnerable moment."
+        ),
+        background="A writer rewriting the ending of her own life.",
+        story_text=(
+            "Rain on the window. The harbor lights below. I held the notebook with "
+            "trembling hands, ashamed and tender, and did not look at the camera."
+        ),
+    )
+
+
+def _bold_provocative_story():
+    return _story(
+        first_name="Mara",
+        gender="female",
+        age=31,
+        city="Berlin",
+        country="Germany",
+        location="Berlin, Germany",
+        title="Neon After the Door",
+        high_intensity=True,
+        hero_hook="I walked into the night daring and finally free.",
+        situation=(
+            "Dancing under neon club lights at midnight in Berlin, dress in motion, "
+            "wild and liberating after telling the truth."
+        ),
+        background="A night of reckless release after years of careful silence.",
+        story_text=(
+            "The neon painted my face. I danced bold and euphoric, lipstick smeared, "
+            "heels clicking, finally free — a thrill that felt provocative and alive."
+        ),
+    )
+
+
+def _intimate_partner_story():
+    return _story(
+        first_name="Jonas",
+        gender="male",
+        age=34,
+        city="Paris",
+        country="France",
+        location="Paris, France",
+        title="After We Told the Truth",
+        high_intensity=True,
+        hero_hook="Desire settled between us after the confession.",
+        situation=(
+            "In a hotel bedroom at night with my partner after we finally told the truth, "
+            "lamplight on rumpled sheets."
+        ),
+        background="Two people choosing honesty over performance.",
+        story_text=(
+            "We lay together in the hotel bedroom. I kissed him and felt the sheets "
+            "rumple under my bare shoulder — intimate, sensual stillness after the truth."
+        ),
+    )
+
+
+def test_portrait_prompts_differentiate_quiet_bold_intimate_energy():
+    """Three confession registers: shared LOOK; differentiated emotion/energy/scene.
+
+    Portrait size/model stay in image_generator.py (1024x1792 / 1024x1536) —
+    this builder only emits prompt text and must not set model or size.
+    """
+    quiet = build_portrait_only_prompt(_quiet_vulnerable_story())
+    bold = build_portrait_only_prompt(_bold_provocative_story())
+    intimate = build_portrait_only_prompt(_intimate_partner_story())
+
+    for prompt in (quiet, bold, intimate):
+        assert CONFESSION_COVER_PHOTOGRAPHY_LOOK in prompt
+        assert CONFESSION_COVER_ENERGY in prompt
+        assert CONFESSION_COVER_BRAND_COLLECTION in prompt
+        assert CONFESSION_COVER_ANTI_AI_LOOK in prompt
+        assert "STORY ANALYSIS" in prompt
+        assert "Emotional state" in prompt
+        assert "Distinctive visual details from the confession" in prompt
+        assert "Atmosphere:" in prompt
+        assert "OPENAI_IMAGE_MODEL" not in prompt
+        assert "1024x1792" not in prompt
+        assert "1024x1536" not in prompt
+
+    # Quiet: soft register, rain/window atmosphere, no forced provocation.
+    assert "do not force wild or provocative" in quiet.lower()
+    assert "lisbon" in quiet.lower()
+    assert "rain" in quiet.lower() or "window" in quiet.lower()
+    assert "shame" in quiet.lower() or "tender" in quiet.lower() or "vulnerable" in quiet.lower()
+
+    # Bold: outward/daring energy and night-out specifics.
+    assert "outward, daring, and liberating" in bold.lower()
+    assert "berlin" in bold.lower()
+    assert "neon" in bold.lower() or "danc" in bold.lower()
+    assert "liberat" in bold.lower() or "euphor" in bold.lower() or "thrill" in bold.lower()
+
+    # Intimate: partner heat distinct from quiet solitude.
+    assert "intimate" in intimate.lower()
+    assert "partner" in intimate.lower() or "second person" in intimate.lower()
+    assert "bed" in intimate.lower() or "sheet" in intimate.lower()
+    assert "paris" in intimate.lower()
+
+    # Prompts must diverge on story-specific content (not age/gender/location alone).
+    assert quiet != bold
+    assert bold != intimate
+    assert quiet != intimate
+    assert "do not force wild or provocative" in quiet.lower()
+    assert "do not force wild or provocative" not in bold.lower()
+    # Story-analysis blocks (not shared ENVIRONMENT examples) must differ by register.
+    quiet_analysis = quiet.split("Confession energy:")[0]
+    bold_analysis = bold.split("Confession energy:")[0]
+    intimate_analysis = intimate.split("Confession energy:")[0]
+    assert "lisbon" in quiet_analysis.lower() and "notebook" in quiet_analysis.lower()
+    assert "berlin" in bold_analysis.lower() and (
+        "neon" in bold_analysis.lower() or "club" in bold_analysis.lower()
+    )
+    assert "paris" in intimate_analysis.lower() and (
+        "sheet" in intimate_analysis.lower() or "bed" in intimate_analysis.lower()
+    )
+    assert "neon" not in quiet_analysis.lower()
+    assert "lisbon" not in bold_analysis.lower()
+
+
+def test_portrait_prompt_builder_does_not_configure_image_api():
+    """Portrait prompt assembly must not set DALL-E model/size (template slot ratio)."""
+    import inspect
+
+    import app.utils.story_image_prompt as sip
+
+    src = inspect.getsource(sip.build_portrait_only_prompt)
+    assert "OPENAI_IMAGE_MODEL" not in src
+    assert "1024x1792" not in src
+    assert "1024x1536" not in src
+    assert "images.generate" not in src
+    assert "size=" not in src
 
 
 def test_dalle_flag_delegates_to_unchanged_dalle_path():

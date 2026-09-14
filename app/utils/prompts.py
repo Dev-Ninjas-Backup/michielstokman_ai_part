@@ -75,6 +75,30 @@ CONFESSION_COVER_PORTRAIT_ENVIRONMENT = (
     "background."
 )
 
+# Template portrait-only framing (prompt text only — does not change LOOK recipe).
+CONFESSION_COVER_ENERGY = (
+    "Confession energy: This is a CONFESSION — outward, expressive, daring, liberating. "
+    "Let the image feel wilder, more sensual, energetic, or provocative WHEN the story's "
+    "actual content supports it — match the story's real emotional register; confessions "
+    "should generally read as more outward/expressive than a quiet meditation would, but "
+    "never force intensity onto a genuinely quiet/vulnerable story."
+)
+
+CONFESSION_COVER_BRAND_COLLECTION = (
+    "Brand collection (fixed visual language): This image is part of a curated visual "
+    "collection — the sepia/film-grain/warm-tone photographic style is the fixed brand "
+    "visual language across all confessions. Within that fixed visual language, the "
+    "composition, subject pose, and scene must be emotionally specific to THIS story — "
+    "never a generic illustration of just age+gender+location."
+)
+
+CONFESSION_COVER_ANTI_AI_LOOK = (
+    "Anti-AI-look (required): Avoid any glossy, overly smooth, symmetrical, or 'perfect' "
+    "AI-generated appearance — skin must show natural texture and asymmetry, lighting must "
+    "feel practical/motivated, composition should feel like a real captured moment, not a "
+    "rendered illustration."
+)
+
 
 # ---------------------------------------------------------------------------
 # Shared base persona — injected into every story type and resonance question
