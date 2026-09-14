@@ -111,7 +111,40 @@ _SCENE_WEATHER_RE = re.compile(
 _SCENE_PROP_RE = re.compile(
     r"\b("
     r"coat|jacket|scarf|notebook|letter|note|photo|bag|cup|glass|wine|cigarette|"
-    r"phone|book|keys|umbrella|blanket|sweater|dress|shirt"
+    r"phone|book|keys|umbrella|blanket|sweater|dress|shirt|heels|lipstick|neon|"
+    r"lamplight|streetlight|sheets|pillow|perfume"
+    r")\b",
+    re.I,
+)
+
+# Feeling-arc cues from the confession text (not a single mood keyword).
+_EMOTION_RE = re.compile(
+    r"\b("
+    r"shame|shamed|ashamed|guilt|guilty|desire|desiring|longing|yearning|"
+    r"fear|afraid|anxious|anxiety|grief|grieving|lonely|loneliness|"
+    r"vulnerable|vulnerability|tender|tenderness|raw|exposed|"
+    r"liberat\w*|free(?:dom)?|release|released|catharsis|cathartic|"
+    r"daring|bold|wild|reckless|thrill|thrilled|ecstatic|euphori\w*|"
+    r"sensual|provocative|hungry|aroused|intimate|intimacy|"
+    r"resolute|defiant|defiance|angry|anger|heartbroken|heartbreak|"
+    r"quiet|contemplat\w*|thoughtful|hesitant|trembling|relieved|relief|"
+    r"choosing\s+me|finally\s+free|told\s+the\s+truth"
+    r")\b",
+    re.I,
+)
+
+_QUIET_VULNERABLE_RE = re.compile(
+    r"\b("
+    r"quiet|vulnerable|vulnerability|tender|tenderness|grief|lonely|loneliness|"
+    r"hesitant|trembling|contemplat\w*|thoughtful|soft|fragile|afraid|shame|ashamed"
+    r")\b",
+    re.I,
+)
+
+_BOLD_OUTWARD_RE = re.compile(
+    r"\b("
+    r"daring|bold|wild|reckless|thrill|thrilled|neon|club|dance|dancing|"
+    r"provocative|liberat\w*|finally\s+free|euphori\w*|celebrat\w*|defiant|defiance"
     r")\b",
     re.I,
 )
@@ -175,6 +208,60 @@ def _story_wants_semi_explicit(story: Story) -> bool:
     return bool(_INTIMACY_RE.search(_story_blob(story)))
 
 
+def portrait_emotional_state(story: Story) -> str:
+    """Feeling-arc line from the confession — not a single mood keyword."""
+    blob = _story_blob(story, story_chars=700)
+    lower = blob.lower()
+    emotions = list(dict.fromkeys(m.group(1).lower() for m in _EMOTION_RE.finditer(blob)))
+
+    quiet = bool(_QUIET_VULNERABLE_RE.search(lower))
+    bold = bool(_BOLD_OUTWARD_RE.search(lower) or _CELEBRATION_RE.search(lower))
+    intimate = bool(_INTIMACY_RE.search(lower)) or bool(
+        getattr(story, "high_intensity", False)
+    )
+
+    # Register: match the story's real emotional content (never force intensity).
+    if quiet and not bold:
+        register = (
+            "quiet, vulnerable, and inwardly honest — do not force wild or "
+            "provocative energy onto this moment"
+        )
+    elif bold and not quiet:
+        register = (
+            "outward, daring, and liberating — allow sensual, energetic, or "
+            "provocative heat where the confession supports it"
+        )
+    elif intimate and not quiet:
+        register = (
+            "intimate and emotionally charged — sensual stillness or charged "
+            "proximity matching the confession's heat"
+        )
+    elif quiet and bold:
+        register = (
+            "tension between vulnerability and daring release — hold both poles "
+            "honestly without flattening into a stock mood"
+        )
+    else:
+        register = (
+            "emotionally specific to this confession's arc — outward/expressive "
+            "as a confession, without inventing intensity the text does not carry"
+        )
+
+    if emotions:
+        arc = ", ".join(emotions[:6])
+        return (
+            f"Emotional state (feeling arc of THIS confession): the narrator moves "
+            f"through {arc}. Register: {register}."
+        )
+
+    mood = brief_story_mood_scene(story).rstrip(".")
+    return (
+        f"Emotional state (feeling arc of THIS confession): grounded in "
+        f"\"{mood}\" — capture that specific emotional truth, not a generic mood "
+        f"label. Register: {register}."
+    )
+
+
 def portrait_narrative_moment(story: Story) -> str:
     """Story-first moment the photograph must depict (not a generic mood line)."""
     situation = re.sub(r"\s+", " ", (story.situation or "").strip())
@@ -211,11 +298,87 @@ def portrait_narrative_moment(story: Story) -> str:
     )
 
 
+def portrait_story_analysis(story: Story) -> str:
+    """Labeled STORY ANALYSIS: emotion + distinctive visuals + atmosphere.
+
+    Extends the older scene-detail regex extraction with explicit labels so the
+    model cannot reduce the confession to age+gender+location alone.
+    """
+    blob = _story_blob(story, story_chars=500)
+    emotional = portrait_emotional_state(story)
+
+    if not blob:
+        return (
+            "STORY ANALYSIS (from the complete confession — invent nothing that "
+            "contradicts it):\n"
+            f"{emotional}\n"
+            "Distinctive visual details from the confession: intimate lived-in "
+            "environment with tangible surfaces and practical light matching the "
+            "subject's location — no empty void.\n"
+            "Atmosphere: sensory environment honest to the story's place and hour; "
+            "no empty sky-only backdrop; no readable text in the image."
+        )
+
+    settings = list(
+        dict.fromkeys(m.group(1).lower() for m in _SCENE_SETTING_RE.finditer(blob))
+    )
+    weather = list(
+        dict.fromkeys(m.group(1).lower() for m in _SCENE_WEATHER_RE.finditer(blob))
+    )
+    props = list(
+        dict.fromkeys(m.group(1).lower() for m in _SCENE_PROP_RE.finditer(blob))
+    )
+
+    location = (
+        (story.location or "").strip()
+        or ", ".join(
+            p for p in ((story.city or "").strip(), (story.country or "").strip()) if p
+        )
+    )
+
+    visual_bits: list[str] = []
+    if location:
+        visual_bits.append(f"place cues for {location}")
+    if settings:
+        visual_bits.append("setting: " + ", ".join(settings[:4]))
+    if props:
+        visual_bits.append("objects/clothing/actions named in the text: " + ", ".join(props[:4]))
+    if not settings and not props:
+        mood = brief_story_mood_scene(story).rstrip(".")
+        visual_bits.append(f"ground the frame in: {mood}")
+
+    if weather:
+        atmosphere = (
+            "time of day / weather / sensory environment from the confession: "
+            + ", ".join(weather[:4])
+            + " — make air, light, and temperature readable in-frame"
+        )
+    else:
+        atmosphere = (
+            "sensory environment honest to the story's place and hour "
+            "(practical light, air, temperature) — never a flat studio void"
+        )
+
+    visuals = "; ".join(visual_bits)
+    text = (
+        "STORY ANALYSIS (from the complete confession — invent nothing that "
+        "contradicts it):\n"
+        f"{emotional}\n"
+        f"Distinctive visual details from the confession: {visuals}. "
+        "Use these concrete narrative elements — not a generic age+gender+location portrait.\n"
+        f"Atmosphere: {atmosphere}. No empty sky-only backdrop; no readable text in the image."
+    )
+    if len(text) > 900:
+        cut = text[:897].rsplit(" ", 1)[0].rstrip()
+        text = cut + "..."
+    return text
+
+
 def portrait_scene_detail(story: Story) -> str:
     """Compact story-grounded setting/props/weather cues for portrait prompts.
 
+    Kept for callers/tests; full labeled analysis lives in ``portrait_story_analysis``.
     Pulls concrete nouns from situation, background, and a short story excerpt.
-    Kept ~40–60 words; English; never asks for text in the image.
     """
     blob = _story_blob(story, story_chars=500)
     if not blob:
@@ -388,6 +551,9 @@ def build_portrait_only_prompt(story: Story) -> str:
     **not** inject the collage default arms-out pose — pose comes from the story.
     """
     from app.utils.prompts import (
+        CONFESSION_COVER_ANTI_AI_LOOK,
+        CONFESSION_COVER_BRAND_COLLECTION,
+        CONFESSION_COVER_ENERGY,
         CONFESSION_COVER_PHOTOGRAPHY_LOOK,
         CONFESSION_COVER_PHOTOGRAPHY_PORTRAIT_CLOSING,
         CONFESSION_COVER_PORTRAIT_ENVIRONMENT,
@@ -407,7 +573,7 @@ def build_portrait_only_prompt(story: Story) -> str:
         subject = f"a {gender} adult"
     mood = brief_story_mood_scene(story)
     narrative = portrait_narrative_moment(story)
-    scene_detail = portrait_scene_detail(story)
+    analysis = portrait_story_analysis(story)
     cast = portrait_cast_instruction(story)
     intimacy = portrait_intimacy_instruction(story)
     pose = portrait_pose_instruction(story)
@@ -431,7 +597,8 @@ def build_portrait_only_prompt(story: Story) -> str:
         f"Primary subject: {subject}, in {location}. "
         f"Story beat (one line): {mood}\n\n"
         f"{narrative}\n\n"
-        f"{scene_detail}\n\n"
+        f"{analysis}\n\n"
+        f"{CONFESSION_COVER_ENERGY}\n\n"
         f"{cast}\n\n"
         f"{intimacy}\n\n"
         f"{pose}\n\n"
@@ -439,6 +606,8 @@ def build_portrait_only_prompt(story: Story) -> str:
         f"{framing}\n\n"
         "Anti-repetition: each confession must look different in posture, framing, "
         "and scene — never recycle the same bent-neck contemplative cover formula.\n\n"
+        f"{CONFESSION_COVER_BRAND_COLLECTION}\n\n"
+        f"{CONFESSION_COVER_ANTI_AI_LOOK}\n\n"
         f"{CONFESSION_COVER_PHOTOGRAPHY_LOOK}"
         f"{CONFESSION_COVER_PHOTOGRAPHY_PORTRAIT_CLOSING}\n\n"
         "The photo must fill the entire frame edge-to-edge with no white space, no borders, "
