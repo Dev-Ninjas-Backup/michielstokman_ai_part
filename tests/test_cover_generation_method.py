@@ -125,6 +125,24 @@ def test_portrait_pose_follows_story_physical_action():
     assert "contemplative" in balcony.lower()
 
 
+def test_cover_description_truncates_long_hero_hook_without_mutating_source():
+    """Details page keeps the full hook; cover description clamps to ≤77 chars."""
+    long_hook = (
+        "The October fog pressed against the corrugated walls like a living thing "
+        "while my scarred hands moved without thought, brushing another slow layer "
+        "of darkening wax onto the forged baluster. Then the voice answered and the "
+        "brush stopped mid-stroke. His palm settled on my shoulder, firm and lingering, "
+        "the leather warm from his body, and something inside me loosened with a slow, "
+        "spreading warmth that had no name."
+    )
+    assert len(long_hook) > story_cover.CONFESSION_DESCRIPTION_HARD_LIMIT
+    story = _story(hero_hook=long_hook)
+    payload = story_cover.story_to_cover_template_payload(story)
+    assert story.hero_hook == long_hook
+    assert len(payload["description"]) <= story_cover.CONFESSION_DESCRIPTION_HARD_LIMIT
+    assert long_hook.startswith(payload["description"][:20]) or payload["description"] in long_hook
+
+
 def test_description_truncates_at_last_complete_word():
     long_hook = (
         "Standing alone on a cold harbour dock at dusk, looking out over the water "
