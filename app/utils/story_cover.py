@@ -28,10 +28,10 @@ from app.model.story import ImageSource, Story, StoryType
 logger = logging.getLogger(__name__)
 
 # Hard limits from cover_template/DYNAMIC.md (empirically measured).
-# Soft ≈ 3 lines; hard ≈ 4 lines after location was pushed down (+16px) and
-# confession max-height raised to 370px.
-CONFESSION_DESCRIPTION_HARD_LIMIT = 90
-CONFESSION_DESCRIPTION_SOFT_LIMIT = 65  # ~3 lines with gap above location
+# Soft ≈ 3–4 lines; hard ≈ 5 lines with location pinned to .left-copy bottom
+# and confession max-height 525px (vertically centered between titles & location).
+CONFESSION_DESCRIPTION_HARD_LIMIT = 110
+CONFESSION_DESCRIPTION_SOFT_LIMIT = 80  # ~4 lines with equal gap above/below
 # Fluid wrap inside the beige column (white torn edge ~1000–1050; titles max-width ~880).
 # Pack toward HARD so lines fill horizontal space; CSS wraps glyphs within max-width.
 # cover.js fitCopyFonts shrinks Edo so long titles stay ≤2 lines; copy stays under photo.
@@ -39,7 +39,8 @@ TITLE_LINE_SOFT_LIMIT = 16  # fill the wider beige column
 TITLE_LINE_HARD_LIMIT = 22
 # Prefer one Cover.set span when copy fits ~2 visual lines — CSS wraps to fill width.
 TITLE_MAX_VISUAL_LINES = 2
-SUBTITLE_LINE_SOFT_LIMIT = 28
+# Shorter soft wrap keeps each pink line glyph-short so fitCopyFonts can stay ≥60px.
+SUBTITLE_LINE_SOFT_LIMIT = 22
 SUBTITLE_LINE_HARD_LIMIT = 32
 SUBTITLE_MAX_VISUAL_LINES = 2
 

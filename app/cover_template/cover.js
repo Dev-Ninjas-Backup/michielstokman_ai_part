@@ -213,7 +213,9 @@
     cover = cover || coverEl();
     if (!cover) return;
     fitBlockFont($(".title-main", cover), 88, 164, 2, 72);
-    fitBlockFont($(".subtitle", cover), 48, 80, 2, 30);
+    // Pink tagline: keep readable — floor 56 so long Edo lines never go tiny.
+    // Prefer wrapping into ≤2 lines at ≥60px over shrinking toward 30px.
+    fitBlockFont($(".subtitle", cover), 60, 80, 2, 56);
   }
 
   function afterFonts(fn) {

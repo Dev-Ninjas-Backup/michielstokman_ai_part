@@ -85,17 +85,21 @@ body {
 /* —— Left copy column (titles → confession → location) —— */
 /* Visible beige runs to the white torn edge (~1050px), not photo-wrap's
    left:670 (rotated/scaled frame; transparent until the tear). Titles may
-   use that gap; z-index keeps copy under opaque photo (never over it). */
+   use that gap; z-index keeps copy under opaque photo (never over it).
+   Fixed bottom pins .location so short confession copy does not pull it up;
+   .confession flex-grows and vertically centers for equal gap above/below. */
 .left-copy {
   position: absolute;
   left: 92px;
   top: 271.48px;
+  /* Above explicit chip (top: 1697) and bird — location stays here. */
+  bottom: 560px;
   width: 900px;
   max-width: calc(1000px - 92px);
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 28px;
+  gap: 0;
   z-index: 1;
   overflow: visible;
   pointer-events: none;
@@ -116,6 +120,7 @@ body {
   font-family: "Edo", sans-serif;
   text-align: left;
   overflow: visible;
+  flex-shrink: 0;
 }
 
 .title-main {
@@ -182,9 +187,13 @@ body {
   top: auto;
   width: 100%;
   max-width: 880px;
-  /* ~3–4 lines at 70px / 1.5; hard-limit copy is pre-truncated in story_cover.
-     Room gained by pushing .location down (margin-top below). */
-  max-height: 370px;
+  /* Fill space between titles and pinned location; text centered so
+     short/long copy keeps equal gap above and below the body. */
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  /* ~4–5 lines at 70px / 1.5; hard-limit copy is pre-truncated in story_cover. */
+  max-height: 525px;
   overflow: hidden;
   font-family: "Outfit", sans-serif;
   font-weight: 500;
@@ -193,6 +202,7 @@ body {
   color: #301c05;
   word-break: normal;
   overflow-wrap: break-word;
+  margin: 0;
 }
 
 /* —— Location —— */
@@ -204,8 +214,9 @@ body {
   align-items: center;
   gap: 48px;
   width: 100%;
-  /* Extra gap below confession so longer complete sentences fit without overlap. */
-  margin-top: 16px;
+  flex-shrink: 0;
+  /* Pinned via .left-copy bottom — do not pull up when confession is short. */
+  margin-top: 0;
 }
 
 .location-pin {
@@ -638,7 +649,7 @@ body {
 }
 
 .underline-orange {
-  /* In-flow under location — follows short/tall copy columns. */
+  /* In-flow under location — stays with pinned location at column bottom. */
   position: relative;
   width: 400px;
   max-width: 100%;

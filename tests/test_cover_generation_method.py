@@ -204,8 +204,10 @@ def test_first_complete_sentence_never_ships_fragment():
 
 def test_description_prefers_complete_sentence_within_soft_limit():
     hook = (
-        "I paused at the door. Everything after that still burns when I remember it now."
+        "I paused at the door. Everything after that still burns when I remember "
+        "it now across every quiet hallway and every long winter that followed us."
     )
+    assert len(hook) > story_cover.CONFESSION_DESCRIPTION_SOFT_LIMIT
     desc = story_cover.truncate_at_sentence(hook)
     assert desc == "I paused at the door."
     assert len(desc) <= story_cover.CONFESSION_DESCRIPTION_SOFT_LIMIT
@@ -214,15 +216,17 @@ def test_description_prefers_complete_sentence_within_soft_limit():
 def test_description_strips_trailing_comma_and_prefers_earlier_sentence():
     """Comma-ending mid-clause must not ship; prefer prior .!? when present."""
     hook = (
-        "The silence found me first. Salt settled heavy, like a weight I could not name."
+        "The silence found me first. Salt settled heavy, like a weight I could not "
+        "name while the workshop hummed past any soft limit under cold winter light."
     )
+    assert len(hook) > story_cover.CONFESSION_DESCRIPTION_SOFT_LIMIT
     desc = story_cover.truncate_at_sentence(hook)
     assert desc == "The silence found me first."
     assert not desc.endswith(",")
 
     mid = (
         "Salt settled heavy, fog on the glass and tools on the bench under cold light "
-        "while the workshop hummed past any soft limit"
+        "while the workshop hummed past any soft limit and every window stayed shut"
     )
     cut = story_cover.truncate_at_sentence(mid)
     assert len(cut) <= story_cover.CONFESSION_DESCRIPTION_HARD_LIMIT
