@@ -57,12 +57,18 @@ def test_cover_generation_method_defaults_to_dalle():
         assert story_cover.uses_template_pipeline(_story()) is False
 
 
-def test_template_flag_applies_to_confession_only():
+def test_template_flag_applies_to_confession_and_meditation():
     with patch.object(story_cover.settings, "COVER_GENERATION_METHOD", "template"):
         assert story_cover.uses_template_pipeline(_story()) is True
         assert (
             story_cover.uses_template_pipeline(
                 _story(story_type=StoryType.meditation)
+            )
+            is True
+        )
+        assert (
+            story_cover.uses_template_pipeline(
+                _story(story_type=StoryType.transformation)
             )
             is False
         )
@@ -85,7 +91,7 @@ def test_story_to_cover_template_payload_maps_fields():
 
 
 def test_build_portrait_only_prompt_is_not_collage_and_reuses_style():
-    prompt = build_portrait_only_prompt(_story())
+    prompt = build_portrait_only_prompt(_story(), use_llm_brief=False)
     assert CONFESSION_COVER_PHOTOGRAPHY_LOOK in prompt
     assert "arms outstretched" not in prompt
     assert "28-year-old female" in prompt
@@ -344,7 +350,7 @@ def test_iron_subtitle_keeps_full_carried_tagline():
 
 
 def test_portrait_prompt_includes_framing_and_anti_repetition():
-    prompt = build_portrait_only_prompt(_story())
+    prompt = build_portrait_only_prompt(_story(), use_llm_brief=False)
     assert "full head and shoulders" in prompt
     assert "4:5" in prompt
     assert "adequate headroom" in prompt
@@ -375,7 +381,8 @@ def test_build_portrait_only_prompt_always_requires_rich_environment():
         _story(
             situation="Sitting alone by a window at night in a quiet contemplative moment.",
             title="Second Draft",
-        )
+        ),
+        use_llm_brief=False,
     )
     assert "rich environmental detail" in quiet
     assert "never a flat, plain, or empty background" in quiet
@@ -424,7 +431,7 @@ def test_quiet_lisbon_window_prompt_has_scene_richness_not_arms_out():
     assert "window" in analysis.lower()
     assert "quiet" in analysis.lower() or "vulnerable" in analysis.lower()
 
-    prompt = build_portrait_only_prompt(story)
+    prompt = build_portrait_only_prompt(story, use_llm_brief=False)
     assert "STORY ANALYSIS" in prompt
     assert "Narrative moment to depict" in prompt
     assert "window" in prompt.lower()
@@ -450,7 +457,7 @@ def test_partner_story_allows_second_person_and_intimacy_when_intense():
             "rumple under my bare shoulder."
         ),
     )
-    prompt = build_portrait_only_prompt(story)
+    prompt = build_portrait_only_prompt(story, use_llm_brief=False)
     assert "second person" in prompt.lower()
     assert "partner" in prompt.lower() or "embrace" in prompt.lower()
     assert "tasteful editorial" in prompt.lower() or "bare shoulders" in prompt.lower()
@@ -534,9 +541,9 @@ def test_portrait_prompts_differentiate_quiet_bold_intimate_energy():
     Portrait size/model stay in image_generator.py (1024x1792 / 1024x1536) —
     this builder only emits prompt text and must not set model or size.
     """
-    quiet = build_portrait_only_prompt(_quiet_vulnerable_story())
-    bold = build_portrait_only_prompt(_bold_provocative_story())
-    intimate = build_portrait_only_prompt(_intimate_partner_story())
+    quiet = build_portrait_only_prompt(_quiet_vulnerable_story(), use_llm_brief=False)
+    bold = build_portrait_only_prompt(_bold_provocative_story(), use_llm_brief=False)
+    intimate = build_portrait_only_prompt(_intimate_partner_story(), use_llm_brief=False)
 
     for prompt in (quiet, bold, intimate):
         assert CONFESSION_COVER_PHOTOGRAPHY_LOOK in prompt
@@ -666,13 +673,37 @@ def test_template_flag_uses_portrait_then_playwright():
                                     )
 
 
-def test_template_flag_meditation_falls_back_to_dalle():
+def test_template_flag_meditation_uses_template_pipeline():
     story = _story(story_type=StoryType.meditation)
     db = MagicMock()
     with patch.object(story_cover.settings, "COVER_GENERATION_METHOD", "template"):
-        with patch("app.utils.story_image_prompt.try_generate_story_cover") as dalle:
-            story_cover.try_generate_story_cover(db, story, image_prompt=None)
-            dalle.assert_called_once()
+        with patch.object(story_cover.settings, "OPENAI_API_KEY", "sk-test"):
+            with patch(
+                "app.utils.story_image_prompt.build_portrait_only_prompt",
+                return_value="meditation portrait prompt",
+            ):
+                with patch(
+                    "app.utils.image_generator.generate_ai_cover_image",
+                    return_value=("https://cdn/portrait.jpg", "images/portrait.jpg"),
+                ):
+                    with patch(
+                        "app.cover_template.render.render_cover_png_sync",
+                        return_value=b"fake-png",
+                    ) as render:
+                        with patch(
+                            "app.utils.s3.upload_image_to_s3",
+                            return_value=("https://cdn/cover.png", "images/cover.png"),
+                        ):
+                            with patch("app.utils.s3.delete_s3_object"):
+                                with patch(
+                                    "app.utils.story_image_prompt.try_generate_story_cover"
+                                ) as collage:
+                                    story_cover.try_generate_story_cover(
+                                        db, story, image_prompt=None
+                                    )
+                                    render.assert_called_once()
+                                    collage.assert_not_called()
+                                    assert story.image_source == ImageSource.template_v1
 
 
 def test_member_upload_guard_skips_both_pipelines():
@@ -691,3 +722,70 @@ def test_member_upload_guard_skips_both_pipelines():
                 )
                 render.assert_not_called()
                 dalle.assert_not_called()
+
+
+def test_meditation_portrait_uses_inward_energy():
+    from app.utils.prompts import (
+        MEDITATION_COVER_ANTI_AI_LOOK,
+        MEDITATION_COVER_ENERGY,
+        MEDITATION_COVER_PHOTOGRAPHY_LOOK,
+    )
+
+    prompt = build_portrait_only_prompt(
+        _story(
+            story_type=StoryType.meditation,
+            situation="Breathing slowly on a sunlit bed by the window.",
+            story_text="I place a hand on my chest and feel the breath settle.",
+        ),
+        use_llm_brief=False,
+    )
+    assert MEDITATION_COVER_ENERGY in prompt
+    assert MEDITATION_COVER_PHOTOGRAPHY_LOOK in prompt
+    assert MEDITATION_COVER_ANTI_AI_LOOK in prompt
+    assert "CONFESSION — outward" not in prompt
+    assert "STORY ANALYSIS" in prompt or "STORY BRIEF" in prompt
+    assert "meditation" in prompt.lower()
+
+
+def test_portrait_brief_heuristic_without_llm():
+    from app.utils.story_image_prompt import build_portrait_story_brief
+
+    brief = build_portrait_story_brief(
+        _story(
+            situation="On a harbour dock at dusk with salt air.",
+            story_text="The fog pressed against the corrugated walls like a living thing.",
+        ),
+        use_llm=False,
+    )
+    assert "STORY ANALYSIS" in brief
+    assert "Emotional state" in brief or "Emotional" in brief
+    assert "harbour" in brief.lower() or "fog" in brief.lower() or "dock" in brief.lower()
+
+
+def test_openai_image_payload_uses_natural_style_for_dalle():
+    with patch.object(story_cover.settings, "OPENAI_API_KEY", "sk-test"):
+        with patch.object(story_cover.settings, "OPENAI_IMAGE_MODEL", "dall-e-3"):
+            with patch("app.utils.image_generator.requests.post") as post:
+                post.return_value.raise_for_status = MagicMock()
+                post.return_value.json.return_value = {
+                    "data": [{"b64_json": __import__("base64").b64encode(b"fake").decode()}]
+                }
+                with patch(
+                    "app.utils.image_generator.upload_image_to_s3",
+                    return_value=("https://cdn/x.jpg", "images/x.jpg"),
+                ):
+                    from app.utils.image_generator import generate_ai_cover_image
+
+                    generate_ai_cover_image(
+                        title="T",
+                        story_type="confession",
+                        author_name="Liam",
+                        image_prompt="A portrait in warm light",
+                        gender="male",
+                    )
+                    payload = post.call_args.kwargs.get("json") or post.call_args[1].get("json")
+                    if payload is None:
+                        payload = post.call_args.args[1] if len(post.call_args.args) > 1 else post.call_args.kwargs["json"]
+                    # requests.post(url, json=payload, ...)
+                    assert post.call_args.kwargs["json"]["style"] == "natural"
+                    assert post.call_args.kwargs["json"]["model"] == "dall-e-3"
