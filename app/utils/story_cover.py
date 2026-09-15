@@ -192,17 +192,52 @@ def _active_title(story: Story) -> str:
     return packed or "Untitled"
 
 
+def first_complete_sentence(
+    text: str,
+    *,
+    soft_limit: int = CONFESSION_DESCRIPTION_SOFT_LIMIT,
+    hard_limit: int = CONFESSION_DESCRIPTION_HARD_LIMIT,
+) -> str:
+    """Prefer the *first* complete sentence; fall back to sense-making word cut.
+
+    Cover description should open the hook, not the last clause that still fits
+    the character budget.
+    """
+    cleaned = re.sub(r"\s+", " ", (text or "").strip())
+    if not cleaned:
+        return ""
+
+    match = re.match(r"^(.{12,}?[.!?])(?:\s|$)", cleaned)
+    if match:
+        sentence = match.group(1).strip()
+        if len(sentence) <= hard_limit:
+            return sentence
+        return truncate_at_last_word(sentence, hard_limit)
+
+    semi = cleaned.find(";")
+    if semi >= 12:
+        clause = _cleanup_truncated_phrase(cleaned[:semi].strip())
+        if clause:
+            normalized = clause if clause.endswith((".", "!", "?")) else f"{clause}."
+            if len(normalized) <= hard_limit:
+                return normalized
+            return truncate_at_last_word(normalized, hard_limit)
+
+    # No terminal punctuation — reuse soft/hard sentence-or-word logic.
+    return truncate_at_sentence(cleaned, soft_limit=soft_limit, hard_limit=hard_limit)
+
+
 def _subtitle_for_story(story: Story) -> str:
     # None → keep the classic default for layout stability.
     # Explicit "" → allow empty subtitle (pink underline sits under the title).
     tag = getattr(story, "hero_tagline", None)
     if tag is None:
         tag = "A Night That Liberated My Essence"
-    return _fill_column_text(
+    # Same packing as persist_hero_hook / public tagline generation.
+    return format_two_line_field(
         str(tag),
-        per_line=SUBTITLE_LINE_SOFT_LIMIT,
-        max_lines=SUBTITLE_MAX_VISUAL_LINES,
-        hard_limit=SUBTITLE_LINE_HARD_LIMIT,
+        SUBTITLE_LINE_HARD_LIMIT,
+        wrap_soft_limit=SUBTITLE_LINE_SOFT_LIMIT,
     )
 
 
@@ -358,12 +393,12 @@ def format_two_line_field(
 def _description_for_story(story: Story) -> str:
     hook = (story.hero_hook or "").strip()
     if hook:
-        return truncate_at_sentence(hook)
+        return first_complete_sentence(hook)
     raw = (story.story_text or story.story_input or "").strip()
     if not raw:
         return "A confession about shame, desire and finally choosing me."
-    # Hard/soft limits from cover_template/DYNAMIC.md — prefer full sentence.
-    return truncate_at_sentence(raw)
+    # Hard/soft limits from cover_template/DYNAMIC.md — prefer first full sentence.
+    return first_complete_sentence(raw)
 
 
 def story_to_cover_template_payload(

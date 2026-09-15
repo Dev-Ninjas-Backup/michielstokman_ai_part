@@ -238,7 +238,8 @@ body {
   left: 670px;
   /* Above .titles so title/subtitle/pink never paint over the torn photo edge. */
   z-index: 2;
-  top: 10px;
+  /* 8px lower than prior so the photo sits under the pink tagline band. */
+  top: 18px;
   width: 1782.6px;
   height: 2129.597px;
   display: flex;
