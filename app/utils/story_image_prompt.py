@@ -68,6 +68,9 @@ def _cover_art_direction(story: Story) -> str:
 
 def brief_story_mood_scene(story: Story) -> str:
     """One-sentence mood/scene line for the portrait-only DALL-E prompt."""
+    from app.model.story import StoryType
+
+    kind = "meditation" if story.story_type == StoryType.meditation else "confession"
     situation = re.sub(r"\s+", " ", (story.situation or "").strip())
     background = re.sub(r"\s+", " ", (story.background or "").strip())
     title = (story.title or story.member_title or story.ai_generated_title or "").strip()
@@ -77,7 +80,7 @@ def brief_story_mood_scene(story: Story) -> str:
     elif background:
         sentence = background
     elif title:
-        sentence = f"a quiet, emotionally charged moment reflecting the confession titled '{title}'"
+        sentence = f"a quiet, emotionally charged moment reflecting the {kind} titled '{title}'"
     else:
         sentence = "a quiet moment of emotional honesty and release"
 
@@ -209,7 +212,10 @@ def _story_wants_semi_explicit(story: Story) -> bool:
 
 
 def portrait_emotional_state(story: Story) -> str:
-    """Feeling-arc line from the confession — not a single mood keyword."""
+    """Feeling-arc line from the story — not a single mood keyword."""
+    from app.model.story import StoryType
+
+    kind = "meditation" if story.story_type == StoryType.meditation else "confession"
     blob = _story_blob(story, story_chars=700)
     lower = blob.lower()
     emotions = list(dict.fromkeys(m.group(1).lower() for m in _EMOTION_RE.finditer(blob)))
@@ -229,12 +235,12 @@ def portrait_emotional_state(story: Story) -> str:
     elif bold and not quiet:
         register = (
             "outward, daring, and liberating — allow sensual, energetic, or "
-            "provocative heat where the confession supports it"
+            "provocative heat where the story supports it"
         )
     elif intimate and not quiet:
         register = (
             "intimate and emotionally charged — sensual stillness or charged "
-            "proximity matching the confession's heat"
+            "proximity matching the story's heat"
         )
     elif quiet and bold:
         register = (
@@ -243,20 +249,20 @@ def portrait_emotional_state(story: Story) -> str:
         )
     else:
         register = (
-            "emotionally specific to this confession's arc — outward/expressive "
-            "as a confession, without inventing intensity the text does not carry"
+            f"emotionally specific to this {kind}'s arc — match its real "
+            "emotional register without inventing intensity the text does not carry"
         )
 
     if emotions:
         arc = ", ".join(emotions[:6])
         return (
-            f"Emotional state (feeling arc of THIS confession): the narrator moves "
+            f"Emotional state (feeling arc of THIS {kind}): the narrator moves "
             f"through {arc}. Register: {register}."
         )
 
     mood = brief_story_mood_scene(story).rstrip(".")
     return (
-        f"Emotional state (feeling arc of THIS confession): grounded in "
+        f"Emotional state (feeling arc of THIS {kind}): grounded in "
         f"\"{mood}\" — capture that specific emotional truth, not a generic mood "
         f"label. Register: {register}."
     )
@@ -264,6 +270,9 @@ def portrait_emotional_state(story: Story) -> str:
 
 def portrait_narrative_moment(story: Story) -> str:
     """Story-first moment the photograph must depict (not a generic mood line)."""
+    from app.model.story import StoryType
+
+    kind = "meditation" if story.story_type == StoryType.meditation else "confession"
     situation = re.sub(r"\s+", " ", (story.situation or "").strip())
     excerpt = re.sub(
         r"\s+", " ", (story.story_text or story.story_input or "").strip()
@@ -293,7 +302,7 @@ def portrait_narrative_moment(story: Story) -> str:
     return (
         "Narrative moment to depict (mandatory — invent nothing that contradicts this): "
         f"{moment} "
-        "The photograph must read as THIS confession's scene, not a reused stock cover pose "
+        f"The photograph must read as THIS {kind}'s scene, not a reused stock cover pose "
         "or empty sky portrait."
     )
 
@@ -382,48 +391,74 @@ def portrait_story_analysis(story: Story) -> str:
 def build_portrait_story_brief(story: Story, *, use_llm: bool = True) -> str:
     """Deep cover brief for the template photo slot — heuristic + optional LLM.
 
-    Captures emotional register, setting, atmosphere, and distinctive visual
-    details from the full submission so the OpenAI portrait is not age/gender-only.
-    Falls back to ``portrait_story_analysis`` when the LLM is unavailable.
+    The analysis model receives the COMPLETE available story text (plus title,
+    hero hook, tags, situation, background) and transforms it into a concise
+    visual brief. The brief — never the full story — drives portrait
+    generation. Falls back to the type-aware ``portrait_story_analysis``
+    heuristic when the LLM is unavailable or fails.
     """
     from app.model.story import StoryType
 
     heuristic = portrait_story_analysis(story)
     if not use_llm or not (settings.XAI_API_KEY or "").strip():
+        logger.info(
+            "Portrait brief path=heuristic story=%s reason=no_llm_or_disabled",
+            getattr(story, "id", None),
+        )
         return heuristic
 
     kind = "meditation" if story.story_type == StoryType.meditation else "confession"
     energy = (
-        "inward, reflective, contemplative, emotionally layered"
+        "inward, reflective, contemplative, intimate, emotionally layered, focused "
+        "on the inner world"
         if story.story_type == StoryType.meditation
         else "outward, expressive, daring, liberating when the content earns it"
     )
-    excerpt = (story.story_text or story.story_input or "")[:3500]
+    # Complete story text — stories are capped at 8,000 chars on save, so the
+    # analysis model sees the whole piece, not an excerpt.
+    full_text = (story.story_text or story.story_input or "").strip()
     hook = (getattr(story, "hero_hook", None) or "").strip()
     situation = (story.situation or "").strip()
     background = (story.background or "").strip()
+    title = (
+        story.title or story.member_title or getattr(story, "ai_generated_title", None) or ""
+    ).strip()
+    tags = ", ".join(getattr(story, "tags", None) or [])
+    location = (story.location or story.city or "").strip()
 
     try:
         llm = get_story_llm(temperature=0.35)
         response = llm.invoke(
-            "You analyse TTL cover photography briefs. Return ONLY plain text with "
-            "these exact labeled lines (no markdown, no preamble):\n"
-            "Emotional register: ...\n"
-            "Setting: ...\n"
-            "Atmosphere: ...\n"
-            "Distinctive visuals: ... (2-4 concrete props/moments from the text)\n"
-            "Do not invent: ... (what must not appear)\n\n"
-            f"Story type: {kind} — energy should feel {energy}.\n"
+            "You analyse TTL cover photography briefs. You are given the COMPLETE "
+            f"{kind} and must transform it into a concise visual brief for a single "
+            "portrait photograph. Return ONLY plain text with these exact labeled "
+            "lines (no markdown, no preamble, each line concise):\n"
+            "Emotional register: ... (the narrator's actual emotional state and tension)\n"
+            "Setting: ... (the story's specific place and time)\n"
+            "Atmosphere: ... (light, weather, air, hour — from the story)\n"
+            "Distinctive visuals: ... (2-4 concrete props, garments, gestures, or "
+            "motifs named in the text)\n"
+            "Do not invent: ... (what must not appear)\n"
+            "The brief must capture THIS submission's specific visual and emotional "
+            "truth — never a generic age+gender+location portrait.\n\n"
+            f"Story type: {kind} — energy should feel {energy} when the story "
+            "supports it (guiding principle, never forced).\n"
+            f"Title: {title or 'untitled'}\n"
             f"Age: {story.age if story.age is not None else 'unspecified'}; "
             f"gender: {story.gender or 'unspecified'}; "
-            f"location: {story.location or story.city or 'unspecified'}.\n"
+            f"location: {location or 'unspecified'}.\n"
+            f"Tags: {tags or 'none'}\n"
             f"Situation: {situation or 'n/a'}\n"
             f"Background: {background or 'n/a'}\n"
             f"Hero hook: {hook or 'n/a'}\n"
-            f"Full {kind} text:\n{excerpt or 'n/a'}\n"
+            f"Complete {kind} text:\n{full_text or 'n/a'}\n"
         )
         content = (getattr(response, "content", None) or str(response) or "").strip()
         if len(content) < 40 or "Emotional register" not in content:
+            logger.warning(
+                "Portrait brief path=heuristic story=%s reason=malformed_llm_output",
+                getattr(story, "id", None),
+            )
             return heuristic
         brief = (
             f"STORY BRIEF (LLM analysis of the complete {kind} — invent nothing "
@@ -431,10 +466,16 @@ def build_portrait_story_brief(story: Story, *, use_llm: bool = True) -> str:
         )
         if len(brief) > 1400:
             brief = brief[:1397].rsplit(" ", 1)[0].rstrip() + "..."
+        logger.info(
+            "Portrait brief path=llm story=%s kind=%s brief_chars=%s",
+            getattr(story, "id", None),
+            kind,
+            len(brief),
+        )
         return brief
     except Exception:
         logger.warning(
-            "build_portrait_story_brief LLM failed for story %s — using heuristic",
+            "Portrait brief path=heuristic story=%s reason=llm_failed",
             getattr(story, "id", None),
             exc_info=True,
         )
@@ -490,10 +531,10 @@ def portrait_scene_detail(story: Story) -> str:
 
 
 def portrait_cast_instruction(story: Story) -> str:
-    """Solo vs multi-person cast from the confession text."""
+    """Solo vs multi-person cast from the story text."""
     if _story_allows_multi_person(story):
         return (
-            "Cast (story-required): Include a second person when the confession involves "
+            "Cast (story-required): Include a second person when the story involves "
             "a partner or shared moment — visible interaction (embrace, conversation, "
             "walking together, sitting close). The narrator remains the primary subject "
             "and stays fully readable in frame; the other person may be partial, behind, "
@@ -528,6 +569,9 @@ def portrait_pose_instruction(story: Story) -> str:
     collage path's default arms-out / face-skyward euphoria pose. Actively
     bans the bent-neck / soft-tilt stock pose that repeats across covers.
     """
+    from app.model.story import StoryType
+
+    kind = "meditation" if story.story_type == StoryType.meditation else "confession"
     lower = _story_blob(story).lower()
 
     actions: list[str] = []
@@ -576,7 +620,7 @@ def portrait_pose_instruction(story: Story) -> str:
     else:
         stance = (
             "a dynamic, story-true body posture taken from the narrated action — "
-            "change it per confession; never reuse the same soft-tilt stock pose"
+            f"change it per {kind}; never reuse the same soft-tilt stock pose"
         )
 
     allow_arms_out = bool(_CELEBRATION_RE.search(lower))
@@ -603,10 +647,46 @@ def portrait_pose_instruction(story: Story) -> str:
     return (
         f"Pose / body language (required, story-specific, must vary per story): {stance}. "
         f"{_NECK_BAN} "
-        "Body language matches the confession's energy (joyful, tense, intimate, "
+        "Body language matches the story's energy (joyful, tense, intimate, "
         "resolute, exhausted) — do not force the same contemplative template every time. "
         f"{arms_rule}{grounded}"
     )
+
+
+def _portrait_prompt_char_budget() -> int | None:
+    """Max final prompt length for the configured OpenAI image model.
+
+    gpt-image family accepts long prompts; dall-e-3 rejects >4,000 chars.
+    Returns None when no trim is needed (default gpt-image models).
+    """
+    model = (settings.OPENAI_IMAGE_MODEL or "gpt-image-2").strip().lower()
+    if model.startswith("dall-e"):
+        return 3900
+    return None
+
+
+def _trim_prompt_to_budget(prompt: str, budget: int | None) -> str:
+    """Compact boilerplate, never story-specific blocks, to fit ``budget``."""
+    if budget is None or len(prompt) <= budget:
+        return prompt
+    # Drop blocks from the least story-critical end first: the anti-repetition
+    # line, then the framing block. Never touch narrative/analysis/energy.
+    drop_markers = (
+        "Anti-repetition: each confession",
+        "Anti-repetition: each meditation",
+    )
+    for marker in drop_markers:
+        if len(prompt) <= budget:
+            break
+        start = prompt.find(marker)
+        if start >= 0:
+            end = prompt.find("\n\n", start)
+            end = len(prompt) if end < 0 else end
+            prompt = prompt[:start] + prompt[end:].lstrip("\n")
+    if len(prompt) <= budget:
+        return prompt
+    # Still over: word-boundary trim (story blocks sit at the front).
+    return prompt[: max(0, budget - 3)].rsplit(" ", 1)[0].rstrip() + "..."
 
 
 def build_portrait_only_prompt(story: Story, *, use_llm_brief: bool = True) -> str:
@@ -690,9 +770,12 @@ def build_portrait_only_prompt(story: Story, *, use_llm_brief: bool = True) -> s
         )
     )
 
-    return (
-        "Generate a single photographic image, no text, no graphic design elements, "
-        "no logos, no borders, no collage — vertical orientation "
+    prompt = (
+        "Generate a single photographic image for the photo slot of a branded "
+        "cover template — the image must contain ONLY the person and their "
+        "environment. Absolutely no text, no title, no typography, no logos, "
+        "no badges, no labels, no borders, no frame, no collage, no graphic "
+        "design elements, no UI elements — vertical orientation "
         "(portrait aspect ratio, approximately 4:5).\n\n"
         f"Primary subject: {subject}, in {location}. "
         f"Story beat (one line): {mood}\n\n"
@@ -714,6 +797,7 @@ def build_portrait_only_prompt(story: Story, *, use_llm_brief: bool = True) -> s
         "pose template. The photo must fill the entire frame edge-to-edge with no "
         "white space, no borders, no text overlays of any kind."
     )
+    return _trim_prompt_to_budget(prompt, _portrait_prompt_char_budget())
 
 
 def build_image_prompt_from_story(story: Story) -> str:

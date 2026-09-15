@@ -61,6 +61,7 @@ CONFESSION_COVER_PHOTOGRAPHY_PORTRAIT_CLOSING = (
 )
 
 # Always required for template portraits — independent of quiet vs dramatic pose.
+# Shared by confessions and meditations — keep wording type-neutral.
 CONFESSION_COVER_PORTRAIT_ENVIRONMENT = (
     "Regardless of the subject's pose or emotional tone, always include rich environmental "
     "detail and atmosphere appropriate to THIS story's setting and location — at least two "
@@ -70,7 +71,7 @@ CONFESSION_COVER_PORTRAIT_ENVIRONMENT = (
     "prioritize a clean, evocative environment with 1–2 strong atmospheric elements (not a "
     "cluttered multi-object workshop/scene) so the emotional tone of the story reads clearly "
     "at a glance. Avoid busy, documentary-style clutter that distracts from the subject's "
-    "emotional state. Make the environment aesthetically distinct per confession. Show visible "
+    "emotional state. Make the environment aesthetically distinct per story. Show visible "
     "light sources, depth, texture, and grounding elements — never a flat, plain, or empty "
     "background."
 )
@@ -123,8 +124,8 @@ MEDITATION_COVER_ENERGY = (
 )
 
 MEDITATION_COVER_BRAND_COLLECTION = (
-    "Brand collection (fixed visual language): This image is part of the same curated TTL "
-    "visual collection as confessions — the sepia/film-grain/warm-tone photographic style "
+    "Brand collection (fixed visual language): This image is part of the curated TTL "
+    "visual collection — the sepia/film-grain/warm-tone photographic style "
     "is the fixed brand language. Within that language, composition, pose, and scene must "
     "be emotionally specific to THIS meditation — never a generic age+gender+location portrait."
 )
