@@ -9,7 +9,9 @@ class Settings:
         self.XAI_API_KEY: str | None = os.getenv("XAI_API_KEY")
         self.ELEVENLABS_API_KEY: str | None = os.getenv("ELEVENLABS_API_KEY")
         self.OPENAI_API_KEY: str | None = os.getenv("OPENAI_API_KEY")
-        self.OPENAI_IMAGE_MODEL: str = os.getenv("OPENAI_IMAGE_MODEL", "dall-e-3")
+        # Portrait model for the template cover pipeline (gpt-image family in
+        # production; set via OPENAI_IMAGE_MODEL). dall-e-3 still supported.
+        self.OPENAI_IMAGE_MODEL: str = os.getenv("OPENAI_IMAGE_MODEL", "gpt-image-2")
         # Cover pipeline switch — instantly revertible.
         # "dalle"    → Grok collage prompt + OpenAI Images (full scrapbook cover)
         # "template" → HTML cover_template + OpenAI portrait in photo hole

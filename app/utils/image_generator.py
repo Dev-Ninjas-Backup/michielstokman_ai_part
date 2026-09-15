@@ -151,6 +151,16 @@ def prepend_cover_identity_lock(
     return f"{lock} {stripped}".strip()
 
 
+def _image_prompt_char_limit(model: str) -> int | None:
+    """Max prompt characters the OpenAI Images model accepts, None if unbounded.
+
+    gpt-image models accept very long prompts; dall-e-3 rejects >4,000 chars.
+    """
+    if model.lower().startswith("dall-e"):
+        return 4000
+    return None
+
+
 def generate_ai_cover_image(
     title: str,
     story_type: str,
@@ -185,6 +195,20 @@ def generate_ai_cover_image(
         author_name=cleaned_author,
         gender=gender,
     )
+
+    model = settings.OPENAI_IMAGE_MODEL or "dall-e-3"
+    prompt_limit = _image_prompt_char_limit(model)
+    if prompt_limit is not None and len(dalle_prompt) > prompt_limit:
+        trimmed = dalle_prompt[: prompt_limit - 3].rsplit(" ", 1)[0].rstrip() + "..."
+        logger.warning(
+            "Image prompt %s chars exceeds %s limit %s — trimmed to %s chars "
+            "(story-specific blocks sit at the front, boilerplate drops last)",
+            len(dalle_prompt),
+            model,
+            prompt_limit,
+            len(trimmed),
+        )
+        dalle_prompt = trimmed
         
     logger.info(f"Generating OpenAI background for '{cleaned_title}' using model {settings.OPENAI_IMAGE_MODEL}. Prompt: {dalle_prompt}")
     
@@ -197,7 +221,6 @@ def generate_ai_cover_image(
         
         model = settings.OPENAI_IMAGE_MODEL or "dall-e-3"
         size = "1024x1792" if model.startswith("dall-e") else "1024x1536"
-        
         payload = {
             "model": model,
             "prompt": dalle_prompt,

@@ -51,6 +51,23 @@ def _story(**kwargs):
     return SimpleNamespace(**defaults)
 
 
+def _meditation_story(**kwargs):
+    """Meditation fixture with zero confession wording in any story field."""
+    defaults = dict(
+        story_type=StoryType.meditation,
+        title="Morning Light Settles",
+        high_intensity=False,
+        hero_hook="A quiet morning of returning to myself.",
+        hero_tagline="Breath And Soft Light",
+        situation="Early light across a wooden floor in a still room.",
+        background="Years of rushing finally slowed into presence.",
+        # No pose-keyword matches — exercises the type-aware pose fallback.
+        story_text="The room held a soft hush while warmth reached the floorboards.",
+    )
+    defaults.update(kwargs)
+    return _story(**defaults)
+
+
 def test_cover_generation_method_defaults_to_dalle():
     with patch.object(story_cover.settings, "COVER_GENERATION_METHOD", "dalle"):
         assert story_cover.cover_generation_method() == "dalle"
@@ -732,8 +749,7 @@ def test_meditation_portrait_uses_inward_energy():
     )
 
     prompt = build_portrait_only_prompt(
-        _story(
-            story_type=StoryType.meditation,
+        _meditation_story(
             situation="Breathing slowly on a sunlit bed by the window.",
             story_text="I place a hand on my chest and feel the breath settle.",
         ),
@@ -745,6 +761,7 @@ def test_meditation_portrait_uses_inward_energy():
     assert "CONFESSION — outward" not in prompt
     assert "STORY ANALYSIS" in prompt or "STORY BRIEF" in prompt
     assert "meditation" in prompt.lower()
+    assert "confession" not in prompt.lower()
 
 
 def test_portrait_brief_heuristic_without_llm():
@@ -789,3 +806,257 @@ def test_openai_image_payload_uses_natural_style_for_dalle():
                     # requests.post(url, json=payload, ...)
                     assert post.call_args.kwargs["json"]["style"] == "natural"
                     assert post.call_args.kwargs["json"]["model"] == "dall-e-3"
+
+
+# ---------------------------------------------------------------------------
+# Complete-story visual analysis + gpt-image-2 budgeting (portrait path)
+# ---------------------------------------------------------------------------
+
+def _fake_llm(response_text: str):
+    llm = MagicMock()
+    llm.invoke.return_value = SimpleNamespace(content=response_text)
+    return llm
+
+
+_LONG_STORY = (
+    "The rain started before I reached the harbour. " * 60
+)  # ~4,800 chars — far beyond the old 3,500-char excerpt cap
+
+
+def test_visual_analysis_receives_complete_story_not_excerpt():
+    """The analysis model must see the COMPLETE story, not a 3,500-char slice."""
+    from app.utils import story_image_prompt
+
+    story = _story(story_text=_LONG_STORY, story_input=None)
+    llm = _fake_llm(
+        "Emotional register: raw and rising\n"
+        "Setting: harbour wall at dusk\n"
+        "Atmosphere: salt air, last light\n"
+        "Distinctive visuals: rain-wet coat, harbour chain, folded letter\n"
+        "Do not invent: other people, studio backdrop"
+    )
+    with patch.object(story_image_prompt.settings, "XAI_API_KEY", "xai-test"):
+        with patch.object(story_image_prompt, "get_story_llm", return_value=llm):
+            brief = story_image_prompt.build_portrait_story_brief(story)
+
+    sent = llm.invoke.call_args.args[0]
+    # The complete story text reached the analysis model.
+    assert _LONG_STORY.strip() in sent
+    assert "Complete confession text:" in sent
+    # Structured context is included.
+    assert "Title: To Wasteland On My Own" in sent
+    assert "Hero hook:" in sent
+    assert "Situation: Leaving a relationship that kept her small." in sent
+    assert "Background: Grew up between cities." in sent
+    # The brief (not the story) is what the portrait prompt consumes.
+    assert "STORY BRIEF" in brief
+    assert "Emotional register: raw and rising" in brief
+    assert _LONG_STORY[:200] not in brief
+
+
+def test_visual_analysis_prompt_is_concise_not_the_story():
+    """The final portrait prompt carries the concise brief, not the full story."""
+    from app.utils import story_image_prompt
+
+    story = _story(story_text=_LONG_STORY)
+    llm = _fake_llm(
+        "Emotional register: raw and rising\n"
+        "Setting: harbour wall at dusk\n"
+        "Atmosphere: salt air, last light\n"
+        "Distinctive visuals: rain-wet coat, harbour chain, folded letter\n"
+        "Do not invent: other people, studio backdrop"
+    )
+    with patch.object(story_image_prompt.settings, "XAI_API_KEY", "xai-test"):
+        with patch.object(story_image_prompt, "get_story_llm", return_value=llm):
+            prompt = story_image_prompt.build_portrait_only_prompt(story)
+
+    assert "Emotional register: raw and rising" in prompt
+    assert "rain-wet coat" in prompt
+    # Whole story must NOT be passed through to the image model.
+    assert _LONG_STORY not in prompt
+    # Portrait-only constraint stays explicit.
+    assert "no text" in prompt
+    assert "no typography" in prompt
+    assert "no badges" in prompt
+    assert "no frame" in prompt
+
+
+def test_meditation_analysis_and_prompt_never_say_confession():
+    """No 'confession' wording may leak into meditation analysis or prompts."""
+    from app.utils import story_image_prompt
+    from app.utils.prompts import (
+        MEDITATION_COVER_ANTI_AI_LOOK,
+        MEDITATION_COVER_ENERGY,
+        MEDITATION_COVER_PHOTOGRAPHY_LOOK,
+    )
+
+    # Genuinely meditation-shaped fixture (no confession hero_hook) and no
+    # pose keywords — so the type-aware pose fallback is exercised.
+    meditation = _meditation_story()
+    assert "confession" not in (meditation.hero_hook or "").lower()
+    assert "confession" not in (meditation.situation or "").lower()
+    assert "confession" not in (meditation.story_text or "").lower()
+    assert "confession" not in (meditation.background or "").lower()
+
+    pose = story_image_prompt.portrait_pose_instruction(meditation)
+    assert "change it per meditation" in pose
+    assert "confession" not in pose.lower()
+
+    # Heuristic path must produce a full meditation portrait prompt with zero leaks.
+    heuristic_prompt = story_image_prompt.build_portrait_only_prompt(
+        meditation, use_llm_brief=False
+    )
+    assert "confession" not in heuristic_prompt.lower()
+    assert "THIS meditation's scene" in heuristic_prompt
+    assert "feeling arc of THIS meditation" in heuristic_prompt
+    assert "change it per meditation" in heuristic_prompt
+    assert "Anti-repetition: each meditation" in heuristic_prompt
+    assert MEDITATION_COVER_ENERGY in heuristic_prompt
+    assert MEDITATION_COVER_PHOTOGRAPHY_LOOK in heuristic_prompt
+    assert MEDITATION_COVER_ANTI_AI_LOOK in heuristic_prompt
+    assert "Guiding principle: use the specific details and emotional essence of THIS meditation" in heuristic_prompt
+    # Story beat comes from the meditation situation (not the confession fixture hook).
+    assert "Early light across a wooden floor" in heuristic_prompt
+    assert "A confession about" not in heuristic_prompt
+
+    # LLM brief path must ask for meditation energy and keep the final prompt clean.
+    llm = _fake_llm(
+        "Emotional register: inward and settling\n"
+        "Setting: wooden floor in early light\n"
+        "Atmosphere: soft hush, warm air\n"
+        "Distinctive visuals: floorboards, pale morning light, still room\n"
+        "Do not invent: crowds, night club"
+    )
+    with patch.object(story_image_prompt.settings, "XAI_API_KEY", "xai-test"):
+        with patch.object(story_image_prompt, "get_story_llm", return_value=llm):
+            brief = story_image_prompt.build_portrait_story_brief(meditation)
+            llm_prompt = story_image_prompt.build_portrait_only_prompt(meditation)
+    sent = llm.invoke.call_args.args[0]
+    assert "Story type: meditation" in sent
+    assert "Complete meditation text:" in sent
+    assert "inward, reflective, contemplative" in sent
+    assert "Hero hook: A quiet morning of returning to myself." in sent
+    assert "confession" not in sent.lower()
+    assert "STORY BRIEF" in brief
+    assert "complete meditation" in brief
+    assert "confession" not in brief.lower()
+    assert "confession" not in llm_prompt.lower()
+    assert "Emotional register: inward and settling" in llm_prompt
+    assert "change it per meditation" in llm_prompt
+
+
+def test_llm_analysis_failure_falls_back_type_aware():
+    """Grok failure degrades to the heuristic — still correct story-type wording."""
+    from app.utils import story_image_prompt
+
+    meditation = _meditation_story(
+        situation="Early hush in a room with pale curtains.",
+        story_text="The fog pressed against the glass while warmth reached the floor.",
+    )
+    llm = MagicMock()
+    llm.invoke.side_effect = RuntimeError("provider outage")
+    with patch.object(story_image_prompt.settings, "XAI_API_KEY", "xai-test"):
+        with patch.object(story_image_prompt, "get_story_llm", return_value=llm):
+            brief = story_image_prompt.build_portrait_story_brief(meditation)
+    assert "STORY ANALYSIS" in brief
+    assert "confession" not in brief.lower()
+    assert "meditation" in brief.lower()
+
+    confession = _story(
+        situation="Telling the truth at dinner after twenty years.",
+        story_text="The candle guttered and I said it plainly.",
+    )
+    with patch.object(story_image_prompt.settings, "XAI_API_KEY", "xai-test"):
+        with patch.object(story_image_prompt, "get_story_llm", return_value=llm):
+            brief = story_image_prompt.build_portrait_story_brief(confession)
+    assert "STORY ANALYSIS" in brief
+    assert "confession" in brief.lower()
+
+
+def test_gpt_image_model_needs_no_prompt_trimming():
+    """gpt-image-2 accepts long prompts — no aggressive truncation."""
+    from app.utils import story_image_prompt
+
+    story = _story(
+        story_text=_LONG_STORY,
+        situation="Standing at the harbour wall while the rain came in.",
+    )
+    with patch.object(story_image_prompt.settings, "OPENAI_IMAGE_MODEL", "gpt-image-2"):
+        assert story_image_prompt._portrait_prompt_char_budget() is None
+        prompt = story_image_prompt.build_portrait_only_prompt(story, use_llm_brief=False)
+        # Untrimmed: full brand + story blocks intact.
+        assert "Anti-repetition" in prompt
+        assert len(prompt) > 4000  # gpt-image-2 budget would have clipped nothing
+
+
+def test_dalle_model_still_budgets_prompt():
+    """Legacy dall-e-3 configuration keeps the 4,000-char safety budget."""
+    from app.utils import story_image_prompt
+
+    with patch.object(story_image_prompt.settings, "OPENAI_IMAGE_MODEL", "dall-e-3"):
+        assert story_image_prompt._portrait_prompt_char_budget() == 3900
+        story = _story(
+            story_text=_LONG_STORY,
+            situation="Standing at the harbour wall while the rain came in.",
+        )
+        prompt = story_image_prompt.build_portrait_only_prompt(story, use_llm_brief=False)
+        assert len(prompt) <= 3900
+        # Story-specific blocks survive; boilerplate drops first.
+        assert "Narrative moment to depict" in prompt
+        assert "STORY ANALYSIS" in prompt
+
+
+def test_image_generator_guard_trims_only_for_dalle_models():
+    """generate_ai_cover_image trims >4,000 chars for dall-e, never for gpt-image."""
+    import base64
+
+    long_prompt = "Rain on the harbour wall. " * 300  # ~7,500 chars
+
+    with patch.object(story_cover.settings, "OPENAI_API_KEY", "sk-test"):
+        with patch.object(story_cover.settings, "OPENAI_IMAGE_MODEL", "dall-e-3"):
+            with patch("app.utils.image_generator.requests.post") as post:
+                post.return_value.raise_for_status = MagicMock()
+                post.return_value.json.return_value = {
+                    "data": [{"b64_json": base64.b64encode(b"fake").decode()}]
+                }
+                with patch(
+                    "app.utils.image_generator.upload_image_to_s3",
+                    return_value=("https://cdn/x.jpg", "images/x.jpg"),
+                ):
+                    from app.utils.image_generator import generate_ai_cover_image
+
+                    generate_ai_cover_image(
+                        title="T",
+                        story_type="confession",
+                        author_name="Liam",
+                        image_prompt=long_prompt,
+                        gender="male",
+                    )
+                    sent_prompt = post.call_args.kwargs["json"]["prompt"]
+                    assert len(sent_prompt) <= 4000
+
+        with patch.object(story_cover.settings, "OPENAI_IMAGE_MODEL", "gpt-image-2"):
+            with patch("app.utils.image_generator.requests.post") as post:
+                post.return_value.raise_for_status = MagicMock()
+                post.return_value.json.return_value = {
+                    "data": [{"b64_json": base64.b64encode(b"fake").decode()}]
+                }
+                with patch(
+                    "app.utils.image_generator.upload_image_to_s3",
+                    return_value=("https://cdn/x.jpg", "images/x.jpg"),
+                ):
+                    from app.utils.image_generator import generate_ai_cover_image
+
+                    generate_ai_cover_image(
+                        title="T",
+                        story_type="confession",
+                        author_name="Liam",
+                        image_prompt=long_prompt,
+                        gender="male",
+                    )
+                    sent_prompt = post.call_args.kwargs["json"]["prompt"]
+                    # Identity lock prefix + full prompt, untrimmed.
+                    assert sent_prompt.startswith("The person depicted MUST be")
+                    assert len(sent_prompt) > 7000
+                    # gpt-image models must not send the dall-e "style" param.
+                    assert "style" not in post.call_args.kwargs["json"]
