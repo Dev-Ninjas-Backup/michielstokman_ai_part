@@ -639,8 +639,8 @@ body {
   height: 77px;
   flex-shrink: 0;
   align-self: flex-start;
-  /* 6px lower than prior (-36 → -30) so the pink rule sits under the tagline. */
-  margin-top: -30px;
+  /* ~8px lower than prior (-30 → -22) so the pink rule clears the tagline glyphs. */
+  margin-top: -22px;
   overflow: hidden;
 }
 
@@ -660,7 +660,8 @@ body {
   height: 28px;
   flex-shrink: 0;
   align-self: flex-start;
-  margin-top: -24px;
+  /* ~10px lower than prior (-24 → -14) so the yellow rule clears location glyphs. */
+  margin-top: -14px;
   overflow: hidden;
 }
 
