@@ -32,9 +32,9 @@ Measured 2026-09-12 against the **current** template (post clip-path / torn-bord
 | --- | --- | --- | --- |
 | Title line 1 | 12–16 | **22** | Prefer one span; CSS wraps in ~880px beige (to white tear, past photo-wrap 670). `Cover.fitCopyFonts` shrinks Edo (72–164px) so copy stays ≤2 lines under the photo layer. |
 | Title line 2 | 12–16 | **22** | Optional 2nd packed line; usually empty when line1 holds the full title. |
-| Subtitle line 1 | 22–28 | **32** | One span preferred; pink Edo 30–80px via `fitCopyFonts`; ≤2 visual lines in ~880px. |
-| Subtitle line 2 | 22–28 | **32** | Optional; pink underline is 880px toward the torn edge. |
-| Confession (`description`) | 50–65 | **90** | Outfit 70px in a 663px box. Soft ≈ **3 lines** with ≥40px gap above location. Hard raised after `.location { margin-top: 16px }` and confession `max-height: 370px` (was 77 / 315px). |
+| Subtitle line 1 | 18–22 | **32** | One span preferred; pink Edo **60–80px** via `fitCopyFonts` (floor 56 — never tiny); ≤2 visual lines in ~880px. Soft wrap 22 so each packed line stays glyph-short. |
+| Subtitle line 2 | 18–22 | **32** | Optional; pink underline is 880px toward the torn edge. |
+| Confession (`description`) | 65–80 | **110** | Outfit 70px. Soft ≈ **4 lines**; hard ≈ **5 lines**. Packs **consecutive complete sentences** (not first-only) via `pack_cover_confession`. Location pinned to `.left-copy` bottom; confession has equal 40px padding under pink rule. |
 | City | 8–12 | **20** | One visual line (Cover appends `, `). Longer strings push location text into the photo hole (~21+). |
 | Country | 5–10 | **21** | One line under city. Breaks ~22 when location text enters the photo. |
 | Author (`author_name`) | 4–11 | **16** | Chip grows **left** from `right: 24px`, `max-width: 720px`. ≥8 chars → `is-long` (76px); ≥11 (`Bartholomew`) → `is-xlong` (62px). **16** still inside the badge; **17** spills past chip bg (and often past canvas). |
@@ -50,14 +50,14 @@ Still acceptable (not broken) at the hard limit:
 | --- | --- | --- | --- |
 | `author_name` | 16 | `BartholomewXXXXX` | [docs/text_limits/hard_author_name_16ch.png](docs/text_limits/hard_author_name_16ch.png) |
 | `orientation` | 16 | `heteroflexiblexx` | [docs/text_limits/hard_orientation_16ch.png](docs/text_limits/hard_orientation_16ch.png) |
-| `description` | 90 | padded confession copy | [docs/text_limits/hard_description_77ch.png](docs/text_limits/hard_description_77ch.png) |
+| `description` | 110 | padded confession copy | [docs/text_limits/hard_description_77ch.png](docs/text_limits/hard_description_77ch.png) |
 
 ### Rules of thumb
 
 - Badge labels (gender, orientation, age, author) stay **one line** — no wrapping (`white-space: nowrap`).
 - Split long titles/subtitles across the two lines; do not put 15+ chars on a single title line.
 - Author over 16 chars spills out of the purple chip; the chip is right-anchored so names expand toward the photo, not off the right edge — until they overflow the chip itself.
-- Confession soft target is the default three-line sample (~57 chars). Four lines are possible up to 90; five lines risk colliding with location after the +16px location offset.
+- Confession soft target is ~4 lines (~80 chars). Pack consecutive complete sentences up to 110; location stays pinned at the column bottom so short copy does not pull it upward.
 
 ## `Cover.set()` fields
 

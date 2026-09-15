@@ -181,7 +181,7 @@ def test_first_complete_sentence_never_ships_fragment():
     assert len(desc) >= 12
     assert not desc.rstrip(".").endswith(("the", "a", "in", "and", "to", "who"))
 
-    # Multi-sentence: first fits → keep it.
+    # Multi-sentence helper still returns the first sentence only.
     assert (
         story_cover.first_complete_sentence(
             "I paused at the door. Everything after that still burns."
@@ -202,10 +202,47 @@ def test_first_complete_sentence_never_ships_fragment():
     assert "living thing" in out.lower() or out == "I left."
 
 
+def test_pack_cover_confession_keeps_human_readable_prose():
+    """Cover body packs consecutive complete sentences — not a short stub."""
+    # Second sentence fits under hard → include both (fills the empty band).
+    short_pair = (
+        "Her amber eyes met mine across the table once more. "
+        "Then the room went quiet around us."
+    )
+    packed = story_cover.pack_cover_confession(short_pair)
+    assert packed == short_pair
+    assert packed.count(".") == 2
+    payload = story_cover.story_to_cover_template_payload(_story(hero_hook=short_pair))
+    assert payload["description"] == short_pair
+
+    # Second sentence would exceed hard → keep first only.
+    long_second = (
+        "I paused at the door. Everything after that still burns when I remember "
+        "it now across every quiet hallway and every long winter that followed us "
+        "through the city and back again without mercy."
+    )
+    assert len(long_second) > story_cover.CONFESSION_DESCRIPTION_HARD_LIMIT
+    only_first = story_cover.pack_cover_confession(long_second)
+    assert only_first == "I paused at the door."
+
+    # Overlong single sentence → complete sense-cut, still ends with .!?
+    fog = (
+        "The October fog pressed against the corrugated walls like a living thing "
+        "while my scarred hands moved without thought across the cold rail forever."
+    )
+    assert len(fog) > story_cover.CONFESSION_DESCRIPTION_HARD_LIMIT
+    cut = story_cover.pack_cover_confession(fog)
+    assert cut.endswith((".", "!", "?"))
+    assert len(cut) <= story_cover.CONFESSION_DESCRIPTION_HARD_LIMIT
+    assert "scarred." not in cut
+
+
 def test_description_prefers_complete_sentence_within_soft_limit():
     hook = (
-        "I paused at the door. Everything after that still burns when I remember it now."
+        "I paused at the door. Everything after that still burns when I remember "
+        "it now across every quiet hallway and every long winter that followed us."
     )
+    assert len(hook) > story_cover.CONFESSION_DESCRIPTION_SOFT_LIMIT
     desc = story_cover.truncate_at_sentence(hook)
     assert desc == "I paused at the door."
     assert len(desc) <= story_cover.CONFESSION_DESCRIPTION_SOFT_LIMIT
@@ -214,15 +251,17 @@ def test_description_prefers_complete_sentence_within_soft_limit():
 def test_description_strips_trailing_comma_and_prefers_earlier_sentence():
     """Comma-ending mid-clause must not ship; prefer prior .!? when present."""
     hook = (
-        "The silence found me first. Salt settled heavy, like a weight I could not name."
+        "The silence found me first. Salt settled heavy, like a weight I could not "
+        "name while the workshop hummed past any soft limit under cold winter light."
     )
+    assert len(hook) > story_cover.CONFESSION_DESCRIPTION_SOFT_LIMIT
     desc = story_cover.truncate_at_sentence(hook)
     assert desc == "The silence found me first."
     assert not desc.endswith(",")
 
     mid = (
         "Salt settled heavy, fog on the glass and tools on the bench under cold light "
-        "while the workshop hummed past any soft limit"
+        "while the workshop hummed past any soft limit and every window stayed shut"
     )
     cut = story_cover.truncate_at_sentence(mid)
     assert len(cut) <= story_cover.CONFESSION_DESCRIPTION_HARD_LIMIT

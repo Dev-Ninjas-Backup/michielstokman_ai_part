@@ -28,10 +28,10 @@ from app.model.story import ImageSource, Story, StoryType
 logger = logging.getLogger(__name__)
 
 # Hard limits from cover_template/DYNAMIC.md (empirically measured).
-# Soft ≈ 3 lines; hard ≈ 4 lines after location was pushed down (+16px) and
-# confession max-height raised to 370px.
-CONFESSION_DESCRIPTION_HARD_LIMIT = 90
-CONFESSION_DESCRIPTION_SOFT_LIMIT = 65  # ~3 lines with gap above location
+# Soft ≈ 3–4 lines; hard ≈ 5 lines with location pinned to .left-copy bottom
+# and confession max-height 525px (vertically centered between titles & location).
+CONFESSION_DESCRIPTION_HARD_LIMIT = 110
+CONFESSION_DESCRIPTION_SOFT_LIMIT = 80  # ~4 lines with equal gap above/below
 # Fluid wrap inside the beige column (white torn edge ~1000–1050; titles max-width ~880).
 # Pack toward HARD so lines fill horizontal space; CSS wraps glyphs within max-width.
 # cover.js fitCopyFonts shrinks Edo so long titles stay ≤2 lines; copy stays under photo.
@@ -39,7 +39,8 @@ TITLE_LINE_SOFT_LIMIT = 16  # fill the wider beige column
 TITLE_LINE_HARD_LIMIT = 22
 # Prefer one Cover.set span when copy fits ~2 visual lines — CSS wraps to fill width.
 TITLE_MAX_VISUAL_LINES = 2
-SUBTITLE_LINE_SOFT_LIMIT = 28
+# Shorter soft wrap keeps each pink line glyph-short so fitCopyFonts can stay ≥60px.
+SUBTITLE_LINE_SOFT_LIMIT = 22
 SUBTITLE_LINE_HARD_LIMIT = 32
 SUBTITLE_MAX_VISUAL_LINES = 2
 
@@ -326,6 +327,76 @@ def first_complete_sentence(
     return _sense_cut_as_sentence(result or cleaned, hard_limit)
 
 
+def _split_complete_sentences(text: str) -> list[str]:
+    """Split prose into complete .!? sentences (keeps terminal punctuation)."""
+    cleaned = re.sub(r"\s+", " ", (text or "").strip())
+    if not cleaned:
+        return []
+    parts = re.findall(r"[^.!?]*[.!?]+", cleaned)
+    sentences = [p.strip() for p in parts if p.strip()]
+    if not sentences:
+        return [cleaned] if cleaned else []
+    # Trailing fragment without terminal punctuation — keep for sense-cut path.
+    consumed = "".join(parts)
+    rest = cleaned[len(consumed) :].strip()
+    if rest:
+        sentences.append(rest)
+    return sentences
+
+
+def pack_cover_confession(
+    text: str,
+    *,
+    soft_limit: int = CONFESSION_DESCRIPTION_SOFT_LIMIT,
+    hard_limit: int = CONFESSION_DESCRIPTION_HARD_LIMIT,
+) -> str:
+    """Pack consecutive complete sentences into human-readable cover body copy.
+
+    Prefer filling toward soft/hard with 1–2+ full sentences rather than a short
+    first-sentence stub. Never cuts mid-sentence when another full sentence fits.
+    """
+    cleaned = re.sub(r"\s+", " ", (text or "").strip())
+    if not cleaned:
+        return ""
+
+    sentences = _split_complete_sentences(cleaned)
+    if not sentences:
+        return ""
+
+    first = sentences[0]
+    # Single sentence (or fragment) — reuse first_complete_sentence / sense-cut.
+    if len(sentences) == 1 or not first.endswith((".", "!", "?")):
+        return first_complete_sentence(
+            cleaned, soft_limit=soft_limit, hard_limit=hard_limit
+        )
+
+    if len(first) > hard_limit:
+        return first_complete_sentence(
+            cleaned, soft_limit=soft_limit, hard_limit=hard_limit
+        )
+
+    packed = first
+    for nxt in sentences[1:]:
+        if not nxt.endswith((".", "!", "?")):
+            break
+        candidate = f"{packed} {nxt}".strip()
+        if len(candidate) > hard_limit:
+            break
+        packed = candidate
+        # Once we have reached soft with at least one sentence, keep appending
+        # only while under hard (already gated above).
+        if len(packed) >= soft_limit:
+            # Prefer one more sentence when it still fits under hard — already
+            # handled by the loop; stop after soft is met only if next would
+            # overshoot (break above). Continue to take another if it fits.
+            continue
+
+    # If still under soft and we only have the first sentence, that is fine —
+    # do not invent copy. If first alone is tiny and a second was skipped only
+    # because it was a fragment, leave packed as-is.
+    return packed
+
+
 def _subtitle_for_story(story: Story) -> str:
     # None → keep the classic default for layout stability.
     # Explicit "" → allow empty subtitle (pink underline sits under the title).
@@ -492,12 +563,12 @@ def format_two_line_field(
 def _description_for_story(story: Story) -> str:
     hook = (story.hero_hook or "").strip()
     if hook:
-        return first_complete_sentence(hook)
+        return pack_cover_confession(hook)
     raw = (story.story_text or story.story_input or "").strip()
     if not raw:
         return "A confession about shame, desire and finally choosing me."
-    # Hard/soft limits from cover_template/DYNAMIC.md — prefer first full sentence.
-    return first_complete_sentence(raw)
+    # Hard/soft limits from cover_template/DYNAMIC.md — pack complete sentences.
+    return pack_cover_confession(raw)
 
 
 def story_to_cover_template_payload(
