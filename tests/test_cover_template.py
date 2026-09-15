@@ -22,7 +22,7 @@ from app.cover_template.render import (
 
 # Geometry from app/cover_template/styles.css (.photo-wrap / .photo-rotator / .photo-frame)
 _WRAP_L = 670.0
-_WRAP_T = 10.0
+_WRAP_T = 18.0  # matches .photo-wrap top in styles.css
 _WRAP_W = 1782.6
 _WRAP_H = 2129.597
 _FRAME_W = 1469.848

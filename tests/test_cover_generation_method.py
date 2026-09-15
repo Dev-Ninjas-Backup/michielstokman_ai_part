@@ -126,7 +126,7 @@ def test_portrait_pose_follows_story_physical_action():
 
 
 def test_cover_description_truncates_long_hero_hook_without_mutating_source():
-    """Details page keeps the full hook; cover description clamps to ≤77 chars."""
+    """Details page keeps the full hook; cover description clamps to hard limit."""
     long_hook = (
         "The October fog pressed against the corrugated walls like a living thing "
         "while my scarred hands moved without thought, brushing another slow layer "
@@ -141,6 +141,7 @@ def test_cover_description_truncates_long_hero_hook_without_mutating_source():
     assert story.hero_hook == long_hook
     assert len(payload["description"]) <= story_cover.CONFESSION_DESCRIPTION_HARD_LIMIT
     assert long_hook.startswith(payload["description"][:20]) or payload["description"] in long_hook
+    assert payload["description"].endswith((".", "!", "?"))
 
 
 def test_description_truncates_at_last_complete_word():
@@ -148,20 +149,57 @@ def test_description_truncates_at_last_complete_word():
         "Standing alone on a cold harbour dock at dusk, looking out over the water "
         "after finally telling the truth."
     )
-    # Old buggy cut landed mid-word on "aft".
+    # Old buggy cut landed mid-word on "aft" at the prior 77-char hard limit.
     assert long_hook[:77].endswith("aft")
     payload = story_cover.story_to_cover_template_payload(_story(hero_hook=long_hook))
     desc = payload["description"]
     assert len(desc) <= story_cover.CONFESSION_DESCRIPTION_HARD_LIMIT
-    assert long_hook.startswith(desc)
+    assert desc.endswith((".", "!", "?"))
     assert not desc.endswith(("aft", "co", "the", "a", "in", ","))
     dangling = (
         "On a Lagos balcony at night with city lights behind her, eyes closed in a "
-        "quiet moment of choosing herself."
+        "quiet moment of choosing herself after the last ferry left the pier tonight."
     )
     trimmed = story_cover.truncate_at_last_word(dangling)
-    assert trimmed.endswith("eyes closed")
-    assert not trimmed.endswith(("in a", " in", " a"))
+    assert len(trimmed) <= story_cover.CONFESSION_DESCRIPTION_HARD_LIMIT
+    assert not trimmed.endswith(("in a", " in", " a", "of", "the", "to"))
+    assert "eyes closed" in trimmed
+
+
+def test_first_complete_sentence_never_ships_fragment():
+    """Overlong first sentence must become a complete understandable sentence."""
+    # No terminal punctuation and over hard limit — still ends as a sentence.
+    overlong = (
+        "Standing alone on a cold harbour dock at dusk looking out over the water "
+        "after finally telling the truth to everyone who waited there"
+    )
+    assert "." not in overlong
+    assert len(overlong) > story_cover.CONFESSION_DESCRIPTION_HARD_LIMIT
+    desc = story_cover.first_complete_sentence(overlong)
+    assert desc.endswith(".")
+    assert len(desc) <= story_cover.CONFESSION_DESCRIPTION_HARD_LIMIT
+    assert len(desc) >= 12
+    assert not desc.rstrip(".").endswith(("the", "a", "in", "and", "to", "who"))
+
+    # Multi-sentence: first fits → keep it.
+    assert (
+        story_cover.first_complete_sentence(
+            "I paused at the door. Everything after that still burns."
+        )
+        == "I paused at the door."
+    )
+
+    # Overlong first sentence — prefer a complete clause/sentence, not a fragment.
+    multi = (
+        "The October fog pressed against the corrugated walls like a living thing "
+        "while my scarred hands moved without thought across the cold rail. I left."
+    )
+    out = story_cover.first_complete_sentence(multi)
+    assert out.endswith((".", "!", "?"))
+    assert len(out) <= story_cover.CONFESSION_DESCRIPTION_HARD_LIMIT
+    assert len(out) >= 12
+    assert "scarred." not in out
+    assert "living thing" in out.lower() or out == "I left."
 
 
 def test_description_prefers_complete_sentence_within_soft_limit():

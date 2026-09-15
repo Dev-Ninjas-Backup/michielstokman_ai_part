@@ -182,8 +182,9 @@ body {
   top: auto;
   width: 100%;
   max-width: 880px;
-  /* ~3 lines at 70px / 1.5; hard-limit copy is pre-truncated in story_cover. */
-  max-height: 315px;
+  /* ~3–4 lines at 70px / 1.5; hard-limit copy is pre-truncated in story_cover.
+     Room gained by pushing .location down (margin-top below). */
+  max-height: 370px;
   overflow: hidden;
   font-family: "Outfit", sans-serif;
   font-weight: 500;
@@ -203,6 +204,8 @@ body {
   align-items: center;
   gap: 48px;
   width: 100%;
+  /* Extra gap below confession so longer complete sentences fit without overlap. */
+  margin-top: 16px;
 }
 
 .location-pin {
@@ -621,7 +624,8 @@ body {
   height: 77px;
   flex-shrink: 0;
   align-self: flex-start;
-  margin-top: -36px;
+  /* 6px lower than prior (-36 → -30) so the pink rule sits under the tagline. */
+  margin-top: -30px;
   overflow: hidden;
 }
 
