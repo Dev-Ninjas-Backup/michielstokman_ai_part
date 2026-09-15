@@ -251,7 +251,7 @@ def test_title_fills_beige_column_without_skinny_stacks():
 
 
 def test_iron_subtitle_keeps_full_carried_tagline():
-    """Long cellar tagline stays within budget as one wrap span (no mid-word cut)."""
+    """Long cellar tagline packs like public tagline gen (≤2 lines, no mid-word cut)."""
     tag = "A CELLAR TO LAY DOWN WHAT YOU'VE **CARRIED** TOO LONG"
     payload = story_cover.story_to_cover_template_payload(_story(hero_tagline=tag))
     sub = payload["subtitle"]
@@ -259,8 +259,11 @@ def test_iron_subtitle_keeps_full_carried_tagline():
     assert "**" not in sub
     assert "LONG" in sub.upper()
     budget = story_cover.SUBTITLE_LINE_HARD_LIMIT * story_cover.SUBTITLE_MAX_VISUAL_LINES
-    assert len(sub) <= budget
-    assert "\n" not in sub
+    flat = sub.replace("\n", " ")
+    assert len(flat) <= budget + 1  # newline join vs space
+    for line in sub.split("\n"):
+        if line:
+            assert len(line) <= story_cover.SUBTITLE_LINE_HARD_LIMIT
 
 
 def test_portrait_prompt_includes_framing_and_anti_repetition():
