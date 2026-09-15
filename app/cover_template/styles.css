@@ -87,7 +87,7 @@ body {
    left:670 (rotated/scaled frame; transparent until the tear). Titles may
    use that gap; z-index keeps copy under opaque photo (never over it).
    Fixed bottom pins .location so short confession copy does not pull it up;
-   .confession flex-grows and vertically centers for equal gap above/below. */
+   .confession uses equal padding under the pink rule toward pinned location. */
 .left-copy {
   position: absolute;
   left: 92px;
@@ -187,11 +187,15 @@ body {
   top: auto;
   width: 100%;
   max-width: 880px;
-  /* Fill space between titles and pinned location; text centered so
-     short/long copy keeps equal gap above and below the body. */
+  /* Fill space under pink rule toward pinned location. Equal padding keeps
+     body readable; flex-start avoids a short stub floating mid-column. */
   flex: 1 1 auto;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
+  justify-content: flex-start;
+  padding-top: 40px;
+  padding-bottom: 40px;
+  box-sizing: border-box;
   /* ~4–5 lines at 70px / 1.5; hard-limit copy is pre-truncated in story_cover. */
   max-height: 525px;
   overflow: hidden;
