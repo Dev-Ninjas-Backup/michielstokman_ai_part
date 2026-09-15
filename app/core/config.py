@@ -10,9 +10,10 @@ class Settings:
         self.ELEVENLABS_API_KEY: str | None = os.getenv("ELEVENLABS_API_KEY")
         self.OPENAI_API_KEY: str | None = os.getenv("OPENAI_API_KEY")
         self.OPENAI_IMAGE_MODEL: str = os.getenv("OPENAI_IMAGE_MODEL", "dall-e-3")
-        # Cover pipeline switch — instantly revertible. Default keeps DALL-E.
-        # "dalle"    → existing Grok prompt + DALL-E path (image_generator.py)
-        # "template" → app/cover_template HTML/CSS render for confession covers
+        # Cover pipeline switch — instantly revertible.
+        # "dalle"    → Grok collage prompt + OpenAI Images (full scrapbook cover)
+        # "template" → HTML cover_template + OpenAI portrait in photo hole
+        #              (confession + meditation; client-approved product path)
         _cover_method = (os.getenv("COVER_GENERATION_METHOD") or "dalle").strip().lower()
         if _cover_method not in ("dalle", "template"):
             _cover_method = "dalle"

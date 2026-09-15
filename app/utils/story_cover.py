@@ -5,14 +5,14 @@ Controlled by ``COVER_GENERATION_METHOD`` (default ``dalle``).
 - ``dalle``    → unchanged path in ``story_image_prompt.try_generate_story_cover``
                  (Grok IMAGE_PROMPT / P2 full-collage + ``generate_ai_cover_image``).
                  Sets ``image_source=ai_generated``.
-- ``template`` → for *confession* stories only:
-                 1) portrait-only DALL-E prompt (``build_portrait_only_prompt``)
-                 2) Playwright ``cover_template`` with that photo in the slot
+- ``template`` → for *confession* and *meditation* stories:
+                 1) portrait-only OpenAI Image API prompt (``build_portrait_only_prompt``)
+                 2) Playwright ``cover_template`` with that photo in the tear-hole slot
                  Sets ``image_source=template_v1``.
-                 Non-confession stories still use the DALL-E collage path.
+                 Other story types still use the DALL-E collage path.
 
-Flip the env var back to ``dalle`` at any time to restore old behavior with no
-code changes. Full-collage P1/P2 builders remain intact for the dalle path.
+Product preference: HTML template + OpenAI portrait in the photo hole (client-approved).
+Flip the env var back to ``dalle`` at any time to restore full-collage covers.
 """
 from __future__ import annotations
 
@@ -61,8 +61,8 @@ def uses_template_pipeline(story: Story | None = None) -> bool:
         return False
     if story is None:
         return True
-    # Template art is confession-shaped; other types keep DALL-E collage for now.
-    return story.story_type == StoryType.confession
+    # Template chrome is shared; confession + meditation get type-specific portraits.
+    return story.story_type in (StoryType.confession, StoryType.meditation)
 
 
 def _split_location(story: Story) -> tuple[str, str]:

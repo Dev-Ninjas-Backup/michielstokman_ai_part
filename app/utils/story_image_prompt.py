@@ -302,17 +302,20 @@ def portrait_story_analysis(story: Story) -> str:
     """Labeled STORY ANALYSIS: emotion + distinctive visuals + atmosphere.
 
     Extends the older scene-detail regex extraction with explicit labels so the
-    model cannot reduce the confession to age+gender+location alone.
+    model cannot reduce the submission to age+gender+location alone.
     """
-    blob = _story_blob(story, story_chars=500)
+    from app.model.story import StoryType
+
+    kind = "meditation" if story.story_type == StoryType.meditation else "confession"
+    blob = _story_blob(story, story_chars=1800)
     emotional = portrait_emotional_state(story)
 
     if not blob:
         return (
-            "STORY ANALYSIS (from the complete confession — invent nothing that "
+            f"STORY ANALYSIS (from the complete {kind} — invent nothing that "
             "contradicts it):\n"
             f"{emotional}\n"
-            "Distinctive visual details from the confession: intimate lived-in "
+            f"Distinctive visual details from the {kind}: intimate lived-in "
             "environment with tangible surfaces and practical light matching the "
             "subject's location — no empty void.\n"
             "Atmosphere: sensory environment honest to the story's place and hour; "
@@ -340,16 +343,18 @@ def portrait_story_analysis(story: Story) -> str:
     if location:
         visual_bits.append(f"place cues for {location}")
     if settings:
-        visual_bits.append("setting: " + ", ".join(settings[:4]))
+        visual_bits.append("setting: " + ", ".join(settings[:5]))
     if props:
-        visual_bits.append("objects/clothing/actions named in the text: " + ", ".join(props[:4]))
+        visual_bits.append(
+            "objects/clothing/actions named in the text: " + ", ".join(props[:5])
+        )
     if not settings and not props:
         mood = brief_story_mood_scene(story).rstrip(".")
         visual_bits.append(f"ground the frame in: {mood}")
 
     if weather:
         atmosphere = (
-            "time of day / weather / sensory environment from the confession: "
+            "time of day / weather / sensory environment from the submission: "
             + ", ".join(weather[:4])
             + " — make air, light, and temperature readable in-frame"
         )
@@ -361,17 +366,79 @@ def portrait_story_analysis(story: Story) -> str:
 
     visuals = "; ".join(visual_bits)
     text = (
-        "STORY ANALYSIS (from the complete confession — invent nothing that "
+        f"STORY ANALYSIS (from the complete {kind} — invent nothing that "
         "contradicts it):\n"
         f"{emotional}\n"
-        f"Distinctive visual details from the confession: {visuals}. "
+        f"Distinctive visual details from the {kind}: {visuals}. "
         "Use these concrete narrative elements — not a generic age+gender+location portrait.\n"
         f"Atmosphere: {atmosphere}. No empty sky-only backdrop; no readable text in the image."
     )
-    if len(text) > 900:
-        cut = text[:897].rsplit(" ", 1)[0].rstrip()
+    if len(text) > 1100:
+        cut = text[:1097].rsplit(" ", 1)[0].rstrip()
         text = cut + "..."
     return text
+
+
+def build_portrait_story_brief(story: Story, *, use_llm: bool = True) -> str:
+    """Deep cover brief for the template photo slot — heuristic + optional LLM.
+
+    Captures emotional register, setting, atmosphere, and distinctive visual
+    details from the full submission so the OpenAI portrait is not age/gender-only.
+    Falls back to ``portrait_story_analysis`` when the LLM is unavailable.
+    """
+    from app.model.story import StoryType
+
+    heuristic = portrait_story_analysis(story)
+    if not use_llm or not (settings.XAI_API_KEY or "").strip():
+        return heuristic
+
+    kind = "meditation" if story.story_type == StoryType.meditation else "confession"
+    energy = (
+        "inward, reflective, contemplative, emotionally layered"
+        if story.story_type == StoryType.meditation
+        else "outward, expressive, daring, liberating when the content earns it"
+    )
+    excerpt = (story.story_text or story.story_input or "")[:3500]
+    hook = (getattr(story, "hero_hook", None) or "").strip()
+    situation = (story.situation or "").strip()
+    background = (story.background or "").strip()
+
+    try:
+        llm = get_story_llm(temperature=0.35)
+        response = llm.invoke(
+            "You analyse TTL cover photography briefs. Return ONLY plain text with "
+            "these exact labeled lines (no markdown, no preamble):\n"
+            "Emotional register: ...\n"
+            "Setting: ...\n"
+            "Atmosphere: ...\n"
+            "Distinctive visuals: ... (2-4 concrete props/moments from the text)\n"
+            "Do not invent: ... (what must not appear)\n\n"
+            f"Story type: {kind} — energy should feel {energy}.\n"
+            f"Age: {story.age if story.age is not None else 'unspecified'}; "
+            f"gender: {story.gender or 'unspecified'}; "
+            f"location: {story.location or story.city or 'unspecified'}.\n"
+            f"Situation: {situation or 'n/a'}\n"
+            f"Background: {background or 'n/a'}\n"
+            f"Hero hook: {hook or 'n/a'}\n"
+            f"Full {kind} text:\n{excerpt or 'n/a'}\n"
+        )
+        content = (getattr(response, "content", None) or str(response) or "").strip()
+        if len(content) < 40 or "Emotional register" not in content:
+            return heuristic
+        brief = (
+            f"STORY BRIEF (LLM analysis of the complete {kind} — invent nothing "
+            f"that contradicts the text):\n{content}"
+        )
+        if len(brief) > 1400:
+            brief = brief[:1397].rsplit(" ", 1)[0].rstrip() + "..."
+        return brief
+    except Exception:
+        logger.warning(
+            "build_portrait_story_brief LLM failed for story %s — using heuristic",
+            getattr(story, "id", None),
+            exc_info=True,
+        )
+        return heuristic
 
 
 def portrait_scene_detail(story: Story) -> str:
@@ -542,14 +609,14 @@ def portrait_pose_instruction(story: Story) -> str:
     )
 
 
-def build_portrait_only_prompt(story: Story) -> str:
-    """Portrait-only DALL-E prompt for COVER_GENERATION_METHOD=template.
+def build_portrait_only_prompt(story: Story, *, use_llm_brief: bool = True) -> str:
+    """Portrait-only OpenAI prompt for COVER_GENERATION_METHOD=template photo slot.
 
-    The HTML cover_template owns all collage text/badges/layout. DALL-E only
-    produces the person photograph for the photo slot. Reuses
-    ``CONFESSION_COVER_PHOTOGRAPHY_LOOK`` (same look source as P1/P2) but does
-    **not** inject the collage default arms-out pose — pose comes from the story.
+    The HTML cover_template owns all collage text/badges/layout. OpenAI Images only
+    produces the person photograph for the tear-hole. Confession vs meditation
+    energy and TTL LOOK/anti-AI are applied from brand constants.
     """
+    from app.model.story import StoryType
     from app.utils.prompts import (
         CONFESSION_COVER_ANTI_AI_LOOK,
         CONFESSION_COVER_BRAND_COLLECTION,
@@ -557,7 +624,31 @@ def build_portrait_only_prompt(story: Story) -> str:
         CONFESSION_COVER_PHOTOGRAPHY_LOOK,
         CONFESSION_COVER_PHOTOGRAPHY_PORTRAIT_CLOSING,
         CONFESSION_COVER_PORTRAIT_ENVIRONMENT,
+        MEDITATION_COVER_ANTI_AI_LOOK,
+        MEDITATION_COVER_BRAND_COLLECTION,
+        MEDITATION_COVER_ENERGY,
+        MEDITATION_COVER_PHOTOGRAPHY_LOOK,
+        MEDITATION_COVER_PHOTOGRAPHY_PORTRAIT_CLOSING,
+        MEDITATION_COVER_PORTRAIT_ENVIRONMENT,
     )
+
+    is_meditation = story.story_type == StoryType.meditation
+    if is_meditation:
+        energy = MEDITATION_COVER_ENERGY
+        look = MEDITATION_COVER_PHOTOGRAPHY_LOOK
+        closing = MEDITATION_COVER_PHOTOGRAPHY_PORTRAIT_CLOSING
+        environment = MEDITATION_COVER_PORTRAIT_ENVIRONMENT
+        brand = MEDITATION_COVER_BRAND_COLLECTION
+        anti_ai = MEDITATION_COVER_ANTI_AI_LOOK
+        kind = "meditation"
+    else:
+        energy = CONFESSION_COVER_ENERGY
+        look = CONFESSION_COVER_PHOTOGRAPHY_LOOK
+        closing = CONFESSION_COVER_PHOTOGRAPHY_PORTRAIT_CLOSING
+        environment = CONFESSION_COVER_PORTRAIT_ENVIRONMENT
+        brand = CONFESSION_COVER_BRAND_COLLECTION
+        anti_ai = CONFESSION_COVER_ANTI_AI_LOOK
+        kind = "confession"
 
     gender = (story.gender or "person").strip().lower() or "person"
     location = (
@@ -573,7 +664,7 @@ def build_portrait_only_prompt(story: Story) -> str:
         subject = f"a {gender} adult"
     mood = brief_story_mood_scene(story)
     narrative = portrait_narrative_moment(story)
-    analysis = portrait_story_analysis(story)
+    analysis = build_portrait_story_brief(story, use_llm=use_llm_brief)
     cast = portrait_cast_instruction(story)
     intimacy = portrait_intimacy_instruction(story)
     pose = portrait_pose_instruction(story)
@@ -589,6 +680,15 @@ def build_portrait_only_prompt(story: Story) -> str:
         )
         + " Show the aesthetic environment around them — do not crop to a face-only void."
     )
+    anti_repeat = (
+        "Anti-repetition: each meditation must look different in posture, framing, "
+        "and scene — never recycle the same soft contemplative stock formula."
+        if is_meditation
+        else (
+            "Anti-repetition: each confession must look different in posture, framing, "
+            "and scene — never recycle the same bent-neck contemplative cover formula."
+        )
+    )
 
     return (
         "Generate a single photographic image, no text, no graphic design elements, "
@@ -598,20 +698,21 @@ def build_portrait_only_prompt(story: Story) -> str:
         f"Story beat (one line): {mood}\n\n"
         f"{narrative}\n\n"
         f"{analysis}\n\n"
-        f"{CONFESSION_COVER_ENERGY}\n\n"
+        f"{energy}\n\n"
         f"{cast}\n\n"
         f"{intimacy}\n\n"
         f"{pose}\n\n"
-        f"{CONFESSION_COVER_PORTRAIT_ENVIRONMENT}\n\n"
+        f"{environment}\n\n"
         f"{framing}\n\n"
-        "Anti-repetition: each confession must look different in posture, framing, "
-        "and scene — never recycle the same bent-neck contemplative cover formula.\n\n"
-        f"{CONFESSION_COVER_BRAND_COLLECTION}\n\n"
-        f"{CONFESSION_COVER_ANTI_AI_LOOK}\n\n"
-        f"{CONFESSION_COVER_PHOTOGRAPHY_LOOK}"
-        f"{CONFESSION_COVER_PHOTOGRAPHY_PORTRAIT_CLOSING}\n\n"
-        "The photo must fill the entire frame edge-to-edge with no white space, no borders, "
-        "no text overlays of any kind."
+        f"{anti_repeat}\n\n"
+        f"{brand}\n\n"
+        f"{anti_ai}\n\n"
+        f"{look}"
+        f"{closing}\n\n"
+        f"Guiding principle: use the specific details and emotional essence of THIS "
+        f"{kind} — individual and closely connected to the submission, not a fixed "
+        "pose template. The photo must fill the entire frame edge-to-edge with no "
+        "white space, no borders, no text overlays of any kind."
     )
 
 

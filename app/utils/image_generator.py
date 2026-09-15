@@ -204,6 +204,9 @@ def generate_ai_cover_image(
             "n": 1,
             "size": size
         }
+        # Prefer natural (less glossy) for DALL·E 3 — matches TTL anti-AI look.
+        if model.startswith("dall-e"):
+            payload["style"] = "natural"
         
         resp = requests.post(url, json=payload, headers=headers, timeout=180)
         resp.raise_for_status()

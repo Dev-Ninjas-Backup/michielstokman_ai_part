@@ -99,6 +99,38 @@ CONFESSION_COVER_ANTI_AI_LOOK = (
     "rendered illustration."
 )
 
+# Meditation template portraits share the same TTL film LOOK / anti-AI brand language
+# as confessions, with inward energy (guiding principle — not a fixed pose template).
+MEDITATION_COVER_PHOTOGRAPHY_LOOK = CONFESSION_COVER_PHOTOGRAPHY_LOOK
+
+MEDITATION_COVER_PHOTOGRAPHY_PORTRAIT_CLOSING = (
+    " Intimate indoor or quiet outdoor natural setting matching the meditation's place "
+    "and hour, with visible depth and atmosphere — never a flat studio void. Prefer soft "
+    "practical light (window light, dawn, candle, shaded room) over generic dramatic empty "
+    "sky. Composition feels intimate and editorial — never a posed studio headshot. Eye "
+    "contact with camera only when it feels inward and story-true; otherwise gaze soft into "
+    "the scene. Avoid glossy, overly polished, or stock-photo aesthetics."
+)
+
+MEDITATION_COVER_PORTRAIT_ENVIRONMENT = CONFESSION_COVER_PORTRAIT_ENVIRONMENT
+
+MEDITATION_COVER_ENERGY = (
+    "Meditation energy: This is a MEDITATION — inward, reflective, transformative. "
+    "Let the image feel more intimate, contemplative, emotionally layered, and focused "
+    "on the inner world. Prefer quiet presence, breath, and inner shift over outward "
+    "spectacle — match the story's real emotional register; never force wild or "
+    "provocative energy onto a contemplative meditation."
+)
+
+MEDITATION_COVER_BRAND_COLLECTION = (
+    "Brand collection (fixed visual language): This image is part of the same curated TTL "
+    "visual collection as confessions — the sepia/film-grain/warm-tone photographic style "
+    "is the fixed brand language. Within that language, composition, pose, and scene must "
+    "be emotionally specific to THIS meditation — never a generic age+gender+location portrait."
+)
+
+MEDITATION_COVER_ANTI_AI_LOOK = CONFESSION_COVER_ANTI_AI_LOOK
+
 
 # ---------------------------------------------------------------------------
 # Shared base persona — injected into every story type and resonance question
