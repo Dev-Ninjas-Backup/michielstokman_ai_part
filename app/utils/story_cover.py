@@ -28,8 +28,10 @@ from app.model.story import ImageSource, Story, StoryType
 logger = logging.getLogger(__name__)
 
 # Hard limits from cover_template/DYNAMIC.md (empirically measured).
-CONFESSION_DESCRIPTION_HARD_LIMIT = 77
-CONFESSION_DESCRIPTION_SOFT_LIMIT = 58  # ~3 lines with gap above location
+# Soft ≈ 3 lines; hard ≈ 4 lines after location was pushed down (+16px) and
+# confession max-height raised to 370px.
+CONFESSION_DESCRIPTION_HARD_LIMIT = 90
+CONFESSION_DESCRIPTION_SOFT_LIMIT = 65  # ~3 lines with gap above location
 # Fluid wrap inside the beige column (white torn edge ~1000–1050; titles max-width ~880).
 # Pack toward HARD so lines fill horizontal space; CSS wraps glyphs within max-width.
 # cover.js fitCopyFonts shrinks Edo so long titles stay ≤2 lines; copy stays under photo.
@@ -192,16 +194,95 @@ def _active_title(story: Story) -> str:
     return packed or "Untitled"
 
 
+def _is_complete_sentence(text: str) -> bool:
+    """True when copy ends with sentence punctuation and is long enough to ship."""
+    cleaned = (text or "").strip()
+    return len(cleaned) >= 12 and cleaned.endswith((".", "!", "?"))
+
+
+def _clause_as_sentence(text: str, hard_limit: int) -> str | None:
+    """Promote the longest comma/semicolon clause that fits under ``hard_limit``."""
+    cleaned = re.sub(r"\s+", " ", (text or "").strip())
+    if not cleaned:
+        return None
+    best: str | None = None
+    for sep in (";", ","):
+        start = 0
+        while True:
+            idx = cleaned.find(sep, start)
+            if idx < 0:
+                break
+            start = idx + 1
+            if idx < 12:
+                continue
+            clause = _cleanup_truncated_phrase(cleaned[:idx].strip())
+            if not clause or len(clause) < 12:
+                continue
+            normalized = clause if clause.endswith((".", "!", "?")) else f"{clause}."
+            if len(normalized) <= hard_limit and (
+                best is None or len(normalized) > len(best)
+            ):
+                best = normalized
+    return best
+
+
+def _sense_cut_as_sentence(text: str, hard_limit: int) -> str:
+    """Word-cut an overlong clause into the most understandable sentence possible.
+
+    Prefers breaking before a clause connector (``while``, ``and``, …) so we do
+    not ship adjective fragments like ``…while my scarred.``
+    """
+    cleaned = re.sub(r"\s+", " ", (text or "").strip()).rstrip(".!?")
+    if not cleaned:
+        return ""
+    if len(cleaned) + 1 <= hard_limit:
+        return f"{cleaned}."
+
+    window = cleaned[: hard_limit - 1]
+    connectors = (
+        " while ",
+        " and ",
+        " that ",
+        " which ",
+        " where ",
+        " when ",
+        " because ",
+        " but ",
+        " as ",
+        " with ",
+        " after ",
+        " before ",
+        " without ",
+    )
+    best_idx = -1
+    lower = window.lower()
+    for connector in connectors:
+        idx = lower.rfind(connector)
+        if idx >= 12:
+            best_idx = max(best_idx, idx)
+    if best_idx >= 12:
+        cut = _cleanup_truncated_phrase(window[:best_idx])
+        if cut and len(cut) >= 12:
+            return cut if cut.endswith((".", "!", "?")) else f"{cut}."
+
+    cut = _cleanup_truncated_phrase(truncate_at_last_word(cleaned, hard_limit - 1))
+    if not cut:
+        return ""
+    if not cut.endswith((".", "!", "?")):
+        cut = f"{cut}."
+    return cut if len(cut) <= hard_limit and len(cut) >= 12 else ""
+
+
 def first_complete_sentence(
     text: str,
     *,
     soft_limit: int = CONFESSION_DESCRIPTION_SOFT_LIMIT,
     hard_limit: int = CONFESSION_DESCRIPTION_HARD_LIMIT,
 ) -> str:
-    """Prefer the *first* complete sentence; fall back to sense-making word cut.
+    """Prefer the *first* complete sentence; never ship a mid-sentence fragment.
 
-    Cover description should open the hook, not the last clause that still fits
-    the character budget.
+    Cover description should open the hook as an understandable sentence —
+    not a word-cut of an overlong clause.
     """
     cleaned = re.sub(r"\s+", " ", (text or "").strip())
     if not cleaned:
@@ -212,7 +293,18 @@ def first_complete_sentence(
         sentence = match.group(1).strip()
         if len(sentence) <= hard_limit:
             return sentence
-        return truncate_at_last_word(sentence, hard_limit)
+        # First sentence is too long — try an earlier clause, then any complete
+        # sentence within budget. Do not word-cut into an incomplete fragment.
+        clause = _clause_as_sentence(sentence, hard_limit)
+        if clause:
+            return clause
+        alt = truncate_at_sentence(cleaned, soft_limit=soft_limit, hard_limit=hard_limit)
+        if _is_complete_sentence(alt) and alt != sentence:
+            return alt
+        sense = _sense_cut_as_sentence(sentence, hard_limit)
+        if sense:
+            return sense
+        return alt if _is_complete_sentence(alt) else sense
 
     semi = cleaned.find(";")
     if semi >= 12:
@@ -221,10 +313,17 @@ def first_complete_sentence(
             normalized = clause if clause.endswith((".", "!", "?")) else f"{clause}."
             if len(normalized) <= hard_limit:
                 return normalized
-            return truncate_at_last_word(normalized, hard_limit)
+            short = _clause_as_sentence(normalized, hard_limit)
+            if short:
+                return short
+            sense = _sense_cut_as_sentence(normalized, hard_limit)
+            if sense:
+                return sense
 
-    # No terminal punctuation — reuse soft/hard sentence-or-word logic.
-    return truncate_at_sentence(cleaned, soft_limit=soft_limit, hard_limit=hard_limit)
+    result = truncate_at_sentence(cleaned, soft_limit=soft_limit, hard_limit=hard_limit)
+    if _is_complete_sentence(result):
+        return result
+    return _sense_cut_as_sentence(result or cleaned, hard_limit)
 
 
 def _subtitle_for_story(story: Story) -> str:
