@@ -17,6 +17,8 @@ Cover.get(); // current values
 
 API / preview payload names map as: `description` → confession, `author_name` → author, `title` / `subtitle` newline-split into line1/line2.
 
+Card headline is the purple **title** only — the pink public tagline (`hero_tagline`) is page-only, so the cover payload ships `subtitle: ""` and `.subtitle` collapses (pink rule moves under the title). `subtitle` / `subtitleLine1-2` remain available for preview/`Cover.set` callers.
+
 ## Text limits (empirically measured)
 
 Counts include spaces. Prefer **soft**; never exceed **hard**.

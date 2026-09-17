@@ -398,6 +398,11 @@ def pack_cover_confession(
 
 
 def _subtitle_for_story(story: Story) -> str:
+    """Pack a story tagline for a cover subtitle line.
+
+    Unused by ``story_to_cover_template_payload`` since the cover card ships
+    the purple title only — kept for callers that still want a packed tagline.
+    """
     # None → keep the classic default for layout stability.
     # Explicit "" → allow empty subtitle (pink underline sits under the title).
     tag = getattr(story, "hero_tagline", None)
@@ -580,7 +585,11 @@ def story_to_cover_template_payload(
     city, country = _split_location(story)
     return {
         "title": _active_title(story),
-        "subtitle": _subtitle_for_story(story),
+        # Cover card headline is the purple title only — the public tagline
+        # (hero_tagline) stays in the DB and on the details page. Empty string
+        # collapses .subtitle in cover_template/styles.css so the pink rule
+        # sits under the title.
+        "subtitle": "",
         "description": _description_for_story(story),
         "author_name": (story.first_name or "Anonymous").strip() or "Anonymous",
         "age": str(story.age) if story.age is not None else "",

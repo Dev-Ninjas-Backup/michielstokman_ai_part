@@ -1,7 +1,6 @@
 """Tests for COVER_GENERATION_METHOD routing (dalle default vs template)."""
 from __future__ import annotations
 
-import re
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
@@ -305,31 +304,47 @@ def test_salt_description_prefers_semicolon_clause_over_trailing_comma():
     assert payload["title"] == "The Salt"
 
 
-def test_subtitle_wraps_and_truncates_to_hard_line_limit():
+def test_cover_card_omits_public_tagline():
+    """Cover card is purple title only — the public tagline is page-only.
+
+    hero_tagline stays in the DB (and on the details page); the cover payload
+    ships an empty subtitle so .subtitle collapses under the title.
+    """
     long = "The memory stirred but my boundaries held"
-    payload = story_cover.story_to_cover_template_payload(_story(hero_tagline=long))
-    # Single span preferred — CSS wraps inside the beige column.
-    sub = payload["subtitle"]
-    budget = story_cover.SUBTITLE_LINE_HARD_LIMIT * story_cover.SUBTITLE_MAX_VISUAL_LINES
-    assert len(sub) <= budget
-    assert "\n" not in sub or all(
-        len(ln) <= story_cover.SUBTITLE_LINE_HARD_LIMIT for ln in sub.split("\n") if ln
+    story = _story(hero_tagline=long)
+    payload = story_cover.story_to_cover_template_payload(story)
+    assert payload["subtitle"] == ""
+    # Source tagline is untouched — details page still renders it.
+    assert story.hero_tagline == long
+
+
+def test_subtitle_is_empty_for_every_tagline_shape():
+    """No tagline shape leaks back onto the cover card."""
+    for tag in (
+        "The memory stirred but my boundaries held",
+        "The hands that once trembled now rested",
+        "A CELLAR TO LAY DOWN WHAT YOU'VE **CARRIED** TOO LONG",
+        None,
+    ):
+        payload = story_cover.story_to_cover_template_payload(_story(hero_tagline=tag))
+        assert payload["subtitle"] == ""
+        assert "**" not in payload["subtitle"]
+
+
+def test_empty_subtitle_collapses_to_blank_line_pair():
+    """Empty payload subtitle maps to blank line1/line2 (CSS collapses .subtitle)."""
+    from app.cover_template import render as cover_render
+
+    payload = story_cover.story_to_cover_template_payload(
+        _story(hero_tagline="Breath And Soft Light")
     )
-    assert "memory" in sub.lower()
-    assert not re.search(r"\bHEL$", sub, re.I)
-    assert not re.search(r"\bBOUNDAR$", sub, re.I)
-
-
-def test_subtitle_stays_within_torn_border_column():
-    """Long taglines fill one span (CSS wraps) left of the torn photo edge."""
-    long = "The hands that once trembled now rested"
-    payload = story_cover.story_to_cover_template_payload(_story(hero_tagline=long))
-    sub = payload["subtitle"]
-    budget = story_cover.SUBTITLE_LINE_HARD_LIMIT * story_cover.SUBTITLE_MAX_VISUAL_LINES
-    assert len(sub) <= budget
-    assert "hands" in sub.lower()
-    assert "trembled" in sub.lower()
-    assert "trembl" not in sub.lower().replace("trembled", "")
+    # Photo flattening is unrelated here (and needs Pillow) — stub it out.
+    with patch.object(cover_render, "resolve_photo_data_uri", return_value=None):
+        cover = cover_render.payload_to_cover_set(payload)
+    assert cover["subtitleLine1"] == ""
+    assert cover["subtitleLine2"] == ""
+    # Title still ships for share/social when the image travels alone.
+    assert cover["titleLine1"]
 
 
 def test_title_fills_beige_column_without_skinny_stacks():
@@ -350,18 +365,24 @@ def test_title_fills_beige_column_without_skinny_stacks():
     assert len(long_title) <= budget
 
 
-def test_iron_subtitle_keeps_full_carried_tagline():
-    """Long cellar tagline packs like public tagline gen (≤2 lines, no mid-word cut)."""
+def test_iron_tagline_packs_like_public_tagline_gen():
+    """Cellar tagline packs (≤2 lines, no mid-word cut) for the page/DB tagline.
+
+    The cover no longer renders a subtitle, but the shared packing helper still
+    feeds the public tagline (hero_tagline) shown on the details page.
+    """
     tag = "A CELLAR TO LAY DOWN WHAT YOU'VE **CARRIED** TOO LONG"
-    payload = story_cover.story_to_cover_template_payload(_story(hero_tagline=tag))
-    sub = payload["subtitle"]
-    assert "CARRIED" in sub.upper()
-    assert "**" not in sub
-    assert "LONG" in sub.upper()
+    packed = story_cover.format_two_line_field(
+        tag,
+        story_cover.SUBTITLE_LINE_HARD_LIMIT,
+        wrap_soft_limit=story_cover.SUBTITLE_LINE_SOFT_LIMIT,
+    )
+    assert "CARRIED" in packed.upper()
+    assert "**" not in packed
+    assert "LONG" in packed.upper()
     budget = story_cover.SUBTITLE_LINE_HARD_LIMIT * story_cover.SUBTITLE_MAX_VISUAL_LINES
-    flat = sub.replace("\n", " ")
-    assert len(flat) <= budget + 1  # newline join vs space
-    for line in sub.split("\n"):
+    assert len(packed.replace("\n", " ")) <= budget + 1  # newline join vs space
+    for line in packed.split("\n"):
         if line:
             assert len(line) <= story_cover.SUBTITLE_LINE_HARD_LIMIT
 
