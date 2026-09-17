@@ -12,10 +12,12 @@ from app.utils.prompts import (
     CONFESSION_COVER_BRAND_COLLECTION,
     CONFESSION_COVER_ENERGY,
     CONFESSION_COVER_PHOTOGRAPHY_LOOK,
+    CONFESSION_COVER_PHOTOGRAPHY_LOOK_V2,
 )
 from app.utils.story_image_prompt import (
     brief_story_mood_scene,
     build_portrait_only_prompt,
+    portrait_cast_instruction,
     portrait_pose_instruction,
     portrait_scene_detail,
     portrait_story_analysis,
@@ -109,7 +111,7 @@ def test_story_to_cover_template_payload_maps_fields():
 
 def test_build_portrait_only_prompt_is_not_collage_and_reuses_style():
     prompt = build_portrait_only_prompt(_story(), use_llm_brief=False)
-    assert CONFESSION_COVER_PHOTOGRAPHY_LOOK in prompt
+    assert CONFESSION_COVER_PHOTOGRAPHY_LOOK_V2 in prompt
     assert "arms outstretched" not in prompt
     assert "28-year-old female" in prompt
     assert "Barcelona" in prompt
@@ -376,7 +378,12 @@ def test_portrait_prompt_includes_framing_and_anti_repetition():
     assert "Narrative moment to depict" in prompt
 
 
-def test_confession_look_keeps_sepia_bw_and_adds_realism_cues():
+def test_retired_look_constant_stays_sepia_for_collage_and_meditation():
+    """The pre-pivot LOOK is retired from the confession portrait path only.
+
+    It must stay byte-identical because two other consumers still depend on it:
+    CONFESSION_COVER_PHOTOGRAPHY_STYLE (→ dalle/collage) and the meditation alias.
+    """
     look = CONFESSION_COVER_PHOTOGRAPHY_LOOK.lower()
     assert "sepia" in look
     assert "black-and-white" in look
@@ -386,11 +393,50 @@ def test_confession_look_keeps_sepia_bw_and_adds_realism_cues():
     assert "fabric folds" in look
     assert "amber" in look or "warm-brown" in look
     assert "plain grayscale" in look
+
+    from app.utils.prompts import (
+        CONFESSION_COVER_PHOTOGRAPHY_STYLE,
+        MEDITATION_COVER_PHOTOGRAPHY_LOOK,
+    )
+
+    assert CONFESSION_COVER_PHOTOGRAPHY_STYLE.startswith(
+        CONFESSION_COVER_PHOTOGRAPHY_LOOK
+    )
+    assert MEDITATION_COVER_PHOTOGRAPHY_LOOK is CONFESSION_COVER_PHOTOGRAPHY_LOOK
+
     from app.utils.prompts import CONFESSION_COVER_PORTRAIT_ENVIRONMENT
 
     env = CONFESSION_COVER_PORTRAIT_ENVIRONMENT.lower()
     assert "emotionally intimate" in env
     assert "clutter" in env
+
+
+def test_confession_look_v2_is_full_color_and_drops_monochrome_language():
+    """LOOK_V2 pivots confession portraits to warm golden-hour lifestyle color."""
+    look = CONFESSION_COVER_PHOTOGRAPHY_LOOK_V2.lower()
+    assert look.startswith("photography style (always apply, non-negotiable):")
+    assert "full color" in look
+    assert "golden-hour" in look
+    assert "amber" in look and "honey" in look
+    assert "documentary lifestyle photography" in look
+    assert "editorial travel/festival photography" in look
+    assert "never desaturated or monochrome" in look
+
+    # Realism cues carried over from the retired LOOK — the color pivot must not
+    # silently drop them again (they do real anti-AI work).
+    assert "depth of field" in look
+    assert "readable mid-ground" in look
+    assert "fabric folds" in look
+
+    # sepia / black-and-white survive only inside the closing prohibition — the
+    # style language itself must carry no monochrome instruction.
+    # ("monochrome" is excluded from this list: LOOK_V2 uses it only in the
+    #  negated "never desaturated or monochrome" phrasing.)
+    body, sep, prohibition = look.partition("avoid cold tones")
+    assert sep, "expected the closing 'Avoid cold tones…' prohibition"
+    for banned in ("sepia", "black-and-white", "grayscale", "greyscale"):
+        assert banned not in body, f"{banned!r} leaked into LOOK_V2 style language"
+    assert "desaturated/sepia/black-and-white" in prohibition
 
 
 def test_build_portrait_only_prompt_always_requires_rich_environment():
@@ -455,14 +501,18 @@ def test_quiet_lisbon_window_prompt_has_scene_richness_not_arms_out():
     assert "rain" in prompt.lower() or "dusk" in prompt.lower()
     assert "at least two concrete background anchors" in prompt
     assert "practical light" in prompt
-    assert "skin texture" in prompt
+    # Skin realism comes from the anti-AI block (LOOK_V2 carries the depth-of-field
+    # and fabric-folds cues; it does not restate skin texture).
+    assert "skin must show natural texture" in prompt
+    assert "depth of field" in prompt
+    assert "fabric folds" in prompt
     assert "Physically ground the subject" in prompt
     assert "Do not default to a generic triumphant arms-out pose" in prompt
     assert "arms outstretched" not in prompt
     assert "triumphant arms-out / face-skyward pose is allowed" not in prompt
     assert "Do NOT use a bent/crooked neck" in prompt
     assert "do not force wild or provocative" in prompt.lower()
-    assert CONFESSION_COVER_PHOTOGRAPHY_LOOK in prompt
+    assert CONFESSION_COVER_PHOTOGRAPHY_LOOK_V2 in prompt
 
 
 def test_partner_story_allows_second_person_and_intimacy_when_intense():
@@ -481,6 +531,88 @@ def test_partner_story_allows_second_person_and_intimacy_when_intense():
     assert "Do NOT use a bent/crooked neck" in prompt
     pose = portrait_pose_instruction(story)
     assert "bent/crooked neck" in pose
+
+
+def test_friendship_story_casts_a_small_group_without_intimacy_cues():
+    """Connection themes beyond partner/intimacy now widen the frame."""
+    story = _story(
+        high_intensity=False,
+        situation="A weekend at the festival with my oldest friends.",
+        story_text="My friends and I laughed together until the lanterns came on.",
+    )
+    prompt = build_portrait_only_prompt(story, use_llm_brief=False)
+    assert "small group" in prompt.lower()
+    assert "two or three other people" in portrait_cast_instruction(story)
+    # Group framing must not read as a crowd shot.
+    assert "not an anonymous crowd" in prompt
+
+
+def test_family_story_casts_more_than_one_person():
+    story = _story(
+        high_intensity=False,
+        situation="Sunday lunch with my mother.",
+        story_text="She set the table and we talked for hours.",
+    )
+    cast = portrait_cast_instruction(story)
+    assert "second person" in cast or "small group" in cast
+
+
+def test_solitude_outweighs_explicit_partner_wording():
+    """'alone, remembering my husband' stays a solo portrait."""
+    story = _story(
+        high_intensity=False,
+        situation="Alone in the empty house we used to share.",
+        story_text="No one else knew. I was lonely and I missed my husband.",
+    )
+    prompt = build_portrait_only_prompt(story, use_llm_brief=False)
+    assert "Narrator alone" in prompt
+    assert "second person" not in prompt.lower()
+
+
+def test_reflective_solo_story_stays_solo():
+    story = _story(
+        high_intensity=False,
+        situation="Sitting alone by a window at night, quiet and contemplative.",
+        story_text="I wrote in my notebook and watched the rain.",
+    )
+    assert "Narrator alone" in portrait_cast_instruction(story)
+
+
+def test_brief_connection_theme_casts_even_when_story_is_neutral():
+    """A STORY BRIEF naming connection widens the cast on its own."""
+    neutral = _story(
+        high_intensity=False,
+        situation="An afternoon in the city.",
+        story_text="The light changed over the rooftops.",
+    )
+    assert "Narrator alone" in portrait_cast_instruction(neutral)
+
+    brief = (
+        "STORY BRIEF (LLM analysis of the complete confession — invent nothing "
+        "that contradicts the text):\n"
+        "Emotional register: joyful and open.\n"
+        "Setting: a rooftop at golden hour.\n"
+        "Atmosphere: warm and hazy.\n"
+        "Distinctive visuals: her friends laughing beside her.\n"
+        "Do not invent: nothing beyond the text."
+    )
+    cast = portrait_cast_instruction(neutral, brief_text=brief)
+    assert "second person" in cast or "small group" in cast
+
+
+def test_brief_do_not_invent_clause_is_not_scanned_for_cast():
+    """'Do not invent: other people' must not itself cast a second person."""
+    story = _story(
+        high_intensity=False,
+        situation="A solitary morning.",
+        story_text="I drank my coffee and listened to the street.",
+    )
+    brief = (
+        "STORY BRIEF (LLM analysis of the complete confession):\n"
+        "Emotional register: calm.\n"
+        "Do not invent: other people, crowds, companions, or friends."
+    )
+    assert "Narrator alone" in portrait_cast_instruction(story, brief_text=brief)
 
 
 def _quiet_vulnerable_story():
@@ -563,7 +695,7 @@ def test_portrait_prompts_differentiate_quiet_bold_intimate_energy():
     intimate = build_portrait_only_prompt(_intimate_partner_story(), use_llm_brief=False)
 
     for prompt in (quiet, bold, intimate):
-        assert CONFESSION_COVER_PHOTOGRAPHY_LOOK in prompt
+        assert CONFESSION_COVER_PHOTOGRAPHY_LOOK_V2 in prompt
         assert CONFESSION_COVER_ENERGY in prompt
         assert CONFESSION_COVER_BRAND_COLLECTION in prompt
         assert CONFESSION_COVER_ANTI_AI_LOOK in prompt

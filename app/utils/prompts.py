@@ -34,6 +34,34 @@ CONFESSION_COVER_PHOTOGRAPHY_LOOK = (
     "the story setting allows."
 )
 
+# ---------------------------------------------------------------------------
+# RETIRED for the confession TEMPLATE portrait path (see LOOK_V2 below).
+# Still LIVE for two other consumers — do not delete:
+#   1. CONFESSION_COVER_PHOTOGRAPHY_STYLE (LOOK + COLLAGE_BODY) → the dalle/collage path
+#      via ensure_confession_photography_style / build_image_prompt_from_story.
+#   2. MEDITATION_COVER_PHOTOGRAPHY_LOOK aliases this constant.
+# Kept verbatim so the template path can be rolled back by swapping one name.
+# ---------------------------------------------------------------------------
+
+# Confession template portrait look — full-color warm golden-hour lifestyle
+# photography (client reference: editorial travel/festival/beach lifestyle work).
+# Replaces the vintage sepia/B&W LOOK above for build_portrait_only_prompt only.
+CONFESSION_COVER_PHOTOGRAPHY_LOOK_V2 = (
+    "Photography style (always apply, non-negotiable): full color, warm golden-hour "
+    "lighting — sun flare, glowing amber and honey tones, soft warm haze in the air. "
+    "Rich, saturated but natural color grading, never desaturated or monochrome. "
+    "Lighting feels like magic-hour sun low on the horizon, backlighting hair and skin "
+    "with a warm rim-light glow. Documentary lifestyle photography style — editorial "
+    "travel/festival photography, candid and joyful, never a posed studio shot. Natural "
+    "film-like color texture with soft grain, not digital-flat. Scenes feel alive, warm, "
+    "and connected — genuine laughter, touch, closeness, or shared joy between people "
+    "when the story involves connection with others. Prefer shallow depth of field with "
+    "a readable mid-ground (furniture edge, window frame, railing, horizon) — not "
+    "infinite empty bokeh. Show believable fabric folds and material response to light. "
+    "Avoid cold tones, blue-hour, "
+    "overcast flatness, or desaturated/sepia/black-and-white treatment entirely."
+)
+
 CONFESSION_COVER_PHOTOGRAPHY_COLLAGE_BODY = (
     " Subject shows genuine emotion — release, freedom, quiet joy, or catharsis — "
     "through open body language (arms outstretched, face tilted toward sky, eyes closed, or a natural "
@@ -58,6 +86,22 @@ CONFESSION_COVER_PHOTOGRAPHY_PORTRAIT_CLOSING = (
     "story-true; otherwise look into the scene at a natural eye level (not a bent-neck soft tilt). "
     "Avoid glossy, overly polished, or stock-photo aesthetics. Hair and clothing may show "
     "natural movement from wind if outdoors."
+)
+
+# RETIRED for the confession template portrait path (see _V2 below). Kept verbatim for
+# rollback; meditation has its own separate closing constant and is unaffected.
+# Warm-color closing aligned with LOOK_V2 — drops the old "overcast daylight" cue,
+# which contradicted the new "avoid overcast flatness" direction.
+CONFESSION_COVER_PHOTOGRAPHY_PORTRAIT_CLOSING_V2 = (
+    " Outdoor or candid indoor natural setting matching the story's location and mood, "
+    "with visible depth and atmosphere — never a flat studio void. Prefer warm practical "
+    "light that fits the story (low golden sun, warm window light, lamp glow, string "
+    "lights at dusk) over a generic dramatic empty sky or cold, flat, overcast light. "
+    "Composition feels candid and editorial, like a lifestyle magazine feature — never "
+    "a posed studio headshot. Eye contact with camera is allowed only when it feels "
+    "candid and story-true; otherwise look into the scene at a natural eye level (not a "
+    "bent-neck soft tilt). Avoid glossy, overly polished, or stock-photo aesthetics. "
+    "Hair and clothing may show natural movement from wind if outdoors."
 )
 
 # Always required for template portraits — independent of quiet vs dramatic pose.
@@ -87,10 +131,10 @@ CONFESSION_COVER_ENERGY = (
 
 CONFESSION_COVER_BRAND_COLLECTION = (
     "Brand collection (fixed visual language): This image is part of a curated visual "
-    "collection — the sepia/film-grain/warm-tone photographic style is the fixed brand "
-    "visual language across all confessions. Within that fixed visual language, the "
-    "composition, subject pose, and scene must be emotionally specific to THIS story — "
-    "never a generic illustration of just age+gender+location."
+    "collection — the warm, full-color golden-hour lifestyle photographic style is the "
+    "fixed brand visual language across all confessions. Within that fixed visual "
+    "language, the composition, subject pose, and scene must be emotionally specific to "
+    "THIS story — never a generic illustration of just age+gender+location."
 )
 
 CONFESSION_COVER_ANTI_AI_LOOK = (

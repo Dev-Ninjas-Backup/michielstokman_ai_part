@@ -174,6 +174,71 @@ _INTIMACY_RE = re.compile(
     r")\b",
     re.I,
 )
+
+# Broader connection / relationship / shared-experience lexicon. _MULTI_PERSON_RE
+# only fires on explicit partner + physical-intimacy wording, which under-casts
+# against the warm lifestyle direction (friends, family, festival, group joy).
+# Scanned over the story fields AND the STORY BRIEF, so a brief that names
+# connection themes still puts a second person (or small group) in frame.
+_CONNECTION_RE = re.compile(
+    r"\b("
+    # relationships
+    r"partner|lover|boyfriend|girlfriend|husband|wife|spouse|fianc\w*|"
+    r"couple|dating|date\s+night|first\s+date|romance|romantic|married|marriage|"
+    # friendship / chosen family
+    r"friend|friends|friendship|best\s+friend|companion|confidant\w*|"
+    r"buddy|roommate|classmate|soulmate|teammate|housemate|mates|"
+    # family
+    r"family|families|mother|mum|mom|father|dad|parent|parents|sister|brother|"
+    r"sibling|daughter|son|cousin|aunt|uncle|grandmother|grandfather|grandma|"
+    r"grandpa|niece|nephew|"
+    # shared experience / community / celebration
+    r"together|community|gathering|reunion|festival|carnival|parade|celebration|"
+    r"party|wedding|ceremony|anniversary|"
+    r"we\s+(?:danced|laughed|cried|sang|walked|ran|sat|stood|held|shared|"
+    r"travelled|traveled|celebrated)|"
+    r"shared|joined|united|hand\s+in\s+hand|side\s+by\s+side|"
+    r"each\s+other|one\s+another|"
+    # physical connection (non-explicit)
+    r"hug|hugging|hugged|embrace|embracing|embraced|"
+    r"arm\s+around|arms\s+around|holding\s+hands|"
+    r"danc\w*\s+with|sat\s+(?:close|beside|next\s+to)|"
+    r"sitting\s+(?:close|beside|next\s+to)|"
+    r"with\s+(?:him|her|them)|beside\s+(?:him|her|them)|next\s+to\s+(?:him|her|them)|"
+    r"in\s+(?:his|her|their)\s+arms|"
+    # group presence. ("company" is deliberately absent — "the rain keeps me
+    # company" is an idiom about being alone, not about people in frame.)
+    r"group|groups|crowd|crowds|crew|squad|troupe|strangers"
+    r")\b",
+    re.I,
+)
+
+# Subset signalling a small group rather than exactly one other person. Event
+# nouns like "wedding"/"party" are deliberately excluded — a couple dancing at
+# their own wedding is a pair, not a crowd.
+_GROUP_RE = re.compile(
+    r"\b("
+    r"group|groups|friends|friend\s+group|crew|squad|troupe|crowd|crowds|"
+    r"festival|festivals|carnival|parade|"
+    r"reunion|gathering|community|team|strangers|family|families"
+    r")\b",
+    re.I,
+)
+
+# Genuine aloneness — keeps solo portraits for stories about solitude and
+# individual reflection. Deliberately aloneness NOUNS only: reflective words such
+# as "contemplative" describe a mood, not the absence of other people, and would
+# otherwise suppress a second person in stories that clearly have one.
+_SOLITUDE_RE = re.compile(
+    r"\b("
+    r"alone|lonely|loneliness|solitude|solitary|solo|"
+    r"by\s+myself|on\s+my\s+own|my\s+own\s+company|"
+    r"isolated|isolation|withdrawn|unaccompanied|"
+    r"no\s+one\s+(?:else|around)|nobody\s+else"
+    r")\b",
+    re.I,
+)
+
 # Habitual stock pose the model overuses — always banned unless story says otherwise.
 _NECK_BAN = (
     "Neck and head carriage (required): keep the neck naturally aligned with the spine — "
@@ -201,8 +266,53 @@ def _story_blob(story: Story, *, story_chars: int = 900) -> str:
     )
 
 
-def _story_allows_multi_person(story: Story) -> bool:
-    return bool(_MULTI_PERSON_RE.search(_story_blob(story)))
+def _cast_scan_text(story: Story, brief_text: str | None = None) -> str:
+    """Story fields plus the STORY BRIEF, minus the brief's "Do not invent:" clause.
+
+    The brief's label naming and its "Do not invent" list are dropped because that
+    clause enumerates what must NOT appear in the frame — scanning it would invert
+    its meaning ("Do not invent: other people" would cast a second person).
+    """
+    parts = [_story_blob(story)]
+    if brief_text:
+        text = brief_text
+        marker = "Do not invent:"
+        idx = text.find(marker)
+        if idx >= 0:
+            end = text.find("\n", idx)
+            text = text[:idx] + (text[end:] if end >= 0 else "")
+        # Drop the "STORY BRIEF (...)/STORY ANALYSIS (...)" label line too — its
+        # parenthetical mentions the story type, not a person.
+        text = re.sub(r"\bSTORY (?:BRIEF|ANALYSIS) \([^)]*\):", " ", text)
+        parts.append(text)
+    return " ".join(p for p in parts if p)
+
+
+def _distinct_matches(pattern: re.Pattern[str], text: str) -> set[str]:
+    return {m.group(0).lower() for m in pattern.finditer(text)}
+
+
+def _cast_mode(story: Story, brief_text: str | None = None) -> str:
+    """Portrait cast size: ``"solo"``, ``"pair"``, or ``"group"``.
+
+    Explicit partner/intimacy wording (``_MULTI_PERSON_RE``) still wins, but is now
+    joined by the broader connection lexicon. Genuine aloneness outweighs both, so
+    "alone, remembering my husband" stays a solo portrait.
+    """
+    text = _cast_scan_text(story, brief_text)
+    explicit = bool(_MULTI_PERSON_RE.search(text))
+    connection = _distinct_matches(_CONNECTION_RE, text)
+    solitude = _distinct_matches(_SOLITUDE_RE, text)
+
+    if len(solitude) > len(connection):
+        return "solo"
+    if explicit or len(connection) > len(solitude):
+        return "group" if _distinct_matches(_GROUP_RE, text) else "pair"
+    return "solo"
+
+
+def _story_allows_multi_person(story: Story, brief_text: str | None = None) -> bool:
+    return _cast_mode(story, brief_text) != "solo"
 
 
 def _story_wants_semi_explicit(story: Story) -> bool:
@@ -530,15 +640,33 @@ def portrait_scene_detail(story: Story) -> str:
     return text
 
 
-def portrait_cast_instruction(story: Story) -> str:
-    """Solo vs multi-person cast from the story text."""
-    if _story_allows_multi_person(story):
+def portrait_cast_instruction(
+    story: Story,
+    *,
+    brief_text: str | None = None,
+    cast_mode: str | None = None,
+) -> str:
+    """Solo vs pair vs small-group cast from the story text and STORY BRIEF."""
+    mode = cast_mode or _cast_mode(story, brief_text)
+
+    if mode == "group":
         return (
-            "Cast (story-required): Include a second person when the story involves "
-            "a partner or shared moment — visible interaction (embrace, conversation, "
-            "walking together, sitting close). The narrator remains the primary subject "
-            "and stays fully readable in frame; the other person may be partial, behind, "
-            "or secondary. Do not invent a crowd."
+            "Cast (story-required): Include a small group — the narrator plus two or "
+            "three other people from the story (friends, family, or companions) sharing "
+            "the moment: laughing together, gathered around a table, walking side by "
+            "side, or celebrating as one. The narrator remains the primary subject and "
+            "stays fully readable in frame; the others may be partial, behind, or "
+            "secondary. Keep it an intimate group, not an anonymous crowd — do not fill "
+            "the frame with strangers."
+        )
+    if mode == "pair":
+        return (
+            "Cast (story-required): Include a second person when the story involves a "
+            "partner, friend, family member, or shared moment — visible interaction "
+            "(embrace, conversation, walking together, sitting close, laughing "
+            "together). The narrator remains the primary subject and stays fully "
+            "readable in frame; the other person may be partial, behind, or secondary. "
+            "Do not invent a crowd."
         )
     return (
         "Cast: Narrator alone unless the story clearly includes another person. "
@@ -701,8 +829,8 @@ def build_portrait_only_prompt(story: Story, *, use_llm_brief: bool = True) -> s
         CONFESSION_COVER_ANTI_AI_LOOK,
         CONFESSION_COVER_BRAND_COLLECTION,
         CONFESSION_COVER_ENERGY,
-        CONFESSION_COVER_PHOTOGRAPHY_LOOK,
-        CONFESSION_COVER_PHOTOGRAPHY_PORTRAIT_CLOSING,
+        CONFESSION_COVER_PHOTOGRAPHY_LOOK_V2,
+        CONFESSION_COVER_PHOTOGRAPHY_PORTRAIT_CLOSING_V2,
         CONFESSION_COVER_PORTRAIT_ENVIRONMENT,
         MEDITATION_COVER_ANTI_AI_LOOK,
         MEDITATION_COVER_BRAND_COLLECTION,
@@ -723,8 +851,8 @@ def build_portrait_only_prompt(story: Story, *, use_llm_brief: bool = True) -> s
         kind = "meditation"
     else:
         energy = CONFESSION_COVER_ENERGY
-        look = CONFESSION_COVER_PHOTOGRAPHY_LOOK
-        closing = CONFESSION_COVER_PHOTOGRAPHY_PORTRAIT_CLOSING
+        look = CONFESSION_COVER_PHOTOGRAPHY_LOOK_V2
+        closing = CONFESSION_COVER_PHOTOGRAPHY_PORTRAIT_CLOSING_V2
         environment = CONFESSION_COVER_PORTRAIT_ENVIRONMENT
         brand = CONFESSION_COVER_BRAND_COLLECTION
         anti_ai = CONFESSION_COVER_ANTI_AI_LOOK
@@ -745,19 +873,30 @@ def build_portrait_only_prompt(story: Story, *, use_llm_brief: bool = True) -> s
     mood = brief_story_mood_scene(story)
     narrative = portrait_narrative_moment(story)
     analysis = build_portrait_story_brief(story, use_llm=use_llm_brief)
-    cast = portrait_cast_instruction(story)
+    # Cast reads the brief as well as the story, so connection / friendship /
+    # shared-experience themes the brief surfaces widen the frame beyond the
+    # explicit partner-and-intimacy regexes. Computed once so the framing block
+    # and the cast block can never disagree.
+    cast_mode = _cast_mode(story, analysis)
+    cast = portrait_cast_instruction(story, cast_mode=cast_mode)
     intimacy = portrait_intimacy_instruction(story)
     pose = portrait_pose_instruction(story)
-    multi = _story_allows_multi_person(story)
+    if cast_mode == "group":
+        framing_people = (
+            "Keep the narrator dominant and the whole small group inside the frame "
+            "without awkward edge crops."
+        )
+    elif cast_mode == "pair":
+        framing_people = (
+            "When a second person is present, keep the narrator dominant and both "
+            "figures inside the frame without awkward edge crops."
+        )
+    else:
+        framing_people = "Keep the narrator clearly primary; skip random bystanders."
     framing = (
         "Compose as a 4:5 vertical photographic frame with the narrator's full head "
         "and shoulders readable and adequate headroom. "
-        + (
-            "When a second person is present, keep the narrator dominant and both "
-            "figures inside the frame without awkward edge crops."
-            if multi
-            else "Keep the narrator clearly primary; skip random bystanders."
-        )
+        + framing_people
         + " Show the aesthetic environment around them — do not crop to a face-only void."
     )
     anti_repeat = (
