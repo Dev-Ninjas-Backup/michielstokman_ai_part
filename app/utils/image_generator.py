@@ -225,7 +225,14 @@ def generate_ai_cover_image(
         }
         
         model = settings.OPENAI_IMAGE_MODEL or "dall-e-3"
-        size = "1024x1792" if model.startswith("dall-e") else "1024x1536"
+        model_lower = model.lower().strip()
+        if model_lower.startswith("dall-e-3"):
+            size = "1024x1792"
+        elif model_lower.startswith("dall-e-2"):
+            size = "1024x1024"
+        else:
+            size = "1024x1536"
+
         payload = {
             "model": model,
             "prompt": dalle_prompt,
@@ -233,10 +240,30 @@ def generate_ai_cover_image(
             "size": size
         }
         # Prefer natural (less glossy) for DALL·E 3 — matches TTL anti-AI look.
-        if model.startswith("dall-e"):
+        if model_lower.startswith("dall-e"):
             payload["style"] = "natural"
         
         resp = requests.post(url, json=payload, headers=headers, timeout=180)
+        if not resp.ok:
+            error_detail = resp.text
+            try:
+                err_json = resp.json()
+                if "error" in err_json:
+                    err_obj = err_json["error"]
+                    error_detail = (
+                        f"[{err_obj.get('code', 'error')} / {err_obj.get('type', 'api_error')}]: "
+                        f"{err_obj.get('message', resp.text)}"
+                    )
+            except Exception:
+                pass
+            logger.error(
+                "OpenAI image generation rejected (HTTP %s): %s | Model: %s, Size: %s, Prompt chars: %s",
+                resp.status_code,
+                error_detail,
+                model,
+                size,
+                len(dalle_prompt),
+            )
         resp.raise_for_status()
         data = resp.json()
         
@@ -260,5 +287,14 @@ def generate_ai_cover_image(
         return final_url, s3_key
         
     except Exception as e:
-        logger.error(f"Failed to generate and compose AI cover image: {e}", exc_info=True)
+        error_body = getattr(getattr(e, "response", None), "text", None)
+        if error_body:
+            logger.error(
+                "Failed to generate and compose AI cover image: %s — Response body: %s",
+                e,
+                error_body,
+                exc_info=True,
+            )
+        else:
+            logger.error(f"Failed to generate and compose AI cover image: {e}", exc_info=True)
         return None, None
