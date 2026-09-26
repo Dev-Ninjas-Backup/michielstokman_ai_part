@@ -226,7 +226,7 @@ Remove:
 - Dialogue
 - Repetitive sentences
 - Internal monologue that cannot be visually represented
-- Detailed sexual acts or explicit anatomical descriptions
+- Detailed sexual acts, explicit anatomical descriptions, bare skin, lingerie, or bedroom intimacy that would trigger vision safety filters
 - Minor chronological events that are not visually important
 - Exact prices, measurements, or irrelevant factual details
 - Details that would distract from the main visual concept
@@ -244,15 +244,15 @@ Return only the refined visual description.
 VISUAL_ART_DIRECTION_EXTRACTION_SYSTEM = """\
 You are an expert art director for editorial book and magazine covers.
 Given an editorial visual brief of a story, extract the visual art direction into a JSON object with these exact keys:
-- "setting": location, architecture, landscape, props, physical environment
-- "characters": who should be in the frame, their visual characteristics, age, gender, styling
+- "setting": location, architecture, landscape, props, physical environment (use public or living spaces such as lounges, terraces, cafes, streets; avoid beds/bedroom settings)
+- "characters": who should be in the frame, their visual characteristics, age, gender, styling (all subjects must be fully and tastefully clothed in elegant casual wear such as knit sweaters, jackets, or shirts)
 - "composition": spatial arrangement, who is prominent, body language, and spatial relationships
 - "mood": emotional tension, intimacy, connection, feeling
 - "lighting": time of day, season, atmosphere, lighting sources, and shadows
 - "color_palette": tones, warmth, palette notes
 - "visual_style": overall visual aesthetic, editorial photography style, and artistic treatment
 - "narrative_focus": the central visual moment that anchors the story
-- "polaroid_scene": a concise 1-2 sentence description strictly of the people, their setting, their candid action, and their facial expressions for a single Polaroid photo frame. Strictly no mentions of frames, borders, text, cameras, or collage elements.
+- "polaroid_scene": a concise 1-2 sentence description strictly of the people, their setting, their candid action, and their facial expressions for a single Polaroid photo frame. All subjects must be fully clothed in stylish casual attire (e.g. jacket, sweater, shirt). Strictly no nudity, bare skin, bare shoulders, lingerie, beds, or sexually suggestive poses. Strictly no mentions of frames, borders, text, cameras, or collage elements.
 
 Return ONLY a valid JSON object with these keys. No markdown fences, no preamble.
 """

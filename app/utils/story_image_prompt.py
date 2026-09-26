@@ -961,13 +961,16 @@ def _heuristic_v2_photograph_description(story: Story) -> str:
     location = (story.location or story.city or "").strip()
 
     if settings:
-        setting_desc = f"in an intimate, dimly lit {settings[0]}"
+        s0 = settings[0]
+        if s0 in ("bed", "bedroom", "sheets"):
+            s0 = "lounge"
+        setting_desc = f"in an intimate, dimly lit {s0}"
     elif location:
         setting_desc = f"in {location}"
     else:
         setting_desc = "in an intimate, dimly lit setting"
 
-    return f"{subjects} {action}, {setting_desc}. Relaxed conversation, subtle smiles, candid expressions. Clearly visible."
+    return f"{subjects} {action}, {setting_desc}. Fully clothed in stylish, casual attire. Relaxed conversation, subtle smiles, candid expressions. Clearly visible."
 
 
 def _heuristic_v2_visual_art_direction(
@@ -990,16 +993,18 @@ def _heuristic_v2_visual_art_direction(
     emotions_list = list(dict.fromkeys(m.group(1).lower() for m in _EMOTION_RE.finditer(blob))) if blob else []
 
     primary_setting = settings_list[0] if settings_list else "space"
+    if primary_setting in ("bed", "bedroom", "sheets"):
+        primary_setting = "lounge"
     setting_str = f"An intimate, atmospheric {primary_setting} in {location}."
 
     if cast_mode == "group":
-        characters_str = f"An adult {gender} and two close companions, styled in casual, contemporary attire."
+        characters_str = f"An adult {gender} and two close companions, fully clothed in elegant, casual attire (jackets and sweaters)."
         comp_str = "Three figures seated closely in the frame, sharing a candid moment with natural, intimate spacing."
     elif cast_mode == "pair":
-        characters_str = f"An adult {gender} and a companion sharing an intimate connection."
+        characters_str = f"An adult {gender} and a companion, fully clothed in tasteful attire, sharing an intimate connection."
         comp_str = "Two figures positioned close together, subtle body language conveying closeness and emotional resonance."
     else:
-        characters_str = f"A {age_str}{gender} in simple, evocative clothing."
+        characters_str = f"A {age_str}{gender} fully clothed in tasteful, elegant knitwear or jacket."
         comp_str = "A single figure naturally grounded in the scene, candid posture facing slightly away from the lens."
 
     lighting_str = (
