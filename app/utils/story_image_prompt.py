@@ -961,13 +961,16 @@ def _heuristic_v2_photograph_description(story: Story) -> str:
     location = (story.location or story.city or "").strip()
 
     if settings:
-        setting_desc = f"in an intimate, dimly lit {settings[0]}"
+        s0 = settings[0]
+        if s0 in ("bed", "bedroom", "sheets"):
+            s0 = "lounge"
+        setting_desc = f"in an intimate, dimly lit {s0}"
     elif location:
         setting_desc = f"in {location}"
     else:
         setting_desc = "in an intimate, dimly lit setting"
 
-    return f"{subjects} {action}, {setting_desc}. Relaxed conversation, subtle smiles, candid expressions. Clearly visible."
+    return f"{subjects} {action}, {setting_desc}. Fully clothed in stylish, casual attire. Relaxed conversation, subtle smiles, candid expressions. Clearly visible."
 
 
 def _heuristic_v2_visual_art_direction(
@@ -990,16 +993,18 @@ def _heuristic_v2_visual_art_direction(
     emotions_list = list(dict.fromkeys(m.group(1).lower() for m in _EMOTION_RE.finditer(blob))) if blob else []
 
     primary_setting = settings_list[0] if settings_list else "space"
+    if primary_setting in ("bed", "bedroom", "sheets"):
+        primary_setting = "lounge"
     setting_str = f"An intimate, atmospheric {primary_setting} in {location}."
 
     if cast_mode == "group":
-        characters_str = f"An adult {gender} and two close companions, styled in casual, contemporary attire."
+        characters_str = f"An adult {gender} and two close companions, fully clothed in elegant, casual attire (jackets and sweaters)."
         comp_str = "Three figures seated closely in the frame, sharing a candid moment with natural, intimate spacing."
     elif cast_mode == "pair":
-        characters_str = f"An adult {gender} and a companion sharing an intimate connection."
+        characters_str = f"An adult {gender} and a companion, fully clothed in tasteful attire, sharing an intimate connection."
         comp_str = "Two figures positioned close together, subtle body language conveying closeness and emotional resonance."
     else:
-        characters_str = f"A {age_str}{gender} in simple, evocative clothing."
+        characters_str = f"A {age_str}{gender} fully clothed in tasteful, elegant knitwear or jacket."
         comp_str = "A single figure naturally grounded in the scene, candid posture facing slightly away from the lens."
 
     lighting_str = (
@@ -1212,7 +1217,7 @@ def build_v2_cover_prompt(
     from app.utils.prompts import (
         V2_COVER_ANALOGUE_TREATMENT,
         V2_COVER_CLOSING_CONSTRAINTS,
-        V2_COVER_STYLE_SPEC,
+        V2_COVER_PROMPT_TEMPLATE,
     )
     from app.utils.story_cover import _description_for_story, _split_location
 
@@ -1222,14 +1227,17 @@ def build_v2_cover_prompt(
     if is_meditation:
         category_title = "Meditations"
         category_upper = "MEDITATIONS"
+        kind_singular = "meditation"
         button_label = "READ MEDITATION →"
     elif is_transformation:
         category_title = "Transformations"
         category_upper = "TRANSFORMATIONS"
+        kind_singular = "transformation"
         button_label = "READ STORY →"
     else:
         category_title = "Confessions"
         category_upper = "CONFESSIONS"
+        kind_singular = "confession"
         button_label = "READ CONFESSION →"
 
     raw_title = (story.title or story.member_title or getattr(story, "ai_generated_title", None) or "Untitled").strip()
@@ -1261,13 +1269,15 @@ def build_v2_cover_prompt(
         demo_parts.append(story.gender.strip().upper())
     if getattr(story, "sexual_orientation", None):
         demo_parts.append(story.sexual_orientation.strip().upper())
-    demographics_text = " / ".join(demo_parts)
+    demographics_text = " / ".join(demo_parts) or "ADULT"
 
-    explicit_clause = ", and a small pink outlined “EXPLICIT” label" if getattr(story, "high_intensity", False) else ""
-    if demographics_text:
-        bottom_left_str = f"Bottom left: “{location_text}”, followed by “{demographics_text}”{explicit_clause}."
+    is_explicit = bool(getattr(story, "high_intensity", False))
+    if is_explicit:
+        explicit_section = '\nAdd a small outlined raspberry-pink label:\n\n"EXPLICIT"\n'
+        explicit_bullet = "- EXPLICIT label\n"
     else:
-        bottom_left_str = f"Bottom left: “{location_text}”{explicit_clause}."
+        explicit_section = ""
+        explicit_bullet = ""
 
     if photograph_description:
         photo_desc = photograph_description.strip().rstrip(".")
@@ -1278,20 +1288,19 @@ def build_v2_cover_prompt(
 
     author_name = (story.first_name or "Anonymous").strip().upper()
 
-    prompt = (
-        f"Create a TTL {category_title} story introduction page matching the attached design. "
-        f"{V2_COVER_STYLE_SPEC} "
-        f"Layout and exact text: "
-        f"Top left: black TTL logo with a pink brush underline. "
-        f"Top right: “{category_upper}” in pink. "
-        f"Left column, large pink title: “{title}”. "
-        f"Below, black body text: “{body_text}” No subtitle. "
-        f"{bottom_left_str} "
-        f"Bottom: wide pink button reading “{button_label}” in white. "
-        f"Photograph: A large, slightly rotated Polaroid on the right. {photo_desc}. "
-        f"{V2_COVER_ANALOGUE_TREATMENT} "
-        f"Polaroid caption: “{author_name}” with “AUTHOR” underneath and a small raspberry hand-drawn heart. "
-        f"{V2_COVER_CLOSING_CONSTRAINTS}"
+    prompt = V2_COVER_PROMPT_TEMPLATE.format(
+        category_title=category_title,
+        category_upper=category_upper,
+        kind_singular=kind_singular,
+        title=title,
+        body_text=body_text,
+        location_text=location_text,
+        demographics_text=demographics_text,
+        explicit_section=explicit_section,
+        explicit_bullet=explicit_bullet,
+        button_label=button_label,
+        photo_desc=photo_desc,
+        author_name=author_name,
     )
     return prompt
 

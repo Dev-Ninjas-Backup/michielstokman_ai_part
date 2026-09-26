@@ -201,6 +201,160 @@ V2_COVER_CLOSING_CONSTRAINTS = (
     "Render the complete portrait page straight-on, without a device frame."
 )
 
+V2_COVER_PROMPT_TEMPLATE = """\
+Create a complete TTL {category_title} story introduction page using the attached client reference as the primary visual and layout reference.
+
+The final image must feel like a handmade editorial {kind_singular} page printed on warm ivory paper. Reproduce the overall visual language, hierarchy, spacing, typography relationships, Polaroid treatment, and editorial composition of the reference, while using the story-specific content provided below.
+
+DESIGN DIRECTION
+
+- Warm ivory/off-white paper background with subtle natural paper texture.
+- Generous whitespace.
+- Minimal handmade editorial aesthetic.
+- Black and raspberry pink (#D72655) are the only design colours.
+- No gradients.
+- No additional accent colours.
+- No decorative stickers or unnecessary graphic elements.
+- The page must look intentionally designed and editorial, not like a generic AI-generated poster.
+- Render the complete portrait page straight-on.
+- No phone, monitor, device frame, mockup, or surrounding background.
+
+HEADER
+
+Top left:
+- Black "TTL" logo.
+- Add a rough handmade raspberry-pink brush underline beneath the logo.
+
+Top right:
+- "{category_upper}" in raspberry pink.
+- Expressive handwritten/brush lettering.
+
+LEFT CONTENT COLUMN
+
+Large headline:
+"{title}"
+
+- Raspberry pink.
+- Large expressive brush lettering.
+- Hand-painted editorial appearance.
+- Strong visual hierarchy.
+- Do not use a conventional clean font for the headline.
+
+Below the headline:
+
+"{body_text}"
+
+- Clean black sans-serif typography.
+- No subtitle.
+- Keep the text short and visually separated from the title.
+
+BOTTOM INFORMATION AREA
+
+Location:
+"{location_text}"
+
+Details:
+"{demographics_text}"
+{explicit_section}
+Use clean, restrained sans-serif typography for these details.
+
+BOTTOM CTA
+
+Create a wide raspberry-pink rectangular button across the lower portion of the page.
+
+Button text:
+
+"{button_label}"
+
+- White clean sans-serif lettering.
+- Minimal editorial button treatment.
+- Do not add extra icons or decorative elements.
+
+PHOTOGRAPH / POLAROID
+
+Place one large Polaroid photograph on the right side of the composition.
+
+The Polaroid should be slightly rotated, naturally overlapping the page while maintaining the clean editorial layout.
+
+Inside the Polaroid:
+
+{photo_desc}
+
+Do not depict explicit sexual activity.
+Do not depict nudity.
+Do not create pornographic imagery.
+The intimacy should be communicated through facial expressions, proximity, eye contact, and body language.
+
+PHOTOGRAPHIC STYLE
+
+The photograph inside the Polaroid must be strictly monochrome black-and-white.
+
+Use an authentic vintage 35mm analogue snapshot aesthetic:
+
+- organic film grain
+- visible but natural photographic texture
+- soft focus
+- slightly faded blacks
+- muted contrast
+- gentle highlight bloom
+- subtle dust
+- very fine film scratches
+- imperfect analogue exposure
+- realistic vintage photographic character
+
+Avoid:
+- polished digital photography
+- glossy commercial photography
+- stock-photo appearance
+- oversaturated colours
+- modern HDR
+- excessive sharpness
+- artificial cinematic effects
+- plastic-looking skin
+- AI-looking faces
+
+The photograph should feel like a real personal snapshot discovered inside an old confession archive.
+
+POLAROID CAPTION
+
+At the bottom white border of the Polaroid:
+
+"{author_name}"
+
+Directly underneath:
+
+"AUTHOR"
+
+Add a small hand-drawn raspberry-pink heart beside the author name.
+
+Keep the photograph itself completely black-and-white. The raspberry pink should appear only in the page's graphic elements and the small heart.
+
+OVERALL COMPOSITION
+
+The composition should strongly resemble the attached client reference:
+
+- TTL branding at the top left
+- {category_upper} at the top right
+- large handwritten raspberry headline on the left
+- concise black story introduction beneath it
+- large Polaroid photograph dominating the right side
+- author caption integrated into the Polaroid
+- metadata near the bottom left
+{explicit_bullet}- wide {button_label} button at the bottom
+
+Maintain generous whitespace and a premium editorial balance.
+
+The final result should look like a professionally designed TTL {category_title} introduction page, not a generic AI poster.
+
+IMPORTANT:
+Prioritize the provided client reference for visual composition and design language.
+Use the story information only to determine the people, setting, atmosphere, and emotional tone.
+Do not add unnecessary story text.
+Do not change the required UI text.
+Do not introduce additional colours or decorative elements.
+"""
+
+
 # Step 1 of V2: Clean story-to-visual-art-direction editor prompt
 STORY_VISUAL_REFINEMENT_SYSTEM = """\
 You are an editorial story-to-visual-art-direction editor.
@@ -226,7 +380,7 @@ Remove:
 - Dialogue
 - Repetitive sentences
 - Internal monologue that cannot be visually represented
-- Detailed sexual acts or explicit anatomical descriptions
+- Detailed sexual acts, explicit anatomical descriptions, bare skin, lingerie, or bedroom intimacy that would trigger vision safety filters
 - Minor chronological events that are not visually important
 - Exact prices, measurements, or irrelevant factual details
 - Details that would distract from the main visual concept
@@ -244,15 +398,15 @@ Return only the refined visual description.
 VISUAL_ART_DIRECTION_EXTRACTION_SYSTEM = """\
 You are an expert art director for editorial book and magazine covers.
 Given an editorial visual brief of a story, extract the visual art direction into a JSON object with these exact keys:
-- "setting": location, architecture, landscape, props, physical environment
-- "characters": who should be in the frame, their visual characteristics, age, gender, styling
+- "setting": location, architecture, landscape, props, physical environment (use public or living spaces such as lounges, terraces, cafes, streets; avoid beds/bedroom settings)
+- "characters": who should be in the frame, their visual characteristics, age, gender, styling (all subjects must be fully and tastefully clothed in elegant casual wear such as knit sweaters, jackets, or shirts)
 - "composition": spatial arrangement, who is prominent, body language, and spatial relationships
 - "mood": emotional tension, intimacy, connection, feeling
 - "lighting": time of day, season, atmosphere, lighting sources, and shadows
 - "color_palette": tones, warmth, palette notes
 - "visual_style": overall visual aesthetic, editorial photography style, and artistic treatment
 - "narrative_focus": the central visual moment that anchors the story
-- "polaroid_scene": a concise 1-2 sentence description strictly of the people, their setting, their candid action, and their facial expressions for a single Polaroid photo frame. Strictly no mentions of frames, borders, text, cameras, or collage elements.
+- "polaroid_scene": a concise 1-2 sentence description strictly of the people, their setting, their candid action, and their facial expressions for a single Polaroid photo frame. All subjects must be fully clothed in stylish casual attire (e.g. jacket, sweater, shirt). Strictly no nudity, bare skin, bare shoulders, lingerie, beds, or sexually suggestive poses. Strictly no mentions of frames, borders, text, cameras, or collage elements.
 
 Return ONLY a valid JSON object with these keys. No markdown fences, no preamble.
 """
