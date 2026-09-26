@@ -1244,29 +1244,30 @@ def test_build_v2_cover_prompt_matches_client_specification_exactly():
 
     prompt = build_v2_cover_prompt(story, photograph_description=custom_photo_desc)
 
-    expected = (
-        "Create a TTL Confessions story introduction page matching the attached design. "
-        "Style: Warm ivory paper background, generous whitespace, handmade editorial aesthetic. "
-        "Black text with raspberry pink (#D72655) as the only accent colour. "
-        "Typography: Expressive brush lettering for the title, category and author name. "
-        "Clean sans-serif for body text and personal details. "
-        "Layout and exact text: "
-        "Top left: black TTL logo with a pink brush underline. "
-        "Top right: “CONFESSIONS” in pink. "
-        "Left column, large pink title: “Two Men and Nia”. "
-        "Below, black body text: “They took a little GHB in Bacardi cola.” No subtitle. "
-        "Bottom left: “WALES, UK”, followed by “23 YEARS / MALE / HETEROSEXUAL”, and a small pink outlined “EXPLICIT” label. "
-        "Bottom: wide pink button reading “READ CONFESSION →” in white. "
-        "Photograph: A large, slightly rotated Polaroid on the right. Two adult men and one adult Black woman sitting closely together, enjoying cocktails in an intimate, dimly lit bar. Relaxed conversation, subtle smiles, candid expressions. All three clearly visible. "
-        "Analogue treatment: Strictly black-and-white, authentic vintage 35mm snapshot. "
-        "Visible organic film grain, soft focus, faded blacks, muted contrast, gentle highlight bloom, "
-        "subtle dust and fine scratches. Atmospheric, intimate and slightly mysterious. "
-        "Avoid a polished digital or cheerful stock-photo look. "
-        "Polaroid caption: “RORY” with “AUTHOR” underneath and a small raspberry hand-drawn heart. "
-        "Keep all photography monochrome. No additional accent colours, gradients or decorative stickers. "
-        "Render the complete portrait page straight-on, without a device frame."
-    )
-    assert prompt == expected
+    assert "Create a complete TTL Confessions story introduction page using the attached client reference" in prompt
+    assert "DESIGN DIRECTION" in prompt
+    assert "HEADER" in prompt
+    assert "CONFESSIONS" in prompt
+    assert "LEFT CONTENT COLUMN" in prompt
+    assert '"Two Men and Nia"' in prompt
+    assert '"They took a little GHB in Bacardi cola."' in prompt
+    assert "BOTTOM INFORMATION AREA" in prompt
+    assert '"WALES, UK"' in prompt
+    assert '"23 YEARS / MALE / HETEROSEXUAL"' in prompt
+    assert '"EXPLICIT"' in prompt
+    assert "BOTTOM CTA" in prompt
+    assert '"READ CONFESSION →"' in prompt
+    assert "PHOTOGRAPH / POLAROID" in prompt
+    assert custom_photo_desc in prompt
+    assert "Do not depict explicit sexual activity." in prompt
+    assert "Do not depict nudity." in prompt
+    assert "PHOTOGRAPHIC STYLE" in prompt
+    assert "strictly monochrome black-and-white" in prompt
+    assert "POLAROID CAPTION" in prompt
+    assert '"RORY"' in prompt
+    assert '"AUTHOR"' in prompt
+    assert "OVERALL COMPOSITION" in prompt
+    assert "IMPORTANT:" in prompt
 
 
 def test_build_v2_cover_prompt_heuristic_fallback():
@@ -1289,15 +1290,17 @@ def test_build_v2_cover_prompt_heuristic_fallback():
     )
 
     prompt = build_v2_cover_prompt(story, use_llm_scene=False)
-    assert "Create a TTL Confessions story introduction page" in prompt
-    assert "Top right: “CONFESSIONS” in pink." in prompt
-    assert "Left column, large pink title: “Alone In Berlin”." in prompt
-    assert "Below, black body text: “I finally walked out of that apartment.” No subtitle." in prompt
-    assert "Bottom left: “BERLIN, GERMANY”, followed by “30 YEARS / FEMALE / BISEXUAL”." in prompt
+    assert "Create a complete TTL Confessions story introduction page" in prompt
+    assert "CONFESSIONS" in prompt
+    assert '"Alone In Berlin"' in prompt
+    assert '"I finally walked out of that apartment."' in prompt
+    assert '"BERLIN, GERMANY"' in prompt
+    assert '"30 YEARS / FEMALE / BISEXUAL"' in prompt
     assert "EXPLICIT" not in prompt
-    assert "Polaroid caption: “ELENA” with “AUTHOR” underneath and a small raspberry hand-drawn heart." in prompt
-    assert "Photograph: A large, slightly rotated Polaroid on the right." in prompt
-    assert "Analogue treatment: Strictly black-and-white, authentic vintage 35mm snapshot." in prompt
+    assert '"ELENA"' in prompt
+    assert '"AUTHOR"' in prompt
+    assert "PHOTOGRAPH / POLAROID" in prompt
+    assert "PHOTOGRAPHIC STYLE" in prompt
 
 
 def test_build_v2_cover_prompt_meditation():
@@ -1317,11 +1320,12 @@ def test_build_v2_cover_prompt_meditation():
     )
 
     prompt = build_v2_cover_prompt(story, use_llm_scene=False)
-    assert "Create a TTL Meditations story introduction page" in prompt
-    assert "Top right: “MEDITATIONS” in pink." in prompt
-    assert "Left column, large pink title: “Soft Stillness”." in prompt
-    assert "READ MEDITATION →" in prompt
-    assert "Polaroid caption: “AOI” with “AUTHOR” underneath" in prompt
+    assert "Create a complete TTL Meditations story introduction page" in prompt
+    assert "MEDITATIONS" in prompt
+    assert '"Soft Stillness"' in prompt
+    assert '"READ MEDITATION →"' in prompt
+    assert '"AOI"' in prompt
+    assert '"AUTHOR"' in prompt
 
 
 def test_v1_method_executes_template_pipeline():

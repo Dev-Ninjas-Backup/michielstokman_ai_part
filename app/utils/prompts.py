@@ -201,6 +201,160 @@ V2_COVER_CLOSING_CONSTRAINTS = (
     "Render the complete portrait page straight-on, without a device frame."
 )
 
+V2_COVER_PROMPT_TEMPLATE = """\
+Create a complete TTL {category_title} story introduction page using the attached client reference as the primary visual and layout reference.
+
+The final image must feel like a handmade editorial {kind_singular} page printed on warm ivory paper. Reproduce the overall visual language, hierarchy, spacing, typography relationships, Polaroid treatment, and editorial composition of the reference, while using the story-specific content provided below.
+
+DESIGN DIRECTION
+
+- Warm ivory/off-white paper background with subtle natural paper texture.
+- Generous whitespace.
+- Minimal handmade editorial aesthetic.
+- Black and raspberry pink (#D72655) are the only design colours.
+- No gradients.
+- No additional accent colours.
+- No decorative stickers or unnecessary graphic elements.
+- The page must look intentionally designed and editorial, not like a generic AI-generated poster.
+- Render the complete portrait page straight-on.
+- No phone, monitor, device frame, mockup, or surrounding background.
+
+HEADER
+
+Top left:
+- Black "TTL" logo.
+- Add a rough handmade raspberry-pink brush underline beneath the logo.
+
+Top right:
+- "{category_upper}" in raspberry pink.
+- Expressive handwritten/brush lettering.
+
+LEFT CONTENT COLUMN
+
+Large headline:
+"{title}"
+
+- Raspberry pink.
+- Large expressive brush lettering.
+- Hand-painted editorial appearance.
+- Strong visual hierarchy.
+- Do not use a conventional clean font for the headline.
+
+Below the headline:
+
+"{body_text}"
+
+- Clean black sans-serif typography.
+- No subtitle.
+- Keep the text short and visually separated from the title.
+
+BOTTOM INFORMATION AREA
+
+Location:
+"{location_text}"
+
+Details:
+"{demographics_text}"
+{explicit_section}
+Use clean, restrained sans-serif typography for these details.
+
+BOTTOM CTA
+
+Create a wide raspberry-pink rectangular button across the lower portion of the page.
+
+Button text:
+
+"{button_label}"
+
+- White clean sans-serif lettering.
+- Minimal editorial button treatment.
+- Do not add extra icons or decorative elements.
+
+PHOTOGRAPH / POLAROID
+
+Place one large Polaroid photograph on the right side of the composition.
+
+The Polaroid should be slightly rotated, naturally overlapping the page while maintaining the clean editorial layout.
+
+Inside the Polaroid:
+
+{photo_desc}
+
+Do not depict explicit sexual activity.
+Do not depict nudity.
+Do not create pornographic imagery.
+The intimacy should be communicated through facial expressions, proximity, eye contact, and body language.
+
+PHOTOGRAPHIC STYLE
+
+The photograph inside the Polaroid must be strictly monochrome black-and-white.
+
+Use an authentic vintage 35mm analogue snapshot aesthetic:
+
+- organic film grain
+- visible but natural photographic texture
+- soft focus
+- slightly faded blacks
+- muted contrast
+- gentle highlight bloom
+- subtle dust
+- very fine film scratches
+- imperfect analogue exposure
+- realistic vintage photographic character
+
+Avoid:
+- polished digital photography
+- glossy commercial photography
+- stock-photo appearance
+- oversaturated colours
+- modern HDR
+- excessive sharpness
+- artificial cinematic effects
+- plastic-looking skin
+- AI-looking faces
+
+The photograph should feel like a real personal snapshot discovered inside an old confession archive.
+
+POLAROID CAPTION
+
+At the bottom white border of the Polaroid:
+
+"{author_name}"
+
+Directly underneath:
+
+"AUTHOR"
+
+Add a small hand-drawn raspberry-pink heart beside the author name.
+
+Keep the photograph itself completely black-and-white. The raspberry pink should appear only in the page's graphic elements and the small heart.
+
+OVERALL COMPOSITION
+
+The composition should strongly resemble the attached client reference:
+
+- TTL branding at the top left
+- {category_upper} at the top right
+- large handwritten raspberry headline on the left
+- concise black story introduction beneath it
+- large Polaroid photograph dominating the right side
+- author caption integrated into the Polaroid
+- metadata near the bottom left
+{explicit_bullet}- wide {button_label} button at the bottom
+
+Maintain generous whitespace and a premium editorial balance.
+
+The final result should look like a professionally designed TTL {category_title} introduction page, not a generic AI poster.
+
+IMPORTANT:
+Prioritize the provided client reference for visual composition and design language.
+Use the story information only to determine the people, setting, atmosphere, and emotional tone.
+Do not add unnecessary story text.
+Do not change the required UI text.
+Do not introduce additional colours or decorative elements.
+"""
+
+
 # Step 1 of V2: Clean story-to-visual-art-direction editor prompt
 STORY_VISUAL_REFINEMENT_SYSTEM = """\
 You are an editorial story-to-visual-art-direction editor.
