@@ -167,6 +167,8 @@ def generate_ai_cover_image(
     author_name: str,
     image_prompt: str,
     gender: str | None = None,
+    *,
+    lock_identity: bool = True,
 ) -> tuple[str, str] | tuple[None, None]:
     """
     Calls DALL-E 3 to generate the background image, applies the Pillow overlay,
@@ -190,11 +192,14 @@ def generate_ai_cover_image(
     else:
         subtitle = f"A journey by {cleaned_author}"
 
-    dalle_prompt = prepend_cover_identity_lock(
-        image_prompt,
-        author_name=cleaned_author,
-        gender=gender,
-    )
+    if lock_identity:
+        dalle_prompt = prepend_cover_identity_lock(
+            image_prompt,
+            author_name=cleaned_author,
+            gender=gender,
+        )
+    else:
+        dalle_prompt = image_prompt.strip()
 
     model = settings.OPENAI_IMAGE_MODEL or "dall-e-3"
     prompt_limit = _image_prompt_char_limit(model)

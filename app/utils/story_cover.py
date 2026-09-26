@@ -1,18 +1,19 @@
-"""Cover generation router — DALL-E collage vs HTML cover_template + portrait.
+"""Cover generation router — DALL-E collage vs HTML cover_template (V1) vs Editorial Polaroid (V2).
 
 Controlled by ``COVER_GENERATION_METHOD`` (default ``dalle``).
 
-- ``dalle``    → unchanged path in ``story_image_prompt.try_generate_story_cover``
-                 (Grok IMAGE_PROMPT / P2 full-collage + ``generate_ai_cover_image``).
-                 Sets ``image_source=ai_generated``.
-- ``template`` → for *confession* and *meditation* stories:
-                 1) portrait-only OpenAI Image API prompt (``build_portrait_only_prompt``)
-                 2) Playwright ``cover_template`` with that photo in the tear-hole slot
-                 Sets ``image_source=template_v1``.
-                 Other story types still use the DALL-E collage path.
+- ``dalle``            → legacy full-collage path in ``story_image_prompt.try_generate_story_cover``
+                         (Grok IMAGE_PROMPT / P2 full-collage + ``generate_ai_cover_image``).
+                         Sets ``image_source=ai_generated``.
+- ``v1`` / ``template``→ HTML cover_template with Playwright (V1):
+                         1) portrait-only OpenAI Image API prompt (``build_portrait_only_prompt``)
+                         2) Playwright ``cover_template`` with that photo in the tear-hole slot
+                         Sets ``image_source=template_v1``.
+- ``v2``               → Direct AI editorial Polaroid cover prompt (V2):
+                         Single-shot prompt to OpenAI Image API matching handmade editorial design.
+                         Sets ``image_source=template_v2``.
 
-Product preference: HTML template + OpenAI portrait in the photo hole (client-approved).
-Flip the env var back to ``dalle`` at any time to restore full-collage covers.
+Flip the env var between ``v1``, ``v2``, and ``dalle`` at any time.
 """
 from __future__ import annotations
 
@@ -46,22 +47,46 @@ SUBTITLE_MAX_VISUAL_LINES = 2
 
 COVER_METHOD_DALLE = "dalle"
 COVER_METHOD_TEMPLATE = "template"
-# Logged / stored marker for the HTML pipeline (image_source enum value).
+COVER_METHOD_V1 = "v1"
+COVER_METHOD_V2 = "v2"
+# Logged / stored markers for the pipelines (image_source enum values).
 TEMPLATE_SOURCE_LABEL = "template_v1"
+V2_SOURCE_LABEL = "template_v2"
 
 
 def cover_generation_method() -> str:
-    """Normalized pipeline selector: ``dalle`` (default) or ``template``."""
+    """Normalized pipeline selector: ``v1``/``template``, ``v2``, or ``dalle``."""
     return settings.COVER_GENERATION_METHOD
 
 
+def is_v1_method(method: str | None = None) -> bool:
+    """True when method specifies the V1 HTML cover_template pipeline."""
+    m = (method if method is not None else cover_generation_method()).strip().lower()
+    return m in (COVER_METHOD_V1, COVER_METHOD_TEMPLATE)
+
+
+def is_v2_method(method: str | None = None) -> bool:
+    """True when method specifies the V2 direct editorial prompt pipeline."""
+    m = (method if method is not None else cover_generation_method()).strip().lower()
+    return m == COVER_METHOD_V2
+
+
 def uses_template_pipeline(story: Story | None = None) -> bool:
-    """True when this story should render via cover_template."""
-    if cover_generation_method() != COVER_METHOD_TEMPLATE:
+    """True when this story should render via cover_template (V1)."""
+    if not is_v1_method():
         return False
     if story is None:
         return True
     # Template chrome is shared; confession + meditation get type-specific portraits.
+    return story.story_type in (StoryType.confession, StoryType.meditation)
+
+
+def uses_v2_pipeline(story: Story | None = None) -> bool:
+    """True when this story should render via the V2 direct editorial prompt pipeline."""
+    if not is_v2_method():
+        return False
+    if story is None:
+        return True
     return story.story_type in (StoryType.confession, StoryType.meditation)
 
 
@@ -698,6 +723,67 @@ def _generate_template_cover(
         _apply_admin_default_cover(db, story)
 
 
+def _generate_v2_cover(
+    db: Session,
+    story: Story,
+    *,
+    allow_admin_fallback: bool,
+) -> None:
+    """Direct editorial Polaroid cover prompt → OpenAI Images → S3; image_source=template_v2."""
+    from app.utils.image_generator import generate_ai_cover_image
+    from app.utils.s3 import delete_s3_object
+    from app.utils.story_image_prompt import _apply_admin_default_cover, build_v2_cover_prompt
+
+    if not settings.OPENAI_API_KEY:
+        logger.warning(
+            "COVER_GENERATION_METHOD=v2 but OPENAI_API_KEY missing — "
+            "falling back to admin default for story %s",
+            story.id,
+        )
+        if allow_admin_fallback:
+            _apply_admin_default_cover(db, story)
+        return
+
+    prompt = build_v2_cover_prompt(story)
+    story.image_prompt = prompt
+    logger.info(
+        "Cover method=v2 story=%s type=%s author=%s title=%r prompt_words=%s",
+        story.id,
+        story.story_type.value if story.story_type else None,
+        story.first_name,
+        story.title,
+        len(prompt.split()),
+    )
+
+    previous_key = story.cover_image_key
+    cover_url, cover_key = generate_ai_cover_image(
+        title=_active_title(story),
+        story_type=story.story_type.value if story.story_type else "confession",
+        author_name=(story.first_name or "Anonymous").strip() or "Anonymous",
+        image_prompt=prompt,
+        gender=story.gender,
+        lock_identity=False,
+    )
+
+    if cover_url:
+        story.cover_image_url = cover_url
+        story.cover_image_key = cover_key
+        story.image_source = ImageSource.template_v2
+        logger.info(
+            "Cover saved method=v2 image_source=%s story=%s key=%s",
+            ImageSource.template_v2.value,
+            story.id,
+            cover_key,
+        )
+        if previous_key and previous_key != cover_key:
+            delete_s3_object(previous_key)
+        return
+
+    logger.warning("V2 cover generation returned None for story %s", story.id)
+    if allow_admin_fallback:
+        _apply_admin_default_cover(db, story)
+
+
 def try_generate_story_cover(
     db: Session,
     story: Story,
@@ -718,6 +804,12 @@ def try_generate_story_cover(
         and story.cover_image_url
         and not replace_member_cover
     ):
+        return
+
+    if uses_v2_pipeline(story):
+        _generate_v2_cover(
+            db, story, allow_admin_fallback=allow_admin_fallback
+        )
         return
 
     if uses_template_pipeline(story):

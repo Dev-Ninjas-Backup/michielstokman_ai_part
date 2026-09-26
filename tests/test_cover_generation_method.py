@@ -1192,3 +1192,190 @@ def test_image_generator_guard_trims_only_for_dalle_models():
                     assert len(sent_prompt) > 7000
                     # gpt-image models must not send the dall-e "style" param.
                     assert "style" not in post.call_args.kwargs["json"]
+
+
+def test_v1_and_v2_cover_generation_method_routing():
+    with patch.object(story_cover.settings, "COVER_GENERATION_METHOD", "v1"):
+        assert story_cover.is_v1_method() is True
+        assert story_cover.is_v2_method() is False
+        assert story_cover.uses_template_pipeline(_story()) is True
+        assert story_cover.uses_v2_pipeline(_story()) is False
+
+    with patch.object(story_cover.settings, "COVER_GENERATION_METHOD", "template"):
+        assert story_cover.is_v1_method() is True
+        assert story_cover.is_v2_method() is False
+        assert story_cover.uses_template_pipeline(_story()) is True
+        assert story_cover.uses_v2_pipeline(_story()) is False
+
+    with patch.object(story_cover.settings, "COVER_GENERATION_METHOD", "v2"):
+        assert story_cover.is_v1_method() is False
+        assert story_cover.is_v2_method() is True
+        assert story_cover.uses_template_pipeline(_story()) is False
+        assert story_cover.uses_v2_pipeline(_story()) is True
+
+    with patch.object(story_cover.settings, "COVER_GENERATION_METHOD", "dalle"):
+        assert story_cover.is_v1_method() is False
+        assert story_cover.is_v2_method() is False
+        assert story_cover.uses_template_pipeline(_story()) is False
+        assert story_cover.uses_v2_pipeline(_story()) is False
+
+
+def test_build_v2_cover_prompt_matches_client_specification_exactly():
+    from app.utils.story_image_prompt import build_v2_cover_prompt
+
+    story = _story(
+        story_type=StoryType.confession,
+        title="Two Men and Nia",
+        hero_hook="They took a little GHB in Bacardi cola.",
+        location="Wales, UK",
+        city="Wales",
+        country="UK",
+        age=23,
+        gender="male",
+        sexual_orientation="heterosexual",
+        high_intensity=True,
+        first_name="Rory",
+    )
+    custom_photo_desc = (
+        "Two adult men and one adult Black woman sitting closely together, "
+        "enjoying cocktails in an intimate, dimly lit bar. Relaxed conversation, "
+        "subtle smiles, candid expressions. All three clearly visible"
+    )
+
+    prompt = build_v2_cover_prompt(story, photograph_description=custom_photo_desc)
+
+    expected = (
+        "Create a TTL Confessions story introduction page matching the attached design. "
+        "Style: Warm ivory paper background, generous whitespace, handmade editorial aesthetic. "
+        "Black text with raspberry pink (#D72655) as the only accent colour. "
+        "Typography: Expressive brush lettering for the title, category and author name. "
+        "Clean sans-serif for body text and personal details. "
+        "Layout and exact text: "
+        "Top left: black TTL logo with a pink brush underline. "
+        "Top right: “CONFESSIONS” in pink. "
+        "Left column, large pink title: “Two Men and Nia”. "
+        "Below, black body text: “They took a little GHB in Bacardi cola.” No subtitle. "
+        "Bottom left: “WALES, UK”, followed by “23 YEARS / MALE / HETEROSEXUAL”, and a small pink outlined “EXPLICIT” label. "
+        "Bottom: wide pink button reading “READ CONFESSION →” in white. "
+        "Photograph: A large, slightly rotated Polaroid on the right. Two adult men and one adult Black woman sitting closely together, enjoying cocktails in an intimate, dimly lit bar. Relaxed conversation, subtle smiles, candid expressions. All three clearly visible. "
+        "Analogue treatment: Strictly black-and-white, authentic vintage 35mm snapshot. "
+        "Visible organic film grain, soft focus, faded blacks, muted contrast, gentle highlight bloom, "
+        "subtle dust and fine scratches. Atmospheric, intimate and slightly mysterious. "
+        "Avoid a polished digital or cheerful stock-photo look. "
+        "Polaroid caption: “RORY” with “AUTHOR” underneath and a small raspberry hand-drawn heart. "
+        "Keep all photography monochrome. No additional accent colours, gradients or decorative stickers. "
+        "Render the complete portrait page straight-on, without a device frame."
+    )
+    assert prompt == expected
+
+
+def test_build_v2_cover_prompt_heuristic_fallback():
+    from app.utils.story_image_prompt import build_v2_cover_prompt
+
+    story = _story(
+        story_type=StoryType.confession,
+        title="Alone In Berlin",
+        hero_hook="I finally walked out of that apartment.",
+        location="Berlin, Germany",
+        city="Berlin",
+        country="Germany",
+        age=30,
+        gender="female",
+        sexual_orientation="bisexual",
+        high_intensity=False,
+        first_name="Elena",
+        situation="Standing alone by the doorway at night.",
+        story_text="A quiet night in Berlin.",
+    )
+
+    prompt = build_v2_cover_prompt(story, use_llm_scene=False)
+    assert "Create a TTL Confessions story introduction page" in prompt
+    assert "Top right: “CONFESSIONS” in pink." in prompt
+    assert "Left column, large pink title: “Alone In Berlin”." in prompt
+    assert "Below, black body text: “I finally walked out of that apartment.” No subtitle." in prompt
+    assert "Bottom left: “BERLIN, GERMANY”, followed by “30 YEARS / FEMALE / BISEXUAL”." in prompt
+    assert "EXPLICIT" not in prompt
+    assert "Polaroid caption: “ELENA” with “AUTHOR” underneath and a small raspberry hand-drawn heart." in prompt
+    assert "Photograph: A large, slightly rotated Polaroid on the right." in prompt
+    assert "Analogue treatment: Strictly black-and-white, authentic vintage 35mm snapshot." in prompt
+
+
+def test_build_v2_cover_prompt_meditation():
+    from app.utils.story_image_prompt import build_v2_cover_prompt
+
+    story = _meditation_story(
+        title="Soft Stillness",
+        hero_hook="Returning to the breath in morning light.",
+        location="Kyoto, Japan",
+        city="Kyoto",
+        country="Japan",
+        age=35,
+        gender="female",
+        sexual_orientation=None,
+        high_intensity=False,
+        first_name="Aoi",
+    )
+
+    prompt = build_v2_cover_prompt(story, use_llm_scene=False)
+    assert "Create a TTL Meditations story introduction page" in prompt
+    assert "Top right: “MEDITATIONS” in pink." in prompt
+    assert "Left column, large pink title: “Soft Stillness”." in prompt
+    assert "READ MEDITATION →" in prompt
+    assert "Polaroid caption: “AOI” with “AUTHOR” underneath" in prompt
+
+
+def test_v1_method_executes_template_pipeline():
+    story = _story()
+    db = MagicMock()
+    with patch.object(story_cover.settings, "COVER_GENERATION_METHOD", "v1"):
+        with patch.object(story_cover.settings, "OPENAI_API_KEY", "sk-test"):
+            with patch(
+                "app.utils.story_image_prompt.build_portrait_only_prompt",
+                return_value="portrait only prompt",
+            ):
+                with patch(
+                    "app.utils.image_generator.generate_ai_cover_image",
+                    return_value=("https://cdn/portrait.jpg", "images/portrait.jpg"),
+                ):
+                    with patch(
+                        "app.cover_template.render.render_cover_png_sync",
+                        return_value=b"fake-png",
+                    ) as render:
+                        with patch(
+                            "app.utils.s3.upload_image_to_s3",
+                            return_value=("https://cdn/cover.png", "images/cover.png"),
+                        ):
+                            with patch("app.utils.s3.delete_s3_object"):
+                                story_cover.try_generate_story_cover(
+                                    db, story, image_prompt=None
+                                )
+                                render.assert_called_once()
+                                assert story.image_source == ImageSource.template_v1
+
+
+def test_v2_method_executes_v2_editorial_prompt_pipeline():
+    story = _story()
+    db = MagicMock()
+    with patch.object(story_cover.settings, "COVER_GENERATION_METHOD", "v2"):
+        with patch.object(story_cover.settings, "OPENAI_API_KEY", "sk-test"):
+            with patch(
+                "app.utils.story_image_prompt.build_v2_cover_prompt",
+                return_value="V2 editorial prompt test",
+            ) as mock_prompt:
+                with patch(
+                    "app.utils.image_generator.generate_ai_cover_image",
+                    return_value=("https://cdn/v2_cover.jpg", "images/v2_cover.jpg"),
+                ) as mock_gen:
+                    with patch("app.cover_template.render.render_cover_png_sync") as render:
+                        story_cover.try_generate_story_cover(
+                            db, story, image_prompt=None
+                        )
+                        mock_prompt.assert_called_once_with(story)
+                        mock_gen.assert_called_once()
+                        assert mock_gen.call_args.kwargs["image_prompt"] == "V2 editorial prompt test"
+                        assert mock_gen.call_args.kwargs["lock_identity"] is False
+                        render.assert_not_called()
+                        assert story.image_source == ImageSource.template_v2
+                        assert story.cover_image_url == "https://cdn/v2_cover.jpg"
+                        assert story.cover_image_key == "images/v2_cover.jpg"
+
