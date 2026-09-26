@@ -201,6 +201,62 @@ V2_COVER_CLOSING_CONSTRAINTS = (
     "Render the complete portrait page straight-on, without a device frame."
 )
 
+# Step 1 of V2: Clean story-to-visual-art-direction editor prompt
+STORY_VISUAL_REFINEMENT_SYSTEM = """\
+You are an editorial story-to-visual-art-direction editor.
+
+Read the provided story and create a concise visual refinement that will be used as the input for an AI image-generation model.
+
+Your goal is NOT to rewrite the story or summarize every event.
+
+Instead, identify the strongest visual and emotional elements that should influence the generated image.
+
+Preserve:
+- The main character and their relevant visual characteristics
+- Important supporting characters
+- The primary location and environment
+- Time of day, season, and atmosphere
+- The central relationship or interaction
+- The emotional tension and mood
+- Important objects, clothing, architecture, or environmental details
+- Distinctive visual elements that make this story recognizable
+- The overall narrative feeling
+
+Remove:
+- Dialogue
+- Repetitive sentences
+- Internal monologue that cannot be visually represented
+- Detailed sexual acts or explicit anatomical descriptions
+- Minor chronological events that are not visually important
+- Exact prices, measurements, or irrelevant factual details
+- Details that would distract from the main visual concept
+
+Do not invent major story elements that are not present in the source.
+
+Prioritize visual storytelling over plot summary.
+
+The result should read like a concise editorial visual brief: cinematic, specific, atmospheric, and easy for an image-generation model to interpret.
+
+Return only the refined visual description.
+"""
+
+# Step 2 of V2: Structured visual art direction extraction prompt
+VISUAL_ART_DIRECTION_EXTRACTION_SYSTEM = """\
+You are an expert art director for editorial book and magazine covers.
+Given an editorial visual brief of a story, extract the visual art direction into a JSON object with these exact keys:
+- "setting": location, architecture, landscape, props, physical environment
+- "characters": who should be in the frame, their visual characteristics, age, gender, styling
+- "composition": spatial arrangement, who is prominent, body language, and spatial relationships
+- "mood": emotional tension, intimacy, connection, feeling
+- "lighting": time of day, season, atmosphere, lighting sources, and shadows
+- "color_palette": tones, warmth, palette notes
+- "visual_style": overall visual aesthetic, editorial photography style, and artistic treatment
+- "narrative_focus": the central visual moment that anchors the story
+- "polaroid_scene": a concise 1-2 sentence description strictly of the people, their setting, their candid action, and their facial expressions for a single Polaroid photo frame. Strictly no mentions of frames, borders, text, cameras, or collage elements.
+
+Return ONLY a valid JSON object with these keys. No markdown fences, no preamble.
+"""
+
 
 # ---------------------------------------------------------------------------
 # Shared base persona — injected into every story type and resonance question

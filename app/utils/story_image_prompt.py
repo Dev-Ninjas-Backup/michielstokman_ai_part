@@ -6,6 +6,7 @@ build one from the finished story text so every cover reflects that story.
 """
 from __future__ import annotations
 
+import json
 import logging
 import re
 from typing import Optional
@@ -969,39 +970,224 @@ def _heuristic_v2_photograph_description(story: Story) -> str:
     return f"{subjects} {action}, {setting_desc}. Relaxed conversation, subtle smiles, candid expressions. Clearly visible."
 
 
-def build_v2_photograph_description(story: Story, *, use_llm: bool = True) -> str:
-    """Generate a concise 1-2 sentence description of the subjects and scene inside the Polaroid."""
+def _heuristic_v2_visual_art_direction(
+    story: Story,
+    visual_brief: str | None = None,
+) -> dict[str, str]:
+    """Deterministic, structured visual art direction extracted without LLM."""
+    cast_mode = _cast_mode(story)
+    gender = (story.gender or "person").strip().lower()
+    age_str = f"{story.age}-year-old " if story.age is not None else "adult "
+    location = (
+        (story.location or "").strip()
+        or ", ".join(p for p in ((story.city or "").strip(), (story.country or "").strip()) if p)
+        or "an intimate setting"
+    )
+
+    blob = _story_blob(story, story_chars=500)
+    settings_list = list(dict.fromkeys(m.group(1).lower() for m in _SCENE_SETTING_RE.finditer(blob))) if blob else []
+    weather_list = list(dict.fromkeys(m.group(1).lower() for m in _SCENE_WEATHER_RE.finditer(blob))) if blob else []
+    emotions_list = list(dict.fromkeys(m.group(1).lower() for m in _EMOTION_RE.finditer(blob))) if blob else []
+
+    primary_setting = settings_list[0] if settings_list else "space"
+    setting_str = f"An intimate, atmospheric {primary_setting} in {location}."
+
+    if cast_mode == "group":
+        characters_str = f"An adult {gender} and two close companions, styled in casual, contemporary attire."
+        comp_str = "Three figures seated closely in the frame, sharing a candid moment with natural, intimate spacing."
+    elif cast_mode == "pair":
+        characters_str = f"An adult {gender} and a companion sharing an intimate connection."
+        comp_str = "Two figures positioned close together, subtle body language conveying closeness and emotional resonance."
+    else:
+        characters_str = f"A {age_str}{gender} in simple, evocative clothing."
+        comp_str = "A single figure naturally grounded in the scene, candid posture facing slightly away from the lens."
+
+    lighting_str = (
+        f"Dim ambient practical light, {weather_list[0]} atmosphere with soft shadows."
+        if weather_list
+        else "Dim ambient lighting with soft warm highlights catching skin and gentle shadows."
+    )
+    mood_str = (
+        f"Intimate, reflective, nuanced tension touching on {', '.join(emotions_list[:3])}."
+        if emotions_list
+        else "Intimate, reflective, subtle tension, and quiet emotional connection."
+    )
+    color_palette_str = "Warm amber and honey tones, deep charcoal shadows, muted natural earthy palette."
+    visual_style_str = "Authentic vintage 35mm snapshot, tactile film grain, soft focus, editorial realism."
+    narrative_focus_str = "A quiet, pivotal beat of shared honesty and understated emotional release."
+    polaroid_scene_str = _heuristic_v2_photograph_description(story)
+
+    return {
+        "setting": setting_str,
+        "characters": characters_str,
+        "composition": comp_str,
+        "mood": mood_str,
+        "lighting": lighting_str,
+        "color_palette": color_palette_str,
+        "visual_style": visual_style_str,
+        "narrative_focus": narrative_focus_str,
+        "polaroid_scene": polaroid_scene_str,
+    }
+
+
+def refine_story_visual_art_direction(story: Story, *, use_llm: bool = True) -> str:
+    """Step 1 of V2: Transform the story into a concise editorial visual brief.
+
+    Instructs the LLM (or deterministic heuristic) to extract:
+    - Who, Where, When, What's happening visually, Emotion, Composition, Appearance, Lighting/Color, Story identity
+    - Excludes dialogue, internal monologue, and explicit sexual acts.
+    """
+    from app.model.story import StoryType
+    from app.utils.prompts import STORY_VISUAL_REFINEMENT_SYSTEM
+
     if use_llm and (settings.XAI_API_KEY or "").strip():
+        kind = "meditation" if getattr(story, "story_type", None) == StoryType.meditation else "confession"
+        full_text = (story.story_text or story.story_input or "").strip()[:6000]
+        title = (story.title or story.member_title or getattr(story, "ai_generated_title", None) or "Untitled").strip()
+        author = (story.first_name or "Anonymous").strip()
+        location = (story.location or story.city or "unspecified").strip()
+        situation = (story.situation or "n/a").strip()
+        background = (story.background or "n/a").strip()
+        hook = (getattr(story, "hero_hook", None) or "n/a").strip()
+
         try:
             llm = get_story_llm(temperature=0.35)
             response = llm.invoke(
-                "You are an art director describing the Polaroid photograph scene for a story cover introduction page. "
-                "Given the story details below, write a 1-2 sentence description of the subjects, action, and setting inside the Polaroid photograph.\n\n"
-                "Requirements:\n"
-                "- Describe the subjects clearly (e.g. 'Two adult men and one adult Black woman' or 'A 28-year-old woman with dark curly hair').\n"
-                "- If the story involves other key people (lovers, friends, companions), include them in natural, intimate, or candid interaction. If solo, describe the narrator alone.\n"
-                "- Describe their candid action/pose and setting (e.g. 'sitting closely together, enjoying cocktails in an intimate, dimly lit bar' or 'standing on a misty harbour dock at dusk').\n"
-                "- Describe subtle, authentic facial expressions and body language (e.g. 'Relaxed conversation, subtle smiles, candid expressions. All three clearly visible.').\n"
-                "- Strictly DO NOT describe Polaroid borders, frames, text, typography, paper, or cameras. Describe ONLY the scene inside the photograph.\n"
-                "- Keep it to 1-2 concise, evocative sentences. Return ONLY the description text with no quotes and no preamble.\n\n"
-                f"Story type: {getattr(getattr(story, 'story_type', None), 'value', 'confession')}\n"
-                f"Narrator: {story.first_name or 'Anonymous'}, {story.age if story.age is not None else 'unspecified'} years old, {story.gender or 'unspecified'}, {story.location or 'unspecified'}\n"
-                f"Situation: {story.situation or 'n/a'}\n"
-                f"Background: {story.background or 'n/a'}\n"
-                f"Hero hook: {getattr(story, 'hero_hook', None) or 'n/a'}\n"
-                f"Story excerpt: {(story.story_text or story.story_input or '')[:2500]}\n"
+                f"{STORY_VISUAL_REFINEMENT_SYSTEM}\n\n"
+                f"STORY METADATA:\n"
+                f"- Story Type: {kind}\n"
+                f"- Title: {title}\n"
+                f"- Narrator: {author}, {story.age if story.age is not None else 'unspecified'}yo, {story.gender or 'unspecified'}, {location}\n"
+                f"- Situation: {situation}\n"
+                f"- Background: {background}\n"
+                f"- Hero Hook: {hook}\n\n"
+                f"STORY TEXT:\n{full_text or situation or hook}\n"
             )
             content = (getattr(response, "content", None) or str(response) or "").strip().strip('"').strip("'")
-            if len(content) >= 20:
-                logger.info(
-                    "V2 photograph description path=llm story=%s length=%s",
-                    getattr(story, "id", None),
-                    len(content),
-                )
+            if len(content) >= 40:
+                logger.info("V2 visual refinement path=llm story=%s chars=%s", getattr(story, "id", None), len(content))
                 return content
         except Exception:
             logger.warning(
-                "V2 photograph description path=heuristic story=%s reason=llm_failed",
+                "V2 visual refinement path=heuristic story=%s reason=llm_failed",
+                getattr(story, "id", None),
+                exc_info=True,
+            )
+
+    art = _heuristic_v2_visual_art_direction(story)
+    return (
+        f"A cinematic editorial scene set in {art['setting']} {art['characters']} {art['composition']} "
+        f"The atmosphere is {art['mood'].lower()} with {art['lighting'].lower()} "
+        f"The visual mood is sophisticated, sensual, mysterious, and reflective rather than explicit. "
+        f"{art['color_palette']} {art['narrative_focus']}"
+    )
+
+
+def extract_v2_visual_art_direction(
+    story: Story,
+    visual_brief: str | None = None,
+    *,
+    use_llm: bool = True,
+) -> dict[str, str]:
+    """Step 2 of V2: Extract structured visual art direction from the visual brief.
+
+    Returns a dictionary with keys:
+    - "setting"
+    - "characters"
+    - "composition"
+    - "mood"
+    - "lighting"
+    - "color_palette"
+    - "visual_style"
+    - "narrative_focus"
+    - "polaroid_scene"
+    """
+    from app.utils.prompts import VISUAL_ART_DIRECTION_EXTRACTION_SYSTEM
+
+    brief = visual_brief or refine_story_visual_art_direction(story, use_llm=use_llm)
+
+    if use_llm and (settings.XAI_API_KEY or "").strip():
+        try:
+            llm = get_story_llm(temperature=0.2)
+            response = llm.invoke(
+                f"{VISUAL_ART_DIRECTION_EXTRACTION_SYSTEM}\n\n"
+                f"EDITORIAL VISUAL BRIEF:\n{brief}\n\n"
+                f"STORY METADATA:\n"
+                f"Narrator: {story.first_name or 'Anonymous'}, {story.age if story.age is not None else 'unspecified'}yo, {story.gender or 'unspecified'}, {story.location or 'unspecified'}\n"
+                f"Title: {story.title or 'Untitled'}\n"
+            )
+            raw = (getattr(response, "content", None) or str(response) or "").strip()
+            if "```" in raw:
+                raw = re.sub(r"^```(?:json)?\s*", "", raw, flags=re.I)
+                raw = re.sub(r"\s*```$", "", raw)
+            start = raw.find("{")
+            end = raw.rfind("}")
+            if start >= 0 and end > start:
+                parsed = json.loads(raw[start : end + 1])
+                if isinstance(parsed, dict):
+                    normalized: dict[str, str] = {}
+                    key_map = {
+                        "setting": "setting",
+                        "characters": "characters",
+                        "composition": "composition",
+                        "mood": "mood",
+                        "lighting": "lighting",
+                        "time_and_lighting": "lighting",
+                        "color_palette": "color_palette",
+                        "visual_style": "visual_style",
+                        "narrative_focus": "narrative_focus",
+                        "polaroid_scene": "polaroid_scene",
+                    }
+                    for k, v in parsed.items():
+                        norm_k = key_map.get(k.lower())
+                        if norm_k and isinstance(v, str) and v.strip():
+                            normalized[norm_k] = v.strip()
+
+                    fallback = _heuristic_v2_visual_art_direction(story, visual_brief=brief)
+                    for required_key in [
+                        "setting",
+                        "characters",
+                        "composition",
+                        "mood",
+                        "lighting",
+                        "color_palette",
+                        "visual_style",
+                        "narrative_focus",
+                        "polaroid_scene",
+                    ]:
+                        if not normalized.get(required_key):
+                            normalized[required_key] = fallback[required_key]
+
+                    logger.info("V2 structured visual art direction path=llm story=%s", getattr(story, "id", None))
+                    return normalized
+        except Exception:
+            logger.warning(
+                "V2 structured visual art direction path=heuristic story=%s reason=llm_or_json_failed",
+                getattr(story, "id", None),
+                exc_info=True,
+            )
+
+    return _heuristic_v2_visual_art_direction(story, visual_brief=brief)
+
+
+def build_v2_photograph_description(
+    story: Story,
+    *,
+    use_llm: bool = True,
+    art_direction: dict[str, str] | None = None,
+) -> str:
+    """Generate a concise 1-2 sentence description of the subjects and scene inside the Polaroid."""
+    if art_direction and art_direction.get("polaroid_scene"):
+        return art_direction["polaroid_scene"].strip()
+
+    if use_llm and (settings.XAI_API_KEY or "").strip():
+        try:
+            art_dir = extract_v2_visual_art_direction(story, use_llm=True)
+            if art_dir.get("polaroid_scene"):
+                return art_dir["polaroid_scene"].strip()
+        except Exception:
+            logger.warning(
+                "V2 photograph description via art direction failed for story %s, falling back",
                 getattr(story, "id", None),
                 exc_info=True,
             )
@@ -1013,6 +1199,7 @@ def build_v2_cover_prompt(
     story: Story,
     *,
     photograph_description: str | None = None,
+    art_direction: dict[str, str] | None = None,
     use_llm_scene: bool = True,
 ) -> str:
     """Build the V2 prompt matching client design specifications.
@@ -1084,6 +1271,8 @@ def build_v2_cover_prompt(
 
     if photograph_description:
         photo_desc = photograph_description.strip().rstrip(".")
+    elif art_direction and art_direction.get("polaroid_scene"):
+        photo_desc = art_direction["polaroid_scene"].strip().rstrip(".")
     else:
         photo_desc = build_v2_photograph_description(story, use_llm=use_llm_scene).strip().rstrip(".")
 

@@ -1379,3 +1379,156 @@ def test_v2_method_executes_v2_editorial_prompt_pipeline():
                         assert story.cover_image_url == "https://cdn/v2_cover.jpg"
                         assert story.cover_image_key == "images/v2_cover.jpg"
 
+
+def test_refine_story_visual_art_direction_heuristic():
+    from app.utils.story_image_prompt import refine_story_visual_art_direction
+
+    story = _story(
+        first_name="Johan",
+        age=42,
+        gender="male",
+        location="Ibiza, Spain",
+        city="Ibiza",
+        country="Spain",
+        situation="On a pine-covered hillside overlooking a darkening valley at night.",
+        background="Two adults he has unexpectedly connected with during the evening.",
+        story_text="We sat together on the terrace as the sun went down. The breeze smelled of pine.",
+    )
+
+    brief = refine_story_visual_art_direction(story, use_llm=False)
+    assert isinstance(brief, str)
+    assert len(brief) > 50
+    assert "Ibiza" in brief
+    assert "cinematic" in brief.lower() or "editorial" in brief.lower()
+    # Explicit sexual terms or unnecessary dialogue should not be in the brief
+    assert "ghb" not in brief.lower()
+    assert "dialogue" not in brief.lower()
+
+
+def test_refine_story_visual_art_direction_llm():
+    from app.utils.story_image_prompt import refine_story_visual_art_direction
+
+    story = _story()
+    mock_llm = MagicMock()
+    mock_llm.invoke.return_value = (
+        "A cinematic editorial scene set on a pine-covered hillside in Ibiza at night, "
+        "overlooking a darkening valley. A Swedish man in his forties sits on a luxurious terrace "
+        "beside two adults he has unexpectedly connected with during the evening. "
+        "The atmosphere is intimate and charged."
+    )
+
+    with patch("app.utils.story_image_prompt.settings.XAI_API_KEY", "xai-test-key"):
+        with patch("app.utils.story_image_prompt.get_story_llm", return_value=mock_llm):
+            brief = refine_story_visual_art_direction(story, use_llm=True)
+            mock_llm.invoke.assert_called_once()
+            assert "Ibiza" in brief
+            assert "Swedish man" in brief
+
+
+def test_extract_v2_visual_art_direction_heuristic():
+    from app.utils.story_image_prompt import extract_v2_visual_art_direction
+
+    story = _story(
+        first_name="Rory",
+        age=23,
+        gender="male",
+        location="Wales, UK",
+        situation="Enjoying cocktails in an intimate, dimly lit bar.",
+        background="Two adult men and one adult Black woman sitting closely together.",
+        story_text="They took a little GHB in Bacardi cola.",
+    )
+
+    art = extract_v2_visual_art_direction(story, use_llm=False)
+    required_keys = [
+        "setting",
+        "characters",
+        "composition",
+        "mood",
+        "lighting",
+        "color_palette",
+        "visual_style",
+        "narrative_focus",
+        "polaroid_scene",
+    ]
+    for key in required_keys:
+        assert key in art, f"Missing key: {key}"
+        assert isinstance(art[key], str)
+        assert len(art[key].strip()) > 0
+
+    assert "bar" in art["setting"].lower() or "wales" in art["setting"].lower()
+    assert "Relaxed conversation" in art["polaroid_scene"] or "intimate" in art["polaroid_scene"].lower()
+
+
+def test_extract_v2_visual_art_direction_llm_json_parsing():
+    import json
+    from app.utils.story_image_prompt import extract_v2_visual_art_direction
+
+    story = _story()
+    mock_json_response = {
+        "setting": "Pine-covered hillside terrace in Ibiza overlooking a darkening valley",
+        "characters": "A Swedish man in his 40s and two companions",
+        "composition": "Three figures seated closely on low outdoor lounge seating",
+        "mood": "Intimate, charged, sophisticated, reflective",
+        "time_and_lighting": "Deep evening twilight with warm practical lights and distant city glow",
+        "color_palette": "Warm Mediterranean stone tones, deep night shadows",
+        "visual_style": "Authentic vintage 35mm snapshot, tactile film grain",
+        "narrative_focus": "The ambiguous connection and close body language",
+        "polaroid_scene": "Three figures sitting close together on an Ibiza terrace at twilight, sharing quiet drinks and subtle glances.",
+    }
+
+    mock_llm = MagicMock()
+    # Test that markdown fences are handled
+    mock_llm.invoke.return_value = f"```json\n{json.dumps(mock_json_response)}\n```"
+
+    with patch("app.utils.story_image_prompt.settings.XAI_API_KEY", "xai-test-key"):
+        with patch("app.utils.story_image_prompt.get_story_llm", return_value=mock_llm):
+            art = extract_v2_visual_art_direction(
+                story,
+                visual_brief="A cinematic editorial brief...",
+                use_llm=True,
+            )
+            mock_llm.invoke.assert_called_once()
+            # time_and_lighting normalized to lighting
+            assert art["lighting"] == "Deep evening twilight with warm practical lights and distant city glow"
+            assert art["polaroid_scene"] == mock_json_response["polaroid_scene"]
+            assert art["setting"] == mock_json_response["setting"]
+            assert art["visual_style"] == mock_json_response["visual_style"]
+
+
+def test_build_v2_cover_prompt_with_art_direction():
+    from app.utils.story_image_prompt import build_v2_cover_prompt
+
+    story = _story(
+        first_name="Rory",
+        title="Two Men and Nia",
+        hero_hook="They took a little GHB in Bacardi cola.",
+        location="Wales, UK",
+        city="Wales",
+        country="UK",
+        age=23,
+        gender="male",
+        sexual_orientation="heterosexual",
+        high_intensity=True,
+    )
+
+    art_direction = {
+        "setting": "Dimly lit cocktail lounge",
+        "characters": "Two adult men and one adult Black woman",
+        "composition": "Close triangular seating",
+        "mood": "Intimate and charged",
+        "lighting": "Low amber glow",
+        "color_palette": "Warm amber and deep blacks",
+        "visual_style": "Vintage 35mm film",
+        "narrative_focus": "A shared cocktail moment",
+        "polaroid_scene": "Two adult men and one adult Black woman sitting closely together in a dimly lit bar, sharing cocktails and candid smiles.",
+    }
+
+    prompt = build_v2_cover_prompt(story, art_direction=art_direction)
+    assert "Two adult men and one adult Black woman sitting closely together in a dimly lit bar" in prompt
+    assert "Two Men and Nia" in prompt
+    assert "They took a little GHB in Bacardi cola." in prompt
+    assert "WALES, UK" in prompt
+    assert "RORY" in prompt
+    assert "EXPLICIT" in prompt
+
+

@@ -10,6 +10,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from pathlib import Path
 from types import SimpleNamespace
@@ -21,19 +22,28 @@ from app.core.config import settings  # noqa: E402
 from app.model.story import StoryType  # noqa: E402
 from app.utils.image_generator import generate_ai_cover_image  # noqa: E402
 from app.utils.story_cover import cover_generation_method, uses_v2_pipeline  # noqa: E402
-from app.utils.story_image_prompt import build_v2_cover_prompt  # noqa: E402
+from app.utils.story_image_prompt import (  # noqa: E402
+    build_v2_cover_prompt,
+    extract_v2_visual_art_direction,
+    refine_story_visual_art_direction,
+)
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Test V2 cover prompt generation.")
+    parser = argparse.ArgumentParser(description="Test V2 2-step AI visual art direction and cover prompt generation.")
     parser.add_argument(
         "--generate",
         action="store_true",
         help="Actually call OpenAI API to generate image (requires OPENAI_API_KEY).",
     )
+    parser.add_argument(
+        "--live-llm",
+        action="store_true",
+        help="Use real LLM API for visual refinement and art direction extraction.",
+    )
     args = parser.parse_args()
 
-    # Fixture matching the client's reference
+    # Story fixture matching reference
     story = SimpleNamespace(
         id="00000000-0000-0000-0000-000000000002",
         story_type=StoryType.confession,
@@ -59,13 +69,25 @@ def main() -> None:
         image_source=None,
     )
 
-    print("=" * 70)
+    print("=" * 80)
+    print("V2 EDITORIAL COVER GENERATION PIPELINE")
     print(f"Current COVER_GENERATION_METHOD: {cover_generation_method()}")
     print(f"Uses V2 pipeline for confession story: {uses_v2_pipeline(story)}")
-    print("=" * 70)
+    print("=" * 80)
 
-    prompt = build_v2_cover_prompt(story, use_llm_scene=False)
-    print("\n--- Generated V2 Cover Prompt ---")
+    # Step 1: Story-to-Visual-Art-Direction Refinement
+    print("\n[STEP 1] Story-to-Visual-Art-Direction Refinement (Editorial Visual Brief):")
+    visual_brief = refine_story_visual_art_direction(story, use_llm=args.live_llm)
+    print(visual_brief)
+
+    # Step 2: Structured Visual Art Direction Extraction
+    print("\n[STEP 2] Structured Visual Art Direction JSON:")
+    art_dir = extract_v2_visual_art_direction(story, visual_brief=visual_brief, use_llm=args.live_llm)
+    print(json.dumps(art_dir, indent=2))
+
+    # Step 3: Assembled Cover Prompt Builder
+    print("\n[STEP 3] Assembled V2 Cover Prompt (Image Prompt Builder):")
+    prompt = build_v2_cover_prompt(story, art_direction=art_dir, use_llm_scene=args.live_llm)
     print(prompt)
     print(f"\nPrompt word count: {len(prompt.split())}")
     print(f"Prompt char count: {len(prompt)}")
@@ -88,3 +110,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
