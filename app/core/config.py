@@ -13,11 +13,11 @@ class Settings:
         # production; set via OPENAI_IMAGE_MODEL). dall-e-3 still supported.
         self.OPENAI_IMAGE_MODEL: str = os.getenv("OPENAI_IMAGE_MODEL", "gpt-image-2")
         # Cover pipeline switch — instantly revertible.
-        # "dalle"    → Grok collage prompt + OpenAI Images (full scrapbook cover)
-        # "template" → HTML cover_template + OpenAI portrait in photo hole
-        #              (confession + meditation; client-approved product path)
+        # "dalle"            → Grok collage prompt + OpenAI Images (full scrapbook cover)
+        # "template" / "v1"  → HTML cover_template + OpenAI portrait in photo hole (V1)
+        # "v2"               → Direct OpenAI prompt generation with editorial Polaroid design (V2)
         _cover_method = (os.getenv("COVER_GENERATION_METHOD") or "dalle").strip().lower()
-        if _cover_method not in ("dalle", "template"):
+        if _cover_method not in ("dalle", "template", "v1", "v2"):
             _cover_method = "dalle"
         self.COVER_GENERATION_METHOD: str = _cover_method
 

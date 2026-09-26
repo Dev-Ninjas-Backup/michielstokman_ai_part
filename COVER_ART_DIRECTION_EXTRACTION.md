@@ -2,7 +2,10 @@
 
 Read-only snapshot of the confession cover pipeline as of 2026-09-08, updated 2026-09-15 for the complete-story portrait analysis. Line numbers refer to `michielstokman_ai_part` on the then-current tree.
 
-**Production path (since 2026-09-15):** `COVER_GENERATION_METHOD=template` + `OPENAI_IMAGE_MODEL=gpt-image-2`. The sections below document the **legacy full-collage path** (still reachable via `COVER_GENERATION_METHOD=dalle`); see §0 for the live template/portrait pipeline.
+**Production paths:**
+- `COVER_GENERATION_METHOD=v1` (or `template`) + `OPENAI_IMAGE_MODEL=gpt-image-2`: Playwright HTML `cover_template` composite with AI portrait in the photo hole (image_source=`template_v1`).
+- `COVER_GENERATION_METHOD=v2` + `OPENAI_IMAGE_MODEL=gpt-image-2`: Direct single-shot AI editorial introduction page prompt with ivory paper background, raspberry pink (#D72655) accents, and monochrome vintage Polaroid snapshot (image_source=`template_v2`).
+- `COVER_GENERATION_METHOD=dalle`: Legacy full scrapbook collage path. See §0 for V1 template/portrait pipeline and §0.1 for V2 editorial prompt pipeline.
 
 Python does **not** slice art direction by `story_type`. Grok always receives all three type specs in one block and is told to follow the spec that matches the story type.
 

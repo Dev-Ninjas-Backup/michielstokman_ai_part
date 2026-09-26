@@ -42,7 +42,8 @@ class ImageSource(str, enum.Enum):
     ai_generated = "ai_generated"  # DALL-E pipeline (COVER_GENERATION_METHOD=dalle)
     user_uploaded = "user_uploaded"
     admin_default = "admin_default"
-    template_v1 = "template_v1"  # HTML cover_template (COVER_GENERATION_METHOD=template)
+    template_v1 = "template_v1"  # HTML cover_template (COVER_GENERATION_METHOD=template or v1)
+    template_v2 = "template_v2"  # Direct editorial Polaroid cover prompt (COVER_GENERATION_METHOD=v2)
 
 
 class SubmissionMode(str, enum.Enum):

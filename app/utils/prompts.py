@@ -178,6 +178,31 @@ MEDITATION_COVER_ANTI_AI_LOOK = CONFESSION_COVER_ANTI_AI_LOOK
 
 
 # ---------------------------------------------------------------------------
+# V2 Editorial Polaroid Cover Prompt Constants (COVER_GENERATION_METHOD=v2)
+# Direct OpenAI image generation matching the handmade editorial introduction page design.
+# ---------------------------------------------------------------------------
+
+V2_COVER_STYLE_SPEC = (
+    "Style: Warm ivory paper background, generous whitespace, handmade editorial aesthetic. "
+    "Black text with raspberry pink (#D72655) as the only accent colour. "
+    "Typography: Expressive brush lettering for the title, category and author name. "
+    "Clean sans-serif for body text and personal details."
+)
+
+V2_COVER_ANALOGUE_TREATMENT = (
+    "Analogue treatment: Strictly black-and-white, authentic vintage 35mm snapshot. "
+    "Visible organic film grain, soft focus, faded blacks, muted contrast, gentle highlight bloom, "
+    "subtle dust and fine scratches. Atmospheric, intimate and slightly mysterious. "
+    "Avoid a polished digital or cheerful stock-photo look."
+)
+
+V2_COVER_CLOSING_CONSTRAINTS = (
+    "Keep all photography monochrome. No additional accent colours, gradients or decorative stickers. "
+    "Render the complete portrait page straight-on, without a device frame."
+)
+
+
+# ---------------------------------------------------------------------------
 # Shared base persona — injected into every story type and resonance question
 # ---------------------------------------------------------------------------
 

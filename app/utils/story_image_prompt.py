@@ -939,6 +939,174 @@ def build_portrait_only_prompt(story: Story, *, use_llm_brief: bool = True) -> s
     return _trim_prompt_to_budget(prompt, _portrait_prompt_char_budget())
 
 
+def _heuristic_v2_photograph_description(story: Story) -> str:
+    """Deterministic, story-grounded 1-2 sentence description for the V2 Polaroid slot."""
+    cast_mode = _cast_mode(story)
+    gender = (story.gender or "person").strip().lower()
+    age_str = f"{story.age}-year-old " if story.age is not None else "adult "
+
+    if cast_mode == "group":
+        subjects = f"An adult {gender} and two companions"
+        action = "sitting closely together, enjoying conversation"
+    elif cast_mode == "pair":
+        subjects = f"An adult {gender} and a companion"
+        action = "sharing a quiet, intimate moment together"
+    else:
+        subjects = f"A {age_str}{gender}"
+        action = "in a candid, thoughtful moment"
+
+    blob = _story_blob(story, story_chars=500)
+    settings = list(dict.fromkeys(m.group(1).lower() for m in _SCENE_SETTING_RE.finditer(blob))) if blob else []
+    location = (story.location or story.city or "").strip()
+
+    if settings:
+        setting_desc = f"in an intimate, dimly lit {settings[0]}"
+    elif location:
+        setting_desc = f"in {location}"
+    else:
+        setting_desc = "in an intimate, dimly lit setting"
+
+    return f"{subjects} {action}, {setting_desc}. Relaxed conversation, subtle smiles, candid expressions. Clearly visible."
+
+
+def build_v2_photograph_description(story: Story, *, use_llm: bool = True) -> str:
+    """Generate a concise 1-2 sentence description of the subjects and scene inside the Polaroid."""
+    if use_llm and (settings.XAI_API_KEY or "").strip():
+        try:
+            llm = get_story_llm(temperature=0.35)
+            response = llm.invoke(
+                "You are an art director describing the Polaroid photograph scene for a story cover introduction page. "
+                "Given the story details below, write a 1-2 sentence description of the subjects, action, and setting inside the Polaroid photograph.\n\n"
+                "Requirements:\n"
+                "- Describe the subjects clearly (e.g. 'Two adult men and one adult Black woman' or 'A 28-year-old woman with dark curly hair').\n"
+                "- If the story involves other key people (lovers, friends, companions), include them in natural, intimate, or candid interaction. If solo, describe the narrator alone.\n"
+                "- Describe their candid action/pose and setting (e.g. 'sitting closely together, enjoying cocktails in an intimate, dimly lit bar' or 'standing on a misty harbour dock at dusk').\n"
+                "- Describe subtle, authentic facial expressions and body language (e.g. 'Relaxed conversation, subtle smiles, candid expressions. All three clearly visible.').\n"
+                "- Strictly DO NOT describe Polaroid borders, frames, text, typography, paper, or cameras. Describe ONLY the scene inside the photograph.\n"
+                "- Keep it to 1-2 concise, evocative sentences. Return ONLY the description text with no quotes and no preamble.\n\n"
+                f"Story type: {getattr(getattr(story, 'story_type', None), 'value', 'confession')}\n"
+                f"Narrator: {story.first_name or 'Anonymous'}, {story.age if story.age is not None else 'unspecified'} years old, {story.gender or 'unspecified'}, {story.location or 'unspecified'}\n"
+                f"Situation: {story.situation or 'n/a'}\n"
+                f"Background: {story.background or 'n/a'}\n"
+                f"Hero hook: {getattr(story, 'hero_hook', None) or 'n/a'}\n"
+                f"Story excerpt: {(story.story_text or story.story_input or '')[:2500]}\n"
+            )
+            content = (getattr(response, "content", None) or str(response) or "").strip().strip('"').strip("'")
+            if len(content) >= 20:
+                logger.info(
+                    "V2 photograph description path=llm story=%s length=%s",
+                    getattr(story, "id", None),
+                    len(content),
+                )
+                return content
+        except Exception:
+            logger.warning(
+                "V2 photograph description path=heuristic story=%s reason=llm_failed",
+                getattr(story, "id", None),
+                exc_info=True,
+            )
+
+    return _heuristic_v2_photograph_description(story)
+
+
+def build_v2_cover_prompt(
+    story: Story,
+    *,
+    photograph_description: str | None = None,
+    use_llm_scene: bool = True,
+) -> str:
+    """Build the V2 prompt matching client design specifications.
+
+    Generates a full story introduction page with warm ivory paper background,
+    black text with raspberry pink (#D72655) accents, expressive brush lettering,
+    and a vintage monochrome Polaroid photograph on the right.
+    """
+    from app.model.story import StoryType
+    from app.utils.prompts import (
+        V2_COVER_ANALOGUE_TREATMENT,
+        V2_COVER_CLOSING_CONSTRAINTS,
+        V2_COVER_STYLE_SPEC,
+    )
+    from app.utils.story_cover import _description_for_story, _split_location
+
+    is_meditation = story.story_type == StoryType.meditation
+    is_transformation = story.story_type == StoryType.transformation
+
+    if is_meditation:
+        category_title = "Meditations"
+        category_upper = "MEDITATIONS"
+        button_label = "READ MEDITATION →"
+    elif is_transformation:
+        category_title = "Transformations"
+        category_upper = "TRANSFORMATIONS"
+        button_label = "READ STORY →"
+    else:
+        category_title = "Confessions"
+        category_upper = "CONFESSIONS"
+        button_label = "READ CONFESSION →"
+
+    raw_title = (story.title or story.member_title or getattr(story, "ai_generated_title", None) or "Untitled").strip()
+    title = raw_title.replace('"', '').replace('“', '').replace('”', '').strip() or "Untitled"
+
+    hook = (getattr(story, "hero_hook", None) or "").strip()
+    if hook:
+        body = hook
+    else:
+        body = _description_for_story(story)
+    body_text = body.replace('"', "'").replace('“', "'").replace('”', "'").strip()
+    if body_text and not body_text.endswith((".", "!", "?")):
+        body_text += "."
+
+    city, country = _split_location(story)
+    if city and country:
+        location_text = f"{city}, {country}".upper()
+    elif city or country:
+        location_text = (city or country).upper()
+    elif (story.location or "").strip():
+        location_text = story.location.strip().upper()
+    else:
+        location_text = "WALES, UK"
+
+    demo_parts = []
+    if story.age is not None:
+        demo_parts.append(f"{story.age} YEARS")
+    if story.gender:
+        demo_parts.append(story.gender.strip().upper())
+    if getattr(story, "sexual_orientation", None):
+        demo_parts.append(story.sexual_orientation.strip().upper())
+    demographics_text = " / ".join(demo_parts)
+
+    explicit_clause = ", and a small pink outlined “EXPLICIT” label" if getattr(story, "high_intensity", False) else ""
+    if demographics_text:
+        bottom_left_str = f"Bottom left: “{location_text}”, followed by “{demographics_text}”{explicit_clause}."
+    else:
+        bottom_left_str = f"Bottom left: “{location_text}”{explicit_clause}."
+
+    if photograph_description:
+        photo_desc = photograph_description.strip().rstrip(".")
+    else:
+        photo_desc = build_v2_photograph_description(story, use_llm=use_llm_scene).strip().rstrip(".")
+
+    author_name = (story.first_name or "Anonymous").strip().upper()
+
+    prompt = (
+        f"Create a TTL {category_title} story introduction page matching the attached design. "
+        f"{V2_COVER_STYLE_SPEC} "
+        f"Layout and exact text: "
+        f"Top left: black TTL logo with a pink brush underline. "
+        f"Top right: “{category_upper}” in pink. "
+        f"Left column, large pink title: “{title}”. "
+        f"Below, black body text: “{body_text}” No subtitle. "
+        f"{bottom_left_str} "
+        f"Bottom: wide pink button reading “{button_label}” in white. "
+        f"Photograph: A large, slightly rotated Polaroid on the right. {photo_desc}. "
+        f"{V2_COVER_ANALOGUE_TREATMENT} "
+        f"Polaroid caption: “{author_name}” with “AUTHOR” underneath and a small raspberry hand-drawn heart. "
+        f"{V2_COVER_CLOSING_CONSTRAINTS}"
+    )
+    return prompt
+
+
 def build_image_prompt_from_story(story: Story) -> str:
     """Ask the LLM for a story-specific DALL-E prompt after generation completes."""
     from app.model.story import StoryType
