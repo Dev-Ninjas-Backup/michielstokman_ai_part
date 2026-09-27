@@ -258,18 +258,24 @@ Top left:
 "TTL"
 
 - Solid black.
-- Bold, heavy editorial sans-serif logo typography.
-- Directly beneath "TTL": Add a rough handmade double brush stroke underline in raspberry pink (#D72655) — one bold textured dry-brush stroke with a quick secondary accent brush stroke underneath, exactly matching the client reference.
+- Bold, clean, editorial sans-serif logo lettering that is slightly taller and more vertically elongated (narrow/tall proportions rather than wide or horizontally stretched, matching the reference screenshot).
+- Directly beneath "TTL": Keep a short, thin, handmade, slightly imperfect raspberry-pink (#D72655) rough brush underline spanning just under the base of "TTL".
+- The underline should remain short, thin, handmade, and slightly imperfect — do NOT turn it into a thick decorative brush stroke.
+- Do NOT add a slogan, tagline, subtitle, or motto anywhere near the logo.
+- There must be NO text underneath or beside TTL except the small pink underline.
 - Generous margin from the left edge and top edge.
 
 Top right:
 
 "{category_upper}"
 
-- Raspberry pink.
-- Expressive handwritten/brush lettering.
-- Small and elegant.
-- Generous margin from the right edge.
+- Raspberry pink (#D72655).
+- Small, elegant, compact handwritten/brush script mark matching the reference screenshot.
+- Keep it compact and horizontally proportioned like the reference.
+- Do NOT make it large, oversized, bold, or dominant.
+- Do NOT use a generic italic font — it should look like a natural handwritten editorial brush mark.
+- Generous space between the word and the top/right edges.
+- Do NOT add any other text around it.
 
 MAIN TITLE
 
@@ -428,8 +434,8 @@ OVERALL COMPOSITION
 
 Follow the client's reference as closely as possible:
 
-- TTL logo at top left with double raspberry brush stroke underline
-- {category_upper} at top right
+- TTL logo at top left (tall, narrow bold black lettering with short, thin handmade raspberry brush underline)
+- {category_upper} at top right (small, compact, elegant handwritten/brush script in raspberry pink)
 - Large raspberry uppercase dry-brush title on the left (slanted upward, short, 2–4 words)
 - VERY SHORT, clearly readable body introduction underneath in clean black sans-serif
 - Large square Polaroid photograph on the right
