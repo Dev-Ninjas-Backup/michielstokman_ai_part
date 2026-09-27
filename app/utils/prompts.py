@@ -258,8 +258,8 @@ Top left:
 "TTL"
 
 - Solid black.
-- Bold, clean, editorial sans-serif logo lettering that is slightly taller and more vertically elongated (narrow/tall proportions rather than wide or horizontally stretched, matching the reference screenshot).
-- Directly beneath "TTL": Keep a short, thin, handmade, slightly imperfect raspberry-pink (#D72655) rough brush underline spanning just under the base of "TTL".
+- Slimmer, slender, and refined editorial sans-serif logo lettering: Make the letters tall, narrow, and slightly slimmer (slender condensed letterforms — NOT overly thick, bulky, or fat block letters), matching the sleek proportions in the reference screenshot.
+- Directly beneath "TTL": Keep a short, delicate, thin, handmade, slightly imperfect raspberry-pink (#D72655) rough brush underline spanning just under the base of "TTL".
 - The underline should remain short, thin, handmade, and slightly imperfect — do NOT turn it into a thick decorative brush stroke.
 - Do NOT add a slogan, tagline, subtitle, or motto anywhere near the logo.
 - There must be NO text underneath or beside TTL except the small pink underline.
@@ -289,7 +289,7 @@ Large headline on the left:
 - Raw, expressive paint-marker / dry-brush street editorial aesthetic (NOT cursive calligraphy, NOT flowing script).
 - Formatted cleanly across 1–2 short stacked lines (e.g. Line 1: "TWO MEN", Line 2: "AND NIA").
 - The complete title MUST be displayed clearly and fully — do NOT crop, hide, truncate, or split the title incorrectly.
-- Scale & Proportions: Make the title visually prominent and dominant within the left column, but ONLY slightly smaller than an oversized headline (a subtle size reduction, leaving comfortable breathing room around the lettering so it never crowds surrounding elements).
+- Scale & Proportions: Prominent and generously sized large headline — bold, clear, and easy to read at a glance, occupying the prominent upper-left area.
 - Make sure the complete phrase "{title}" is immediately and clearly readable.
 - Do not add any subtitle or additional title.
 - Generous side margin from the left edge of the page.
@@ -301,11 +301,11 @@ Directly below the title, use ONLY this short text:
 "{body_text}"
 
 - Clean black sans-serif typography (crisp, modern geometric/grotesque sans-serif like Helvetica or Inter).
-- Font Size & Legibility: Make the font slightly larger and clearly readable at normal viewing size (a comfortable, readable editorial body size — NOT tiny microscopic fine print, NOT oversized, perfectly legible).
-- HIGH READABILITY IS ESSENTIAL: Render in a crisp, sharp, dark black font with high contrast against the paper.
-- Compact editorial placement: Maintain a comfortable but relatively close distance directly below the title.
+- Larger Font Size & High Readability: Make this line slightly larger and clearly readable so anyone can read it effortlessly at normal viewing distance (a clear, comfortable, slightly larger editorial reading size — NEVER tiny, faint, or microscopic).
+- HIGH READABILITY IS ESSENTIAL: Render in a crisp, sharp, dark black font with strong contrast against the ivory paper.
+- Compact editorial placement: Maintain a comfortable distance directly below the title.
 - Maximum 1–2 short lines.
-- Visual Balance: The title remains the dominant element, while the introduction is now clearly readable without competing with the title.
+- Visual Balance: The title remains the dominant element, while the introduction is clearly readable and prominent without competing with the title.
 - NEVER render microscopic fine print, tiny blurry paragraphs, or illegible squiggles.
 - Do not rewrite or modify the sentence.
 - Do not add any additional sentences or story copy.
@@ -434,10 +434,10 @@ OVERALL COMPOSITION
 
 Follow the client's reference as closely as possible:
 
-- TTL logo at top left (tall, narrow bold black lettering with short, thin handmade raspberry brush underline)
+- TTL logo at top left (slender, tall, narrow black lettering with short, thin handmade raspberry brush underline)
 - {category_upper} at top right (small, compact, elegant handwritten/brush script in raspberry pink)
-- Complete raspberry uppercase dry-brush title on the left (slanted upward, fully displayed across 1–2 lines, dominant but slightly reduced in size)
-- Slightly larger, clearly readable short body introduction underneath in clean black sans-serif
+- Prominent raspberry uppercase dry-brush title on the left (slanted upward, fully displayed across 1–2 lines, bold and clearly readable)
+- Slightly larger, clearly readable short body introduction underneath in crisp black sans-serif
 - Large square Polaroid photograph on the right
 - Author name inside the Polaroid
 - Small metadata section near the lower left
