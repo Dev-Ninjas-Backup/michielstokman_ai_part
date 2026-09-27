@@ -257,12 +257,15 @@ Top left:
 
 "TTL"
 
-- Solid black.
-- Slimmer, slender, and refined editorial sans-serif logo lettering: Make the letters tall, narrow, and slightly slimmer (slender condensed letterforms — NOT overly thick, bulky, or fat block letters), matching the sleek proportions in the reference screenshot.
-- Directly beneath "TTL": Keep a short, delicate, thin, handmade, slightly imperfect raspberry-pink (#D72655) rough brush underline spanning just under the base of "TTL".
-- The underline should remain short, thin, handmade, and slightly imperfect — do NOT turn it into a thick decorative brush stroke.
+- Solid deep black.
+- Bold, thick, heavy editorial block sans-serif typography (confident, heavy stroke weight — exactly matching the accurate reference logo).
+- Bold uppercase block letters ("T", "T", "L") with thick, solid, uniform black stems and crossbars.
+- STRICTLY FORBIDDEN: Do NOT make the letters thin, skinny, light, hairline, or ultra-tall slender sticks.
+- The lettering must have solid, heavy, impactful black presence and substance.
+- Directly beneath "TTL": Add a vibrant raspberry-pink (#D72655) double dry-brush stroke underline spanning under the base of "TTL" — composed of a bold, rough-textured horizontal brush stroke with a secondary energetic angled brush flick directly underneath, exactly matching the reference.
+- Do NOT render a faint single hairline line.
 - Do NOT add a slogan, tagline, subtitle, or motto anywhere near the logo.
-- There must be NO text underneath or beside TTL except the small pink underline.
+- There must be NO text underneath or beside TTL except the raspberry brush underline.
 - Generous margin from the left edge and top edge.
 
 Top right:
@@ -434,7 +437,7 @@ OVERALL COMPOSITION
 
 Follow the client's reference as closely as possible:
 
-- TTL logo at top left (slender, tall, narrow black lettering with short, thin handmade raspberry brush underline)
+- TTL logo at top left (bold, heavy black block lettering with vibrant double raspberry brush stroke underline beneath)
 - {category_upper} at top right (small, compact, elegant handwritten/brush script in raspberry pink)
 - Prominent raspberry uppercase dry-brush title on the left (slanted upward, fully displayed across 1–2 lines, bold and clearly readable)
 - Slightly larger, clearly readable short body introduction underneath in crisp black sans-serif
