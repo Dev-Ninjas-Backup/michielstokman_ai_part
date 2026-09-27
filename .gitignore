@@ -2,8 +2,6 @@ b.txt
 /web/
 
 # Sensitive credentials — never push these
-.env
-.env.*
 shejan-a82dd-firebase-adminsdk-zh6eg-52309d3440.json
 transform-ec2-key.pem
 *.pem
