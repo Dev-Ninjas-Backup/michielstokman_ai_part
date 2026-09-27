@@ -220,6 +220,8 @@ DESIGN DIRECTION
 - Generous whitespace.
 - Generous horizontal margins on both the left and right sides of the page with ample breathing room.
 - Balanced wide layout proportions across both sides (spacious editorial page spread, never narrow or cramped against the edges).
+- Complete square page / square cover format (1:1 aspect ratio, perfectly square canvas).
+- Straight-on view.
 - Minimal handmade editorial aesthetic.
 - Black and raspberry pink (#D72655) are the only design colours.
 - No gradients.
@@ -227,30 +229,26 @@ DESIGN DIRECTION
 - No decorative stickers.
 - No unnecessary graphic elements.
 - Premium editorial print aesthetic.
-- Complete portrait page.
-- Straight-on view.
 - No phone, monitor, device frame, website mockup, or surrounding UI.
 
-CRITICAL TEXT LIMITATION
+CRITICAL TEXT LIMITATION & READABILITY
 
 This is a STORY INTRODUCTION PAGE, NOT A FULL STORY PAGE.
+
+ALL TEXT MUST BE CRISP, HIGH-CONTRAST, AND EASILY READABLE at normal viewing distance.
+Never render microscopic, tiny, blurry, or illegible text.
 
 Use ONLY the exact text specified below.
 
 Do NOT extract additional sentences from the source story.
-
 Do NOT generate paragraphs from the story.
-
 Do NOT summarize the story into multiple sentences.
-
 Do NOT add dialogue.
-
 Do NOT add extra descriptive text.
-
 Do NOT repeat the story text.
 
-Keep the introduction extremely short: maximum 1–2 short lines of body text.
-
+Keep the introduction extremely short: maximum 1–2 short lines (under 15 words total).
+Ensure the body text is rendered at a clear, comfortable, medium reading size — completely legible and sharp.
 Do not use any additional text anywhere on the page.
 
 HEADER
@@ -259,10 +257,10 @@ Top left:
 
 "TTL"
 
-- Black.
-- Bold editorial logo treatment.
-- Add a rough handmade raspberry-pink brush underline beneath the logo.
-- Generous margin from the left edge.
+- Solid black.
+- Bold, heavy editorial sans-serif logo typography.
+- Directly beneath "TTL": Add a rough handmade double brush stroke underline in raspberry pink (#D72655) — one bold textured dry-brush stroke with a quick secondary accent brush stroke underneath, exactly matching the client reference.
+- Generous margin from the left edge and top edge.
 
 Top right:
 
@@ -280,10 +278,11 @@ Large headline on the left:
 "{title}"
 
 - Raspberry pink (#D72655).
-- Large expressive brush lettering.
-- Hand-painted / handwritten appearance.
-- Strong visual hierarchy.
-- The title should occupy a prominent portion of the left column.
+- Bold, textured dry-brush marker uppercase lettering (ALL CAPS) with energetic, rough-edged brush strokes, exactly matching the client reference.
+- Slanted dynamically upward to the right (~10–15 degree upward slant), matching the reference's dynamic slant.
+- Raw, expressive paint-marker / dry-brush street editorial aesthetic (NOT cursive calligraphy, NOT flowing script).
+- Formatted across 1–2 short stacked lines (maximum 2–4 words, e.g. "NYNKE'S CONFESSION" style).
+- Strong visual hierarchy, occupying a prominent, compact portion of the upper-left area.
 - Do not add any other title or subtitle.
 - Generous side margin from the left edge of the page.
 
@@ -293,26 +292,32 @@ Directly below the title, use ONLY this short text:
 
 "{body_text}"
 
-- Clean black sans-serif typography.
-- Small editorial body text.
-- Maximum 1–2 short lines.
-- Keep the text compact.
+- Clean black sans-serif typography (crisp, modern geometric/grotesque sans-serif like Helvetica or Inter).
+- HIGH READABILITY IS ESSENTIAL: Render in a crisp, sharp, dark black, medium-sized readable font.
+- MUST BE COMPLETELY LEGIBLE at a normal viewing distance.
+- Formatted as 1–2 short conversational lines/sentences with clean line breaks (under 15 words total), exactly like the client reference:
+  e.g.:
+  "Hi... this is [Name]. [Age in words or digits]."
+  "It was [Time/Setting]. [Short hook]."
+- Clean paragraph spacing between sentences, perfectly legible and readable at a glance.
+- NEVER render microscopic fine print, tiny blurry paragraphs, or illegible squiggles.
+- Keep the text compact, sharp, and easy to read.
 - Do not add any additional story sentences.
 - Do not expand or rewrite this text.
 
 PHOTOGRAPH / POLAROID
 
-Place one large Polaroid photograph on the right side.
+Place one large square Polaroid photograph on the right side.
 
 The Polaroid should be the dominant visual element of the page.
 
 - Slight natural rotation.
 - Authentic physical Polaroid appearance.
-- White Polaroid border.
+- White Polaroid border with classic square photo window (1:1 ratio).
 - Natural paper texture.
 - Clean editorial placement.
-- Wide, spacious format: ensure the Polaroid frame is comfortably wide (classic square or wide format Polaroid, NOT a tall skinny vertical strip) with ample horizontal width across the right side of the page.
-- Large enough and wide enough to clearly show all three people with comfortable breathing room.
+- Wide, spacious format: ensure the Polaroid frame is comfortably square and wide (NOT a tall skinny vertical strip) with ample horizontal width across the right side of the page.
+- Large enough and wide enough to clearly show all people with comfortable breathing room.
 - Generous margin between the Polaroid and the right edge of the page, and clear separation from the left column.
 
 Inside the Polaroid:
@@ -320,26 +325,26 @@ Inside the Polaroid:
 {photo_desc}
 
 The image should communicate:
-
-- unexpected connection
-- intimacy
-- curiosity
-- relaxed conversation
-- subtle attraction
-- emotional ambiguity
-- fleeting summer-night atmosphere
+- vibrant, relaxed party and celebration atmosphere
+- people genuinely relaxing, partying, dancing, and having fun together
+- candid, joyful smiles, laughing together, holding cocktail glasses
+- active, happy, celebratory summer-night party ambience
+- authentic human connection, warmth, and shared enjoyment
 
 All subjects must be clearly visible.
 
-Use natural candid body language and subtle expressions.
+CRITICAL POSE & EXPRESSION RULES:
+- STRICTLY FORBIDDEN: Do NOT depict bent necks, heads tilted away, or staring blankly out windows into the distance.
+- STRICTLY FORBIDDEN: Do NOT depict melancholic, sad, depressed, lonely, brooding, or bored expressions.
+- STRICTLY FORBIDDEN: Do NOT depict stiff, isolated, or awkward body language.
+- ALL subjects must look completely relaxed, cheerful, engaged with each other, partying, dancing, smiling, and having a great time.
 
-Include restrained environmental details.
-
-Do not depict explicit sexual activity.
-Do not depict nudity.
-Do not depict pornography.
-
-The intimacy should be communicated through proximity, facial expressions, eye contact, and body language.
+STRICTLY FORBIDDEN CONTENT:
+- STRICTLY NO homosexual, lesbian, gay, queer, or same-sex romantic or sexual themes.
+- Do not depict explicit sexual activity.
+- Do not depict nudity.
+- Do not depict pornography.
+- The scene must depict a celebratory, relaxed group of friends partying, dancing, laughing, and enjoying drinks in a lively social setting.
 
 PHOTOGRAPHIC STYLE
 
@@ -398,9 +403,9 @@ and below it:
 
 "{demographics_text}"
 {explicit_section}
-Use clean, restrained sans-serif typography.
-
-Keep this information compact and visually quiet with generous margin from the left edge.
+- Clean, restrained sans-serif typography.
+- High contrast, dark black, sharp, and clearly readable (never tiny, faint, or pixelated).
+- Keep this information compact and visually quiet with generous margin from the left edge.
 
 NO BUTTON / NO CTA
 
@@ -423,15 +428,15 @@ OVERALL COMPOSITION
 
 Follow the client's reference as closely as possible:
 
-- TTL logo at top left
+- TTL logo at top left with double raspberry brush stroke underline
 - {category_upper} at top right
-- Large raspberry handwritten title on the left
-- VERY SHORT body introduction underneath
-- Large Polaroid photograph on the right
+- Large raspberry uppercase dry-brush title on the left (slanted upward, short, 2–4 words)
+- VERY SHORT, clearly readable body introduction underneath in clean black sans-serif
+- Large square Polaroid photograph on the right
 - Author name inside the Polaroid
 - Small metadata section near the lower left
 {explicit_bullet}- Generous empty space
-- Spacious two-column layout with increased horizontal width and generous margins on both the left and right sides
+- Spacious two-column square layout with increased horizontal width and generous margins on both the left and right sides
 - NO BUTTON
 - NO CTA
 
@@ -474,18 +479,16 @@ Read the provided story and create a concise visual refinement that will be used
 
 Your goal is NOT to rewrite the story or summarize every event.
 
-Instead, identify the strongest visual and emotional elements that should influence the generated image.
+Instead, identify the strongest visual, celebratory, and atmospheric elements that should influence the generated image.
 
 Preserve:
 - The main character and their relevant visual characteristics
 - Important supporting characters
-- The primary location and environment
+- The primary location and environment (terrace, lounge, party, outdoor setting)
 - Time of day, season, and atmosphere
-- The central relationship or interaction
-- The emotional tension and mood
-- Important objects, clothing, architecture, or environmental details
+- Celebratory party vibes, dancing, laughing, and joyful social relaxation between characters
+- Important objects, clothing, architecture, cocktail glasses, or environmental details
 - Distinctive visual elements that make this story recognizable
-- The overall narrative feeling
 
 Remove:
 - Dialogue
@@ -495,12 +498,14 @@ Remove:
 - Minor chronological events that are not visually important
 - Exact prices, measurements, or irrelevant factual details
 - Details that would distract from the main visual concept
+- ANY homosexual, lesbian, gay, queer, or same-sex romantic/sexual keywords, tags, or themes (strictly remove words like "homosexual", "lesbian", "gay", "same-sex", etc.). NEVER frame the scene around homosexual romance or intimacy. Always transform any interpersonal connection into a joyful, relaxed, vibrant party and celebration atmosphere where friends are relaxing, dancing, laughing, and celebrating together.
+- ANY melancholic, depressed, sad, lonely, or brooding cues (such as staring out windows, bent necks, sorrowful looks). Instead, portray people actively relaxing, having fun, partying, dancing, and laughing together.
 
 Do not invent major story elements that are not present in the source.
 
 Prioritize visual storytelling over plot summary.
 
-The result should read like a concise editorial visual brief: cinematic, specific, atmospheric, and easy for an image-generation model to interpret.
+The result should read like a concise editorial visual brief: cinematic, specific, atmospheric, celebratory, and easy for an image-generation model to interpret.
 
 Return only the refined visual description.
 """
@@ -512,12 +517,12 @@ Given an editorial visual brief of a story, extract the visual art direction int
 - "setting": location, architecture, landscape, props, physical environment (use public or living spaces such as lounges, terraces, cafes, streets; avoid beds/bedroom settings)
 - "characters": who should be in the frame, their visual characteristics, age, gender, styling (all subjects must be fully and tastefully clothed in elegant casual wear such as knit sweaters, jackets, or shirts)
 - "composition": spatial arrangement, who is prominent, body language, and spatial relationships
-- "mood": emotional tension, intimacy, connection, feeling
+- "mood": vibrant, celebratory, relaxed, joyful party atmosphere with warmth and laughter (strictly avoid melancholic, depressing, sad, or gloomy moods)
 - "lighting": time of day, season, atmosphere, lighting sources, and shadows
 - "color_palette": tones, warmth, palette notes
 - "visual_style": overall visual aesthetic, editorial photography style, and artistic treatment
 - "narrative_focus": the central visual moment that anchors the story
-- "polaroid_scene": a concise 1-2 sentence description strictly of the people, their setting, their candid action, and their facial expressions for a single Polaroid photo frame. All subjects must be fully clothed in stylish casual attire (e.g. jacket, sweater, shirt). Strictly no nudity, bare skin, bare shoulders, lingerie, beds, or sexually suggestive poses. Strictly no mentions of frames, borders, text, cameras, or collage elements.
+- "polaroid_scene": a concise 1-2 sentence description strictly of the people, their setting, their candid action, and their facial expressions for a single square Polaroid photo frame. All subjects must be fully clothed in stylish casual attire (e.g. jacket, sweater, shirt). Strictly no nudity, bare skin, bare shoulders, lingerie, beds, or sexually suggestive poses. Strictly NO homosexual, lesbian, gay, or same-sex romantic/sexual themes. Strictly NO bent-neck poses, heads tilted away, staring out windows, or melancholic/sad expressions. The subjects must look relaxed, lively, joyful, partying, dancing, laughing together, and enjoying drinks in a vibrant social setting (such as a terrace, lounge, or party venue). Strictly no mentions of frames, borders, text, cameras, or collage elements.
 
 Return ONLY a valid JSON object with these keys. No markdown fences, no preamble.
 """
@@ -558,7 +563,7 @@ Rule 15: No happy ending or wise lesson. In magazines such a story almost always
 Rule 16: It is personally tailored. You let the user choose themselves: “I am the one who always gives”, “unspoken desire”, “intimate moment”. This makes every story feel like it is about her. Magazines do not have that level of recognition and intimacy.
 Rule 17: The voice must feel incredibly raw, sensory, and intimate. Focus deeply on physical touch, the warmth of breath, the slow movement of skin on skin, trembling hands, and the internal sensations of pleasure and arousal. Write as if the speaker is experiencing these sensations in the present moment, letting the pace slow down to build anticipation.
 Rule 18: It is not for the coffee table. House of Juliette is listened to in the car, in bed, with headphones on — at moments when you are truly alone with yourself. That alone makes the experience more intimate and therefore spicier.
-Rule 19: Title that the member sees (beautiful, definitive version for always)
+Rule 19: Title that the member sees (beautiful, definitive version for always). The title MUST be short, punchy, and evocative: maximum 2 to 4 words (e.g. "Two Men and Nia", "Ibiza Midnight", "The Second Glance"). Never use long multi-word titles.
 Rule 20: Always write the final story, title, and image prompt entirely in English. Under no circumstances should any part of the output contain non-English words, even if the user's raw input is in Dutch, German, French, Spanish, or any other language. Translate the input's meaning into English.
 
 BASHAR PRINCIPLES (Keep in back of mind):

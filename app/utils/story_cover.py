@@ -763,6 +763,7 @@ def _generate_v2_cover(
         image_prompt=prompt,
         gender=story.gender,
         lock_identity=False,
+        size="1024x1024",
     )
 
     if cover_url:

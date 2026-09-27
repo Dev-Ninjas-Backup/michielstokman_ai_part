@@ -940,6 +940,27 @@ def build_portrait_only_prompt(story: Story, *, use_llm_brief: bool = True) -> s
     return _trim_prompt_to_budget(prompt, _portrait_prompt_char_budget())
 
 
+_HOMOSEXUAL_KEYWORDS_RE = re.compile(
+    r"\b(homosexual|lesbian|gay|queer|same-sex(?:\s+romance|\s+erotic|\s+intimacy)?)\b",
+    re.IGNORECASE,
+)
+_MELANCHOLIC_CUES_RE = re.compile(
+    r"\b(forehead pressed to|pressed to cool glass|staring out (?:the )?window|stare out (?:the )?window|"
+    r"gazing out (?:the )?window|bent-?neck|neck bent|melancholic|depressed|brooding|sorrowful|looking away sadly)\b",
+    re.IGNORECASE,
+)
+
+
+def _sanitize_v2_scene_text(text: str) -> str:
+    """Scrub homosexual keywords and melancholic bent-neck cues, replacing with relaxed party atmosphere."""
+    if not text:
+        return ""
+    cleaned = _HOMOSEXUAL_KEYWORDS_RE.sub("joyful social", text)
+    cleaned = _MELANCHOLIC_CUES_RE.sub("smiling and enjoying drinks together", cleaned)
+    cleaned = re.sub(r"\s+", " ", cleaned).strip()
+    return cleaned
+
+
 def _heuristic_v2_photograph_description(story: Story) -> str:
     """Deterministic, story-grounded 1-2 sentence description for the V2 Polaroid slot."""
     cast_mode = _cast_mode(story)
@@ -948,13 +969,13 @@ def _heuristic_v2_photograph_description(story: Story) -> str:
 
     if cast_mode == "group":
         subjects = f"An adult {gender} and two companions"
-        action = "sitting closely together, enjoying conversation"
+        action = "completely relaxed, partying and dancing together, laughing and celebrating with drinks"
     elif cast_mode == "pair":
         subjects = f"An adult {gender} and a companion"
-        action = "sharing a quiet, intimate moment together"
+        action = "completely relaxed, dancing and celebrating together with drinks and laughter"
     else:
         subjects = f"A {age_str}{gender}"
-        action = "in a candid, thoughtful moment"
+        action = "in a vibrant, relaxed party moment, smiling and enjoying music and drinks"
 
     blob = _story_blob(story, story_chars=500)
     settings = list(dict.fromkeys(m.group(1).lower() for m in _SCENE_SETTING_RE.finditer(blob))) if blob else []
@@ -970,7 +991,7 @@ def _heuristic_v2_photograph_description(story: Story) -> str:
     else:
         setting_desc = "in an intimate, dimly lit setting"
 
-    return f"{subjects} {action}, {setting_desc}. Fully clothed in stylish, casual attire. Relaxed conversation, subtle smiles, candid expressions. Clearly visible."
+    return f"{subjects} {action}, {setting_desc}. Fully clothed in stylish, casual attire. Cheerful smiles, candid laughter, dancing and celebrating together. No bent necks or looking away. Clearly visible."
 
 
 def _heuristic_v2_visual_art_direction(
@@ -1069,6 +1090,7 @@ def refine_story_visual_art_direction(story: Story, *, use_llm: bool = True) -> 
                 f"STORY TEXT:\n{full_text or situation or hook}\n"
             )
             content = (getattr(response, "content", None) or str(response) or "").strip().strip('"').strip("'")
+            content = _sanitize_v2_scene_text(content)
             if len(content) >= 40:
                 logger.info("V2 visual refinement path=llm story=%s chars=%s", getattr(story, "id", None), len(content))
                 return content
@@ -1146,7 +1168,7 @@ def extract_v2_visual_art_direction(
                     for k, v in parsed.items():
                         norm_k = key_map.get(k.lower())
                         if norm_k and isinstance(v, str) and v.strip():
-                            normalized[norm_k] = v.strip()
+                            normalized[norm_k] = _sanitize_v2_scene_text(v.strip())
 
                     fallback = _heuristic_v2_visual_art_direction(story, visual_brief=brief)
                     for required_key in [
@@ -1183,13 +1205,13 @@ def build_v2_photograph_description(
 ) -> str:
     """Generate a concise 1-2 sentence description of the subjects and scene inside the Polaroid."""
     if art_direction and art_direction.get("polaroid_scene"):
-        return art_direction["polaroid_scene"].strip()
+        return _sanitize_v2_scene_text(art_direction["polaroid_scene"].strip())
 
     if use_llm and (settings.XAI_API_KEY or "").strip():
         try:
             art_dir = extract_v2_visual_art_direction(story, use_llm=True)
             if art_dir.get("polaroid_scene"):
-                return art_dir["polaroid_scene"].strip()
+                return _sanitize_v2_scene_text(art_dir["polaroid_scene"].strip())
         except Exception:
             logger.warning(
                 "V2 photograph description via art direction failed for story %s, falling back",
@@ -1197,7 +1219,7 @@ def build_v2_photograph_description(
                 exc_info=True,
             )
 
-    return _heuristic_v2_photograph_description(story)
+    return _sanitize_v2_scene_text(_heuristic_v2_photograph_description(story))
 
 
 def build_v2_cover_prompt(
@@ -1242,6 +1264,9 @@ def build_v2_cover_prompt(
 
     raw_title = (story.title or story.member_title or getattr(story, "ai_generated_title", None) or "Untitled").strip()
     title = raw_title.replace('"', '').replace('“', '').replace('”', '').strip() or "Untitled"
+    title_words = title.split()
+    if len(title_words) > 4:
+        title = " ".join(title_words[:4])
 
     hook = (getattr(story, "hero_hook", None) or "").strip()
     if hook:
@@ -1249,10 +1274,14 @@ def build_v2_cover_prompt(
     else:
         body = _description_for_story(story)
     body_text = body.replace('"', "'").replace('“', "'").replace('”', "'").strip()
-    if not hook and "." in body_text:
-        first_sentence = body_text.split(".")[0].strip() + "."
-        if len(first_sentence) > 10:
-            body_text = first_sentence
+    norm_text = re.sub(r'\.{2,}', '…', body_text)
+    if "." in norm_text:
+        first_sentence = norm_text.split(".")[0].strip() + "."
+        if len(first_sentence) > 5:
+            body_text = first_sentence.replace('…', '...')
+    words = body_text.split()
+    if len(words) > 10:
+        body_text = " ".join(words[:9]).rstrip(",;:") + "."
     if body_text and not body_text.endswith((".", "!", "?")):
         body_text += "."
 
@@ -1271,8 +1300,9 @@ def build_v2_cover_prompt(
         demo_parts.append(f"{story.age} YEARS")
     if story.gender:
         demo_parts.append(story.gender.strip().upper())
-    if getattr(story, "sexual_orientation", None):
-        demo_parts.append(story.sexual_orientation.strip().upper())
+    orientation = (getattr(story, "sexual_orientation", None) or "").strip().upper()
+    if orientation and not any(kw in orientation for kw in ["HOMOSEXUAL", "GAY", "LESBIAN", "QUEER", "SAME-SEX"]):
+        demo_parts.append(orientation)
     demographics_text = " / ".join(demo_parts) or "ADULT"
 
     is_explicit = bool(getattr(story, "high_intensity", False))
@@ -1286,11 +1316,11 @@ def build_v2_cover_prompt(
         explicit_numbered_item = ""
 
     if photograph_description:
-        photo_desc = photograph_description.strip().rstrip(".")
+        photo_desc = _sanitize_v2_scene_text(photograph_description.strip().rstrip("."))
     elif art_direction and art_direction.get("polaroid_scene"):
-        photo_desc = art_direction["polaroid_scene"].strip().rstrip(".")
+        photo_desc = _sanitize_v2_scene_text(art_direction["polaroid_scene"].strip().rstrip("."))
     else:
-        photo_desc = build_v2_photograph_description(story, use_llm=use_llm_scene).strip().rstrip(".")
+        photo_desc = _sanitize_v2_scene_text(build_v2_photograph_description(story, use_llm=use_llm_scene).strip().rstrip("."))
 
     author_name = (story.first_name or "Anonymous").strip().upper()
 

@@ -169,9 +169,10 @@ def generate_ai_cover_image(
     gender: str | None = None,
     *,
     lock_identity: bool = True,
+    size: str | None = None,
 ) -> tuple[str, str] | tuple[None, None]:
     """
-    Calls DALL-E 3 to generate the background image, applies the Pillow overlay,
+    Calls DALL-E 3 (or configured image model) to generate the background image,
     and uploads the resulting image to S3 (or local fallback).
     Returns (image_url, s3_key) or (None, None) on failure.
     """
@@ -226,18 +227,20 @@ def generate_ai_cover_image(
         
         model = settings.OPENAI_IMAGE_MODEL or "dall-e-3"
         model_lower = model.lower().strip()
-        if model_lower.startswith("dall-e-3"):
-            size = "1024x1792"
+        if size is not None:
+            target_size = size
+        elif model_lower.startswith("dall-e-3"):
+            target_size = "1024x1792"
         elif model_lower.startswith("dall-e-2"):
-            size = "1024x1024"
+            target_size = "1024x1024"
         else:
-            size = "1024x1536"
+            target_size = "1024x1536"
 
         payload = {
             "model": model,
             "prompt": dalle_prompt,
             "n": 1,
-            "size": size
+            "size": target_size
         }
         # Prefer natural (less glossy) for DALL·E 3 — matches TTL anti-AI look.
         if model_lower.startswith("dall-e"):

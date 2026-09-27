@@ -1381,6 +1381,7 @@ def test_v2_method_executes_v2_editorial_prompt_pipeline():
                         mock_gen.assert_called_once()
                         assert mock_gen.call_args.kwargs["image_prompt"] == "V2 editorial prompt test"
                         assert mock_gen.call_args.kwargs["lock_identity"] is False
+                        assert mock_gen.call_args.kwargs["size"] == "1024x1024"
                         render.assert_not_called()
                         assert story.image_source == ImageSource.template_v2
                         assert story.cover_image_url == "https://cdn/v2_cover.jpg"
@@ -1537,5 +1538,47 @@ def test_build_v2_cover_prompt_with_art_direction():
     assert "WALES, UK" in prompt
     assert "RORY" in prompt
     assert "EXPLICIT" in prompt
+
+
+def test_build_v2_cover_prompt_removes_homosexual_keywords_and_enforces_square_party_rules():
+    from app.utils.story_image_prompt import build_v2_cover_prompt
+
+    story = _story(
+        first_name="Elena",
+        title="The Second Draft of the World",
+        hero_hook=(
+            "The midnight train hummed low along the dark water, its steel sides carrying me forward. "
+            "I sat with my forehead pressed to the cool glass staring out the window sadly."
+        ),
+        location="Geneva, Switzerland",
+        city="Geneva",
+        country="Switzerland",
+        age=26,
+        gender="female",
+        sexual_orientation="homosexual",
+        high_intensity=True,
+    )
+
+    prompt = build_v2_cover_prompt(story, use_llm_scene=False)
+
+    # 1. Square shape requirement
+    assert "Complete square page / square cover format (1:1 aspect ratio, perfectly square canvas)" in prompt
+    assert "White Polaroid border with classic square photo window (1:1 ratio)" in prompt
+
+    # 2. Short title requirement
+    assert "The Second Draft of" in prompt
+
+    # 3. Readability & short intro
+    assert "HIGH READABILITY IS ESSENTIAL" in prompt
+    assert "The midnight train hummed low along the dark water." in prompt
+
+    # 4. Homosexual keyword removed from prompt metadata and rendered text
+    assert '"HOMOSEXUAL"' not in prompt
+    assert '"26 YEARS / FEMALE"' in prompt
+
+    # 5. Party, dancing, and relaxed celebration required
+    assert "partying, dancing, and having fun together" in prompt
+    assert "STRICTLY FORBIDDEN: Do NOT depict bent necks" in prompt
+    assert "STRICTLY NO homosexual, lesbian, gay, queer, or same-sex romantic or sexual themes." in prompt
 
 
