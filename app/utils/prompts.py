@@ -202,122 +202,179 @@ V2_COVER_CLOSING_CONSTRAINTS = (
 )
 
 V2_COVER_PROMPT_TEMPLATE = """\
-Create a complete TTL {category_title} story introduction page using the attached client reference as the primary visual and layout reference.
+Create a complete TTL {category_title} story introduction page using the attached client reference as the PRIMARY visual, layout, typography, spacing, and composition reference.
 
-The final image must feel like a handmade editorial {kind_singular} page printed on warm ivory paper. Reproduce the overall visual language, hierarchy, spacing, typography relationships, Polaroid treatment, and editorial composition of the reference, while using the story-specific content provided below.
+The goal is to closely match the visual simplicity and editorial hierarchy of the client reference.
+
+The final page must NOT look like a full story page. It is only a SHORT STORY INTRODUCTION / COVER PAGE.
+
+IMPORTANT:
+The design must contain very little text.
+The photograph and headline are the dominant visual elements.
+Do not fill empty space with additional story text.
 
 DESIGN DIRECTION
 
-- Warm ivory/off-white paper background with subtle natural paper texture.
+- Warm ivory/off-white paper background.
+- Subtle natural paper texture.
 - Generous whitespace.
+- Generous horizontal margins on both the left and right sides of the page with ample breathing room.
+- Balanced wide layout proportions across both sides (spacious editorial page spread, never narrow or cramped against the edges).
 - Minimal handmade editorial aesthetic.
 - Black and raspberry pink (#D72655) are the only design colours.
 - No gradients.
 - No additional accent colours.
-- No decorative stickers or unnecessary graphic elements.
-- The page must look intentionally designed and editorial, not like a generic AI-generated poster.
-- Render the complete portrait page straight-on.
-- No phone, monitor, device frame, mockup, or surrounding background.
+- No decorative stickers.
+- No unnecessary graphic elements.
+- Premium editorial print aesthetic.
+- Complete portrait page.
+- Straight-on view.
+- No phone, monitor, device frame, website mockup, or surrounding UI.
+
+CRITICAL TEXT LIMITATION
+
+This is a STORY INTRODUCTION PAGE, NOT A FULL STORY PAGE.
+
+Use ONLY the exact text specified below.
+
+Do NOT extract additional sentences from the source story.
+
+Do NOT generate paragraphs from the story.
+
+Do NOT summarize the story into multiple sentences.
+
+Do NOT add dialogue.
+
+Do NOT add extra descriptive text.
+
+Do NOT repeat the story text.
+
+Keep the introduction extremely short: maximum 1–2 short lines of body text.
+
+Do not use any additional text anywhere on the page.
 
 HEADER
 
 Top left:
-- Black "TTL" logo.
+
+"TTL"
+
+- Black.
+- Bold editorial logo treatment.
 - Add a rough handmade raspberry-pink brush underline beneath the logo.
+- Generous margin from the left edge.
 
 Top right:
-- "{category_upper}" in raspberry pink.
-- Expressive handwritten/brush lettering.
 
-LEFT CONTENT COLUMN
-
-Large headline:
-"{title}"
+"{category_upper}"
 
 - Raspberry pink.
-- Large expressive brush lettering.
-- Hand-painted editorial appearance.
-- Strong visual hierarchy.
-- Do not use a conventional clean font for the headline.
+- Expressive handwritten/brush lettering.
+- Small and elegant.
+- Generous margin from the right edge.
 
-Below the headline:
+MAIN TITLE
+
+Large headline on the left:
+
+"{title}"
+
+- Raspberry pink (#D72655).
+- Large expressive brush lettering.
+- Hand-painted / handwritten appearance.
+- Strong visual hierarchy.
+- The title should occupy a prominent portion of the left column.
+- Do not add any other title or subtitle.
+- Generous side margin from the left edge of the page.
+
+SHORT STORY INTRODUCTION
+
+Directly below the title, use ONLY this short text:
 
 "{body_text}"
 
 - Clean black sans-serif typography.
-- No subtitle.
-- Keep the text short and visually separated from the title.
-
-BOTTOM INFORMATION AREA
-
-Location:
-"{location_text}"
-
-Details:
-"{demographics_text}"
-{explicit_section}
-Use clean, restrained sans-serif typography for these details.
-
-BOTTOM CTA
-
-Create a wide raspberry-pink rectangular button across the lower portion of the page.
-
-Button text:
-
-"{button_label}"
-
-- White clean sans-serif lettering.
-- Minimal editorial button treatment.
-- Do not add extra icons or decorative elements.
+- Small editorial body text.
+- Maximum 1–2 short lines.
+- Keep the text compact.
+- Do not add any additional story sentences.
+- Do not expand or rewrite this text.
 
 PHOTOGRAPH / POLAROID
 
-Place one large Polaroid photograph on the right side of the composition.
+Place one large Polaroid photograph on the right side.
 
-The Polaroid should be slightly rotated, naturally overlapping the page while maintaining the clean editorial layout.
+The Polaroid should be the dominant visual element of the page.
+
+- Slight natural rotation.
+- Authentic physical Polaroid appearance.
+- White Polaroid border.
+- Natural paper texture.
+- Clean editorial placement.
+- Wide, spacious format: ensure the Polaroid frame is comfortably wide (classic square or wide format Polaroid, NOT a tall skinny vertical strip) with ample horizontal width across the right side of the page.
+- Large enough and wide enough to clearly show all three people with comfortable breathing room.
+- Generous margin between the Polaroid and the right edge of the page, and clear separation from the left column.
 
 Inside the Polaroid:
 
 {photo_desc}
 
+The image should communicate:
+
+- unexpected connection
+- intimacy
+- curiosity
+- relaxed conversation
+- subtle attraction
+- emotional ambiguity
+- fleeting summer-night atmosphere
+
+All subjects must be clearly visible.
+
+Use natural candid body language and subtle expressions.
+
+Include restrained environmental details.
+
 Do not depict explicit sexual activity.
 Do not depict nudity.
-Do not create pornographic imagery.
-The intimacy should be communicated through facial expressions, proximity, eye contact, and body language.
+Do not depict pornography.
+
+The intimacy should be communicated through proximity, facial expressions, eye contact, and body language.
 
 PHOTOGRAPHIC STYLE
 
-The photograph inside the Polaroid must be strictly monochrome black-and-white.
+The photograph inside the Polaroid must be STRICTLY BLACK AND WHITE.
 
 Use an authentic vintage 35mm analogue snapshot aesthetic:
 
 - organic film grain
-- visible but natural photographic texture
+- natural photographic texture
 - soft focus
-- slightly faded blacks
+- faded blacks
 - muted contrast
 - gentle highlight bloom
 - subtle dust
-- very fine film scratches
-- imperfect analogue exposure
-- realistic vintage photographic character
+- fine film scratches
+- slightly imperfect analogue exposure
+- authentic old-film character
 
 Avoid:
+
 - polished digital photography
 - glossy commercial photography
 - stock-photo appearance
-- oversaturated colours
-- modern HDR
+- HDR
 - excessive sharpness
+- oversaturated colours
 - artificial cinematic effects
 - plastic-looking skin
 - AI-looking faces
 
-The photograph should feel like a real personal snapshot discovered inside an old confession archive.
+The photograph should feel like a real personal photograph from an old confession archive.
 
 POLAROID CAPTION
 
-At the bottom white border of the Polaroid:
+On the bottom white border of the Polaroid:
 
 "{author_name}"
 
@@ -325,33 +382,87 @@ Directly underneath:
 
 "AUTHOR"
 
-Add a small hand-drawn raspberry-pink heart beside the author name.
+Add a small hand-drawn raspberry-pink heart.
 
-Keep the photograph itself completely black-and-white. The raspberry pink should appear only in the page's graphic elements and the small heart.
+The photograph itself must remain completely black and white.
+
+The raspberry pink heart is allowed only as part of the page's graphic accent colour.
+
+BOTTOM INFORMATION
+
+At the lower-left area of the page, include ONLY:
+
+"{location_text}"
+
+and below it:
+
+"{demographics_text}"
+{explicit_section}
+Use clean, restrained sans-serif typography.
+
+Keep this information compact and visually quiet with generous margin from the left edge.
+
+NO BUTTON / NO CTA
+
+ABSOLUTELY DO NOT GENERATE:
+
+- "READ CONFESSION"
+- "READ {category_upper}"
+- "START LISTENING"
+- any button
+- any CTA
+- any arrow button
+- any rectangular pink button
+- any navigation element
+- any website interface element
+- any footer button
+
+The lower portion of the page must remain clean and open.
 
 OVERALL COMPOSITION
 
-The composition should strongly resemble the attached client reference:
+Follow the client's reference as closely as possible:
 
-- TTL branding at the top left
-- {category_upper} at the top right
-- large handwritten raspberry headline on the left
-- concise black story introduction beneath it
-- large Polaroid photograph dominating the right side
-- author caption integrated into the Polaroid
-- metadata near the bottom left
-{explicit_bullet}- wide {button_label} button at the bottom
+- TTL logo at top left
+- {category_upper} at top right
+- Large raspberry handwritten title on the left
+- VERY SHORT body introduction underneath
+- Large Polaroid photograph on the right
+- Author name inside the Polaroid
+- Small metadata section near the lower left
+{explicit_bullet}- Generous empty space
+- Spacious two-column layout with increased horizontal width and generous margins on both the left and right sides
+- NO BUTTON
+- NO CTA
 
-Maintain generous whitespace and a premium editorial balance.
+The photograph should receive more visual attention than the body text.
 
-The final result should look like a professionally designed TTL {category_title} introduction page, not a generic AI poster.
+The final design should feel spacious, minimal, premium, handmade, editorial, intimate, and authentic.
 
-IMPORTANT:
-Prioritize the provided client reference for visual composition and design language.
-Use the story information only to determine the people, setting, atmosphere, and emotional tone.
-Do not add unnecessary story text.
-Do not change the required UI text.
-Do not introduce additional colours or decorative elements.
+TEXT CONTROL — EXTREMELY IMPORTANT
+
+Only render these textual elements:
+
+1. TTL
+2. {category_upper}
+3. {title}
+4. {body_text}
+5. {author_name}
+6. AUTHOR
+7. {location_text}
+8. {demographics_text}
+{explicit_numbered_item}\
+Do not render any other text.
+
+Do not add text from the source story.
+
+Do not create a button.
+
+Do not create a CTA.
+
+Do not fill empty space with additional copy.
+
+The final image should resemble a clean editorial {kind_singular} introduction page rather than a full story/article page.
 """
 
 

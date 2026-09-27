@@ -1249,6 +1249,10 @@ def build_v2_cover_prompt(
     else:
         body = _description_for_story(story)
     body_text = body.replace('"', "'").replace('“', "'").replace('”', "'").strip()
+    if not hook and "." in body_text:
+        first_sentence = body_text.split(".")[0].strip() + "."
+        if len(first_sentence) > 10:
+            body_text = first_sentence
     if body_text and not body_text.endswith((".", "!", "?")):
         body_text += "."
 
@@ -1273,11 +1277,13 @@ def build_v2_cover_prompt(
 
     is_explicit = bool(getattr(story, "high_intensity", False))
     if is_explicit:
-        explicit_section = '\nAdd a small outlined raspberry-pink label:\n\n"EXPLICIT"\n'
+        explicit_section = '\nAdd a small outlined raspberry-pink:\n\n"EXPLICIT"\n'
         explicit_bullet = "- EXPLICIT label\n"
+        explicit_numbered_item = "9. EXPLICIT\n"
     else:
         explicit_section = ""
         explicit_bullet = ""
+        explicit_numbered_item = ""
 
     if photograph_description:
         photo_desc = photograph_description.strip().rstrip(".")
@@ -1298,6 +1304,7 @@ def build_v2_cover_prompt(
         demographics_text=demographics_text,
         explicit_section=explicit_section,
         explicit_bullet=explicit_bullet,
+        explicit_numbered_item=explicit_numbered_item,
         button_label=button_label,
         photo_desc=photo_desc,
         author_name=author_name,

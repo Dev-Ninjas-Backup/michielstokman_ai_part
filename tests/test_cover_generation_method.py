@@ -1248,26 +1248,29 @@ def test_build_v2_cover_prompt_matches_client_specification_exactly():
     assert "DESIGN DIRECTION" in prompt
     assert "HEADER" in prompt
     assert "CONFESSIONS" in prompt
-    assert "LEFT CONTENT COLUMN" in prompt
+    assert "MAIN TITLE" in prompt
     assert '"Two Men and Nia"' in prompt
+    assert "SHORT STORY INTRODUCTION" in prompt
     assert '"They took a little GHB in Bacardi cola."' in prompt
-    assert "BOTTOM INFORMATION AREA" in prompt
+    assert "BOTTOM INFORMATION" in prompt
     assert '"WALES, UK"' in prompt
     assert '"23 YEARS / MALE / HETEROSEXUAL"' in prompt
     assert '"EXPLICIT"' in prompt
-    assert "BOTTOM CTA" in prompt
-    assert '"READ CONFESSION →"' in prompt
+    assert "NO BUTTON / NO CTA" in prompt
+    assert "ABSOLUTELY DO NOT GENERATE:" in prompt
+    assert '"READ CONFESSION"' in prompt
     assert "PHOTOGRAPH / POLAROID" in prompt
     assert custom_photo_desc in prompt
     assert "Do not depict explicit sexual activity." in prompt
     assert "Do not depict nudity." in prompt
     assert "PHOTOGRAPHIC STYLE" in prompt
-    assert "strictly monochrome black-and-white" in prompt
+    assert "STRICTLY BLACK AND WHITE" in prompt
     assert "POLAROID CAPTION" in prompt
     assert '"RORY"' in prompt
     assert '"AUTHOR"' in prompt
     assert "OVERALL COMPOSITION" in prompt
-    assert "IMPORTANT:" in prompt
+    assert "TEXT CONTROL — EXTREMELY IMPORTANT" in prompt
+    assert "CRITICAL TEXT LIMITATION" in prompt
 
 
 def test_build_v2_cover_prompt_heuristic_fallback():
@@ -1323,7 +1326,7 @@ def test_build_v2_cover_prompt_meditation():
     assert "Create a complete TTL Meditations story introduction page" in prompt
     assert "MEDITATIONS" in prompt
     assert '"Soft Stillness"' in prompt
-    assert '"READ MEDITATION →"' in prompt
+    assert "NO BUTTON / NO CTA" in prompt
     assert '"AOI"' in prompt
     assert '"AUTHOR"' in prompt
 
