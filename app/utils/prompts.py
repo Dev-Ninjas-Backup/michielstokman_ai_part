@@ -284,12 +284,14 @@ Large headline on the left:
 "{title}"
 
 - Raspberry pink (#D72655).
-- Bold, textured dry-brush marker uppercase lettering (ALL CAPS) with energetic, rough-edged brush strokes, exactly matching the client reference.
+- Bold, textured dry-brush marker uppercase lettering (ALL CAPS) with energetic, rough-edged brush strokes, exactly matching the attached reference.
 - Slanted dynamically upward to the right (~10–15 degree upward slant), matching the reference's dynamic slant.
 - Raw, expressive paint-marker / dry-brush street editorial aesthetic (NOT cursive calligraphy, NOT flowing script).
-- Formatted across 1–2 short stacked lines (maximum 2–4 words, e.g. "NYNKE'S CONFESSION" style).
-- Strong visual hierarchy, occupying a prominent, compact portion of the upper-left area.
-- Do not add any other title or subtitle.
+- Formatted cleanly across 1–2 short stacked lines (e.g. Line 1: "TWO MEN", Line 2: "AND NIA").
+- The complete title MUST be displayed clearly and fully — do NOT crop, hide, truncate, or split the title incorrectly.
+- Scale & Proportions: Make the title visually prominent and dominant within the left column, but ONLY slightly smaller than an oversized headline (a subtle size reduction, leaving comfortable breathing room around the lettering so it never crowds surrounding elements).
+- Make sure the complete phrase "{title}" is immediately and clearly readable.
+- Do not add any subtitle or additional title.
 - Generous side margin from the left edge of the page.
 
 SHORT STORY INTRODUCTION
@@ -299,17 +301,15 @@ Directly below the title, use ONLY this short text:
 "{body_text}"
 
 - Clean black sans-serif typography (crisp, modern geometric/grotesque sans-serif like Helvetica or Inter).
-- HIGH READABILITY IS ESSENTIAL: Render in a crisp, sharp, dark black, medium-sized readable font.
-- MUST BE COMPLETELY LEGIBLE at a normal viewing distance.
-- Formatted as 1–2 short conversational lines/sentences with clean line breaks (under 15 words total), exactly like the client reference:
-  e.g.:
-  "Hi... this is [Name]. [Age in words or digits]."
-  "It was [Time/Setting]. [Short hook]."
-- Clean paragraph spacing between sentences, perfectly legible and readable at a glance.
+- Font Size & Legibility: Make the font slightly larger and clearly readable at normal viewing size (a comfortable, readable editorial body size — NOT tiny microscopic fine print, NOT oversized, perfectly legible).
+- HIGH READABILITY IS ESSENTIAL: Render in a crisp, sharp, dark black font with high contrast against the paper.
+- Compact editorial placement: Maintain a comfortable but relatively close distance directly below the title.
+- Maximum 1–2 short lines.
+- Visual Balance: The title remains the dominant element, while the introduction is now clearly readable without competing with the title.
 - NEVER render microscopic fine print, tiny blurry paragraphs, or illegible squiggles.
+- Do not rewrite or modify the sentence.
+- Do not add any additional sentences or story copy.
 - Keep the text compact, sharp, and easy to read.
-- Do not add any additional story sentences.
-- Do not expand or rewrite this text.
 
 PHOTOGRAPH / POLAROID
 
@@ -436,8 +436,8 @@ Follow the client's reference as closely as possible:
 
 - TTL logo at top left (tall, narrow bold black lettering with short, thin handmade raspberry brush underline)
 - {category_upper} at top right (small, compact, elegant handwritten/brush script in raspberry pink)
-- Large raspberry uppercase dry-brush title on the left (slanted upward, short, 2–4 words)
-- VERY SHORT, clearly readable body introduction underneath in clean black sans-serif
+- Complete raspberry uppercase dry-brush title on the left (slanted upward, fully displayed across 1–2 lines, dominant but slightly reduced in size)
+- Slightly larger, clearly readable short body introduction underneath in clean black sans-serif
 - Large square Polaroid photograph on the right
 - Author name inside the Polaroid
 - Small metadata section near the lower left
