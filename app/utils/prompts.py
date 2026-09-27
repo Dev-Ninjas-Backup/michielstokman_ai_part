@@ -258,12 +258,11 @@ Top left:
 "TTL"
 
 - Solid deep black.
-- Bold, thick, heavy editorial block sans-serif typography (confident, heavy stroke weight — exactly matching the accurate reference logo).
-- Bold uppercase block letters ("T", "T", "L") with thick, solid, uniform black stems and crossbars.
-- STRICTLY FORBIDDEN: Do NOT make the letters thin, skinny, light, hairline, or ultra-tall slender sticks.
-- The lettering must have solid, heavy, impactful black presence and substance.
-- Directly beneath "TTL": Add a vibrant raspberry-pink (#D72655) double dry-brush stroke underline spanning under the base of "TTL" — composed of a bold, rough-textured horizontal brush stroke with a secondary energetic angled brush flick directly underneath, exactly matching the reference.
-- Do NOT render a faint single hairline line.
+- Authentic original TTL brand logo: clean, modern, medium-weight neo-grotesque sans-serif typography (classic proportions resembling Helvetica / Arial, matching the original brand mark).
+- Slender, balanced proportions: the letters "T", "T", "L" must be relatively slim and tall (with vertical letter height approximately double the letter width), NOT wide or chunky block letters.
+- Moderate, clean stroke weight: avoid heavy, fat, extra-bold, or collegiate block lettering. Keep the stems and bars clean, uniform, and slender to match the authentic original logo.
+- Crisply rendered uppercase letters with straight vertical stems, clean right-angled crossbars, and standard natural letter spacing.
+- Directly beneath "TTL": Add a vibrant raspberry-pink (#D72655) double dry-brush stroke underline spanning under the base of "TTL" — composed of an energetic, textured horizontal brush stroke with a secondary angled dry-brush flick directly underneath, exactly matching the original brand mark.
 - Do NOT add a slogan, tagline, subtitle, or motto anywhere near the logo.
 - There must be NO text underneath or beside TTL except the raspberry brush underline.
 - Generous margin from the left edge and top edge.
@@ -437,7 +436,7 @@ OVERALL COMPOSITION
 
 Follow the client's reference as closely as possible:
 
-- TTL logo at top left (bold, heavy black block lettering with vibrant double raspberry brush stroke underline beneath)
+- TTL logo at top left (authentic original brand logo: clean, slim, medium-weight black sans-serif lettering "TTL" with vibrant double raspberry brush stroke underline beneath, NOT chunky or heavy block letters)
 - {category_upper} at top right (small, compact, elegant handwritten/brush script in raspberry pink)
 - Prominent raspberry uppercase dry-brush title on the left (slanted upward, fully displayed across 1–2 lines, bold and clearly readable)
 - Slightly larger, clearly readable short body introduction underneath in crisp black sans-serif
