@@ -215,7 +215,7 @@ Do not fill empty space with additional story text.
 
 DESIGN DIRECTION
 
-- Warm ivory/off-white paper background.
+- Warm ivory paper background.
 - Subtle natural paper texture.
 - Generous whitespace.
 - Generous horizontal margins on both the left and right sides of the page with ample breathing room.
@@ -248,7 +248,8 @@ Do NOT add extra descriptive text.
 Do NOT repeat the story text.
 
 Keep the introduction extremely short: maximum 1–2 short lines (under 15 words total).
-Ensure the body text is rendered at a clear, comfortable, medium reading size — completely legible and sharp.
+Ensure the body text is rendered at a bold, large, impactful reading size — completely legible, large, and sharp.
+Ensure the bottom metadata (location and demographics) is also rendered in a clear, distinctly larger, easily readable font size.
 Do not use any additional text anywhere on the page.
 
 HEADER
@@ -302,16 +303,16 @@ Directly below the title, use ONLY this short text:
 
 "{body_text}"
 
-- Clean black sans-serif typography (crisp, modern geometric/grotesque sans-serif like Helvetica or Inter).
-- Larger Font Size & High Readability: Make this line slightly larger and clearly readable so anyone can read it effortlessly at normal viewing distance (a clear, comfortable, slightly larger editorial reading size — NEVER tiny, faint, or microscopic).
-- HIGH READABILITY IS ESSENTIAL: Render in a crisp, sharp, dark black font with strong contrast against the ivory paper.
-- Compact editorial placement: Maintain a comfortable distance directly below the title.
+- Clean, bold/semi-bold black sans-serif typography (crisp, modern geometric/grotesque sans-serif like bold Helvetica or Inter).
+- Substantially Larger Font Size: Make this text distinctly large, bold, and prominent so it commands effortless readability (large editorial lead-in scale, noticeably bigger than standard body copy — NEVER small, tiny, faint, or microscopic).
+- HIGH READABILITY IS ESSENTIAL: Render in deep, solid black lettering with strong stroke weight and crisp contrast against the ivory paper.
+- Comfortable editorial placement: Maintain clean, comfortable spacing directly below the headline.
 - Maximum 1–2 short lines.
-- Visual Balance: The title remains the dominant element, while the introduction is clearly readable and prominent without competing with the title.
-- NEVER render microscopic fine print, tiny blurry paragraphs, or illegible squiggles.
+- Visual Balance: Sits proudly below the title as a prominent, bold, highly legible lead sentence, filling the left column space nicely.
+- STRICTLY FORBIDDEN: Do NOT render small body text, microscopic fine print, tiny blurry paragraphs, or illegible squiggles.
 - Do not rewrite or modify the sentence.
 - Do not add any additional sentences or story copy.
-- Keep the text compact, sharp, and easy to read.
+- Keep the text bold, large, sharp, and effortless to read.
 
 PHOTOGRAPH / POLAROID
 
@@ -411,9 +412,10 @@ and below it:
 
 "{demographics_text}"
 {explicit_section}
-- Clean, restrained sans-serif typography.
-- High contrast, dark black, sharp, and clearly readable (never tiny, faint, or pixelated).
-- Keep this information compact and visually quiet with generous margin from the left edge.
+- Clean, bold, modern sans-serif typography.
+- Increased Text Size & High Legibility: Render the location and demographics in a noticeably larger, bolder, clearly readable font size (prominent editorial metadata — NEVER tiny fine print, microscopic text, or faint lines).
+- Solid deep black text with high contrast against the ivory paper.
+- Well-proportioned spacing with generous margin from the left and bottom edges, balanced with the rest of the page.
 
 NO BUTTON / NO CTA
 
@@ -439,10 +441,10 @@ Follow the client's reference as closely as possible:
 - TTL logo at top left (authentic original brand logo: clean, slim, medium-weight black sans-serif lettering "TTL" with vibrant double raspberry brush stroke underline beneath, NOT chunky or heavy block letters)
 - {category_upper} at top right (small, compact, elegant handwritten/brush script in raspberry pink)
 - Prominent raspberry uppercase dry-brush title on the left (slanted upward, fully displayed across 1–2 lines, bold and clearly readable)
-- Slightly larger, clearly readable short body introduction underneath in crisp black sans-serif
+- Substantially larger, bold, clearly readable short body introduction underneath in crisp black sans-serif
 - Large square Polaroid photograph on the right
 - Author name inside the Polaroid
-- Small metadata section near the lower left
+- Prominently sized, clearly readable metadata section near the lower left (location and demographics in a noticeably larger, bolder font)
 {explicit_bullet}- Generous empty space
 - Spacious two-column square layout with increased horizontal width and generous margins on both the left and right sides
 - NO BUTTON

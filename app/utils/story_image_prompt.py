@@ -1307,7 +1307,7 @@ def build_v2_cover_prompt(
 
     is_explicit = bool(getattr(story, "high_intensity", False))
     if is_explicit:
-        explicit_section = '\nAdd a small outlined raspberry-pink:\n\n"EXPLICIT"\n'
+        explicit_section = '\nAdd a bold outlined raspberry-pink label:\n\n"EXPLICIT"\n'
         explicit_bullet = "- EXPLICIT label\n"
         explicit_numbered_item = "9. EXPLICIT\n"
     else:
