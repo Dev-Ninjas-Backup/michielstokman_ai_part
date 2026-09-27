@@ -250,7 +250,7 @@ Do NOT repeat the story text.
 Keep the introduction extremely short: maximum 1–2 short lines (under 15 words total).
 Ensure the body text is rendered at a bold, large, impactful reading size — completely legible, large, and sharp.
 Ensure the bottom metadata (location and demographics) is also rendered in a clear, distinctly larger, easily readable font size.
-Ensure the top-right category label ("{category_upper}") is rendered with a slightly increased, clearly readable font size.
+Ensure the top-right category label ("{category_upper}") is rendered with a noticeably larger font size, but strictly NOT bold (slender, elegant, light-to-medium weight script strokes, never thick or heavy).
 Do not use any additional text anywhere on the page.
 
 HEADER
@@ -274,9 +274,9 @@ Top right:
 "{category_upper}"
 
 - Raspberry pink (#D72655).
-- Slightly increased font size: render in a moderately larger, clearly legible and elegant handwritten/brush script mark (noticeably bigger than tiny fine print, crisp and easy to read at a glance, never microscopic or faint).
-- Balanced medium-scale editorial brush mark: clearly visible and well-proportioned across the top right (not excessively oversized or overpowering, but with a confident, slightly larger font size).
-- Do NOT use a generic italic font — it should look like a natural handwritten editorial brush mark.
+- Noticeably larger font size: Render in an increased, larger, prominently visible font size across the top right — clearly readable and distinct (bigger scale, never tiny or fine print).
+- STRICTLY NOT BOLD / SLENDER STROKE WEIGHT: The text must NOT be bold. Keep the lettering slender, light-to-medium stroke thickness, and graceful — NO thick, heavy, fat, or bold strokes.
+- Natural handwritten/brush script mark: elegant, fluid, and authentic handwritten aesthetic (do NOT use generic italic serif or sans-serif fonts; do NOT make it bold or chunky).
 - Generous space between the word and the top/right edges.
 - Do NOT add any other text around it.
 
@@ -439,7 +439,7 @@ OVERALL COMPOSITION
 Follow the client's reference as closely as possible:
 
 - TTL logo at top left (authentic original brand logo: clean, slim, medium-weight black sans-serif lettering "TTL" with vibrant double raspberry brush stroke underline beneath, NOT chunky or heavy block letters)
-- {category_upper} at top right (slightly larger, clearly visible and elegant handwritten/brush script in raspberry pink with a moderately increased font size)
+- {category_upper} at top right (noticeably larger font size, clearly visible and prominent handwritten/brush script in raspberry pink, but strictly NOT bold — slender, light-to-medium stroke weight)
 - Prominent raspberry uppercase dry-brush title on the left (slanted upward, fully displayed across 1–2 lines, bold and clearly readable)
 - Substantially larger, bold, clearly readable short body introduction underneath in crisp black sans-serif
 - Large square Polaroid photograph on the right
