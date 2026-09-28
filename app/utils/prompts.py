@@ -250,7 +250,7 @@ Do NOT repeat the story text.
 Keep the introduction extremely short: maximum 1–2 short lines (under 15 words total).
 Ensure the body text is rendered at a bold, large, impactful reading size — completely legible, large, and sharp.
 Ensure the bottom metadata (location and demographics) is also rendered in a clear, distinctly larger, easily readable font size.
-Ensure the top-right category label ("{category_upper}") is rendered with a noticeably larger font size, but strictly NOT bold (slender, elegant, light-to-medium weight script strokes, never thick or heavy).
+Ensure the top-right category wordmark ("{category_upper}") is rendered as a distinctive, original hand-lettered brush mark — bold but elegant with slightly imperfect natural strokes and subtle forward slant.
 Do not use any additional text anywhere on the page.
 
 HEADER
@@ -259,26 +259,33 @@ Top left:
 
 "TTL"
 
+- Text: "TTL" — uppercase letters only.
 - Solid deep black.
-- Authentic original TTL brand logo: clean, modern, medium-weight neo-grotesque sans-serif typography (classic proportions resembling Helvetica / Arial, matching the original brand mark).
-- Slender, balanced proportions: the letters "T", "T", "L" must be relatively slim and tall (with vertical letter height approximately double the letter width), NOT wide or chunky block letters.
-- Moderate, clean stroke weight: avoid heavy, fat, extra-bold, or collegiate block lettering. Keep the stems and bars clean, uniform, and slender to match the authentic original logo.
-- Crisply rendered uppercase letters with straight vertical stems, clean right-angled crossbars, and standard natural letter spacing.
-- Directly beneath "TTL": Add a vibrant raspberry-pink (#D72655) double dry-brush stroke underline spanning under the base of "TTL" — composed of an energetic, textured horizontal brush stroke with a secondary angled dry-brush flick directly underneath, exactly matching the original brand mark.
-- Do NOT add a slogan, tagline, subtitle, or motto anywhere near the logo.
-- There must be NO text underneath or beside TTL except the raspberry brush underline.
-- Generous margin from the left edge and top edge.
+- Bold, heavy, condensed sans-serif typography with confident presence and solid substance.
+- The typography should feel editorial, modern, confident, and slightly handcrafted.
+- Keep the three letters tightly spaced and visually compact (the "TTL" text should be approximately square/compact rather than wide).
+- Placed near the upper-left area with generous margin from the left edge and top edge.
+- Underneath "TTL", add two short hand-painted red brush strokes in vivid deep pink/red (#D72655).
+- The red strokes should look like imperfect real brush marks, slightly rough and organic, positioned horizontally underneath the logo with a slight irregular angle.
+- The logo must contain ONLY: "TTL" plus the two red brush strokes underneath.
+- STRICTLY FORBIDDEN: No "CONFESSIONS" text near the logo, no additional typography, no slogan, tagline, subtitle, or motto, no other words, symbols, icons, borders, hearts, buttons, or shadows around the logo.
+- Strong black-and-red visual contrast with slight handmade character.
 
 Top right:
 
 "{category_upper}"
 
-- Raspberry pink (#D72655).
-- Noticeably larger font size: Render in an increased, larger, prominently visible font size across the top right — clearly readable and distinct (bigger scale, never tiny or fine print).
-- STRICTLY NOT BOLD / SLENDER STROKE WEIGHT: The text must NOT be bold. Keep the lettering slender, light-to-medium stroke thickness, and graceful — NO thick, heavy, fat, or bold strokes.
-- Natural handwritten/brush script mark: elegant, fluid, and authentic handwritten aesthetic (do NOT use generic italic serif or sans-serif fonts; do NOT make it bold or chunky).
+- Deep vivid crimson / raspberry red (#D72655) — one solid color only, no gradients, no 3D effects, no shadows.
+- Distinctive, original handwritten editorial wordmark inspired by the raw energy of personal journals, intimate stories, and handwritten letters (completely ORIGINAL lettering style — do NOT copy or imitate any existing logo or reference typography, letter shapes, or stroke patterns).
+- Uppercase text only: "{category_upper}".
+- Custom hand-lettered brush typography: bold but elegant, with slightly imperfect natural strokes and expressive handwritten character.
+- The letters should feel individually drawn rather than like a standard font, featuring slight variations in stroke thickness with strong forward movement and a subtle natural slant.
+- Maintain high legibility and readability — avoid overly aggressive graffiti styling, childish or playful typography, and generic script fonts.
+- Visual character: intimate, raw, human, honest, emotional, editorial, contemporary, slightly rebellious, premium storytelling brand.
+- Presented as one strong horizontal wordmark across the top right, with balanced spacing between letters and slight organic irregularity.
+- The first and last letters can have subtle extended brush strokes for personality, keeping the overall silhouette compact and recognizable as a standalone brand mark.
 - Generous space between the word and the top/right edges.
-- Do NOT add any other text around it.
+- STRICTLY FORBIDDEN: Do NOT add any other words, icons, hearts, microphones, speech bubbles, borders, photography, decorative illustrations, taglines, mockups, or extra text around it.
 
 MAIN TITLE
 
@@ -438,8 +445,8 @@ OVERALL COMPOSITION
 
 Follow the client's reference as closely as possible:
 
-- TTL logo at top left (authentic original brand logo: clean, slim, medium-weight black sans-serif lettering "TTL" with vibrant double raspberry brush stroke underline beneath, NOT chunky or heavy block letters)
-- {category_upper} at top right (noticeably larger font size, clearly visible and prominent handwritten/brush script in raspberry pink, but strictly NOT bold — slender, light-to-medium stroke weight)
+- TTL logo near upper-left (bold, heavy, condensed solid black uppercase sans-serif "TTL", tightly spaced and visually compact, with two short imperfect hand-painted vivid deep pink/red brush strokes horizontally underneath)
+- {category_upper} at top right (completely original, distinctive hand-lettered brush wordmark in vivid crimson/raspberry red: bold but elegant, intimate and handwritten with subtle natural slant, NOT copying reference typography)
 - Prominent raspberry uppercase dry-brush title on the left (slanted upward, fully displayed across 1–2 lines, bold and clearly readable)
 - Substantially larger, bold, clearly readable short body introduction underneath in crisp black sans-serif
 - Large square Polaroid photograph on the right
