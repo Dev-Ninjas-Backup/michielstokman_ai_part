@@ -248,8 +248,8 @@ Do NOT add extra descriptive text.
 Do NOT repeat the story text.
 
 Keep the introduction extremely short: maximum 1–2 short lines (under 15 words total).
-Ensure the body text is rendered at a bold, large, impactful reading size — completely legible, large, and sharp.
-Ensure the bottom metadata (location and demographics) is also rendered in a clear, distinctly larger, easily readable font size.
+Ensure the body text is rendered at a clean regular/normal font weight (strictly NOT bold, NOT heavy) at a large, impactful reading size — completely legible, large, and sharp.
+Ensure the bottom metadata (location and demographics) is also rendered in a clear, distinctly larger, easily readable font size in regular/normal font weight (NOT bold).
 Ensure the top-right category wordmark ("{category_upper}") is rendered as a distinctive, original hand-lettered brush mark — bold but elegant with slightly imperfect natural strokes and subtle forward slant.
 Do not use any additional text anywhere on the page.
 
@@ -310,16 +310,16 @@ Directly below the title, use ONLY this short text:
 
 "{body_text}"
 
-- Clean, bold/semi-bold black sans-serif typography (crisp, modern geometric/grotesque sans-serif like bold Helvetica or Inter).
-- Substantially Larger Font Size: Make this text distinctly large, bold, and prominent so it commands effortless readability (large editorial lead-in scale, noticeably bigger than standard body copy — NEVER small, tiny, faint, or microscopic).
-- HIGH READABILITY IS ESSENTIAL: Render in deep, solid black lettering with strong stroke weight and crisp contrast against the ivory paper.
+- Clean, regular/normal weight black sans-serif typography (crisp, modern geometric/grotesque sans-serif like regular Helvetica or Inter in clean, normal, lightweight strokes — strictly NOT bold, NOT semibold, and NOT heavy).
+- Substantially Larger Font Size: Keep this text distinctly large and prominent so it commands effortless readability (large editorial lead-in scale, noticeably bigger than standard body copy — NEVER small, tiny, faint, or microscopic), but rendered strictly in clean regular/normal weight.
+- HIGH READABILITY IS ESSENTIAL: Render in crisp, solid black lettering with clean regular/normal stroke weight and high contrast against the ivory paper (clean, lightweight strokes — strictly NOT bold, NOT heavy).
 - Comfortable editorial placement: Maintain clean, comfortable spacing directly below the headline.
 - Maximum 1–2 short lines.
-- Visual Balance: Sits proudly below the title as a prominent, bold, highly legible lead sentence, filling the left column space nicely.
-- STRICTLY FORBIDDEN: Do NOT render small body text, microscopic fine print, tiny blurry paragraphs, or illegible squiggles.
+- Visual Balance: Sits comfortably below the title as a prominent, highly legible lead sentence in clean regular/normal weight, filling the left column space nicely.
+- STRICTLY FORBIDDEN: Do NOT render bold, semibold, or heavy font weight; do NOT render small body text, microscopic fine print, tiny blurry paragraphs, or illegible squiggles.
 - Do not rewrite or modify the sentence.
 - Do not add any additional sentences or story copy.
-- Keep the text bold, large, sharp, and effortless to read.
+- Keep the text clean, normal weight, lightweight, large, sharp, and effortless to read.
 
 PHOTOGRAPH / POLAROID
 
@@ -419,9 +419,9 @@ and below it:
 
 "{demographics_text}"
 {explicit_section}
-- Clean, bold, modern sans-serif typography.
-- Increased Text Size & High Legibility: Render the location and demographics in a noticeably larger, bolder, clearly readable font size (prominent editorial metadata — NEVER tiny fine print, microscopic text, or faint lines).
-- Solid deep black text with high contrast against the ivory paper.
+- Clean, regular/normal weight modern sans-serif typography (clean, normal, lightweight strokes — strictly NOT bold, NOT semibold, and NOT heavy).
+- Maintained Large Font Size & High Legibility: Render the location and demographics in their distinctly large, clearly readable font size (prominent editorial metadata — NEVER tiny fine print, microscopic text, or faint lines), but strictly in clean regular/normal weight instead of bold.
+- Solid deep black text with crisp contrast against the ivory paper.
 - Well-proportioned spacing with generous margin from the left and bottom edges, balanced with the rest of the page.
 
 NO BUTTON / NO CTA
@@ -448,10 +448,10 @@ Follow the client's reference as closely as possible:
 - TTL logo near upper-left (bold, heavy, condensed solid black uppercase sans-serif "TTL", tightly spaced and visually compact, with two short imperfect hand-painted vivid deep pink/red brush strokes horizontally underneath)
 - {category_upper} at top right (completely original, distinctive hand-lettered brush wordmark in vivid crimson/raspberry red: bold but elegant, intimate and handwritten with subtle natural slant, NOT copying reference typography)
 - Prominent raspberry uppercase dry-brush title on the left (slanted upward, fully displayed across 1–2 lines, bold and clearly readable)
-- Substantially larger, bold, clearly readable short body introduction underneath in crisp black sans-serif
+- Substantially larger, clearly readable short body introduction underneath in crisp regular/normal weight black sans-serif (clean, lightweight, NOT bold, NOT heavy)
 - Large square Polaroid photograph on the right
 - Author name inside the Polaroid
-- Prominently sized, clearly readable metadata section near the lower left (location and demographics in a noticeably larger, bolder font)
+- Prominently sized, clearly readable metadata section near the lower left (location and demographics in regular/normal font weight, NOT bold)
 {explicit_bullet}- Generous empty space
 - Spacious two-column square layout with increased horizontal width and generous margins on both the left and right sides
 - NO BUTTON
