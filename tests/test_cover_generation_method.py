@@ -1643,6 +1643,8 @@ def test_v2_client_feedback_story_specific_and_6_dimensions_in_prompts():
 
     # 1. STORY_VISUAL_REFINEMENT_SYSTEM
     assert "Cover images must be story-specific rather than generic or category-based" in STORY_VISUAL_REFINEMENT_SYSTEM
+    assert "raising heart beats" in STORY_VISUAL_REFINEMENT_SYSTEM.lower()
+    assert "sitting behind a computer" in STORY_VISUAL_REFINEMENT_SYSTEM.lower()
     assert "CHARACTERS" in STORY_VISUAL_REFINEMENT_SYSTEM
     assert "SETTING" in STORY_VISUAL_REFINEMENT_SYSTEM
     assert "EMOTIONAL STATE" in STORY_VISUAL_REFINEMENT_SYSTEM
@@ -1654,6 +1656,8 @@ def test_v2_client_feedback_story_specific_and_6_dimensions_in_prompts():
 
     # 2. VISUAL_ART_DIRECTION_EXTRACTION_SYSTEM
     assert "Cover images must be story-specific rather than generic or category-based" in VISUAL_ART_DIRECTION_EXTRACTION_SYSTEM
+    assert "raising heart beats" in VISUAL_ART_DIRECTION_EXTRACTION_SYSTEM.lower() or "raise heartbeats" in VISUAL_ART_DIRECTION_EXTRACTION_SYSTEM.lower()
+    assert "sitting behind a computer" in VISUAL_ART_DIRECTION_EXTRACTION_SYSTEM.lower()
     assert '"emotional_state"' in VISUAL_ART_DIRECTION_EXTRACTION_SYSTEM
     assert '"key_events"' in VISUAL_ART_DIRECTION_EXTRACTION_SYSTEM
     assert '"relationship_dynamics"' in VISUAL_ART_DIRECTION_EXTRACTION_SYSTEM
@@ -1662,6 +1666,8 @@ def test_v2_client_feedback_story_specific_and_6_dimensions_in_prompts():
 
     # 3. V2_COVER_PROMPT_TEMPLATE
     assert "Cover images must be story-specific rather than generic or category-based" in V2_COVER_PROMPT_TEMPLATE
+    assert "raising heart beats" in V2_COVER_PROMPT_TEMPLATE.lower()
+    assert "sitting behind a computer" in V2_COVER_PROMPT_TEMPLATE.lower()
     assert "Strictly avoid generic stock-photo compositions such as happy friends at a bar, posed group shots, or repetitive social scenes" in V2_COVER_PROMPT_TEMPLATE
     assert "Different stories must produce different visual compositions" in V2_COVER_PROMPT_TEMPLATE
 
@@ -1732,7 +1738,30 @@ def test_v2_visual_refinement_passes_6_dimensions_to_llm():
             assert "Key Events / Narrative Beat:" in called_prompt
             assert "Marseille" in called_prompt
             assert "Strictly avoid generic stock-photo compositions" in called_prompt
+            assert "raising heart beats" in called_prompt.lower()
+            assert "sitting behind a computer" in called_prompt.lower()
             assert result == "A lone 40-year-old man in a dark woolen coat walking along a misty Marseille pier at dawn."
+
+
+def test_v2_never_generates_computer_or_office_scene_for_daily_grind_story():
+    """Verify that a story mentioning a computer/office/callcenter never produces a computer scene."""
+    from app.utils.story_image_prompt import build_v2_photograph_description
+
+    office_story = _story(
+        first_name="Anja",
+        age=20,
+        gender="female",
+        location="Rotterdam, Netherlands",
+        situation="Voelt zich leeg in callcenter-baan, plakt 's nachts stickers met 'ik hou van je' op muren.",
+        story_text="Dan log ik in op dezelfde computer, zet dezelfde headset op en herhaal dezelfde zin tegen vreemden.",
+    )
+
+    desc = build_v2_photograph_description(office_story, use_llm=False)
+    assert "computer" not in desc.lower()
+    assert "headset" not in desc.lower()
+    assert "office" not in desc.lower()
+    assert "callcenter" not in desc.lower()
+    assert "raising heartbeats" in desc.lower()
 
 
 

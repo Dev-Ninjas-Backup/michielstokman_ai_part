@@ -100,7 +100,7 @@ _SCENE_SETTING_RE = re.compile(
     r"window|windowsill|balcony|railing|harbor|harbour|dock|pier|coast|beach|shore|"
     r"street|alley|cafe|café|kitchen|bedroom|bed|sofa|chair|table|doorway|stairs|"
     r"bridge|park|forest|mountain|field|campfire|car|train|hotel|bathroom|mirror|"
-    r"rooftop|apartment|flat|studio|church|bar|club|office"
+    r"rooftop|apartment|flat|studio|church|bar|club"
     r")\b",
     re.I,
 )
@@ -980,6 +980,8 @@ def _heuristic_v2_photograph_description(story: Story) -> str:
             s0 = "private lounge"
         elif s0 in ("bar", "club"):
             s0 = "corner table with soft ambient light"
+        elif s0 in ("office", "desk", "computer", "callcenter", "work"):
+            s0 = "rain-slicked street corner at night"
         setting_desc = f"in an atmospheric {s0}"
     elif location:
         setting_desc = f"in {location}"
@@ -988,9 +990,13 @@ def _heuristic_v2_photograph_description(story: Story) -> str:
 
     situation = (story.situation or "").strip()
     beat_snippet = ""
+    banned_beat_keywords = [
+        "bar", "cocktail", "party", "computer", "callcenter", "call center",
+        "office", "desk", "laptop", "cubicle", "baan"
+    ]
     if situation:
         first_sent = situation.split(".")[0].strip()
-        if len(first_sent) > 10 and not any(kw in first_sent.lower() for kw in ["bar", "cocktail", "party"]):
+        if len(first_sent) > 10 and not any(kw in first_sent.lower() for kw in banned_beat_keywords):
             beat_snippet = f", reflecting the moment of {first_sent.lower()}"
 
     if stype == StoryType.meditation:
@@ -1041,7 +1047,8 @@ def _heuristic_v2_photograph_description(story: Story) -> str:
     return (
         f"{subjects} {action}{beat_snippet}, {setting_desc}. "
         f"{comp}. Fully clothed in stylish, casual attire matching the setting. "
-        f"{mood_posture}. No generic stock-photo compositions, no happy friends at a bar, no posed group shots. "
+        f"{mood_posture}. Raising heartbeats with visceral emotional intensity. "
+        f"Evocative cinematic atmosphere. No generic stock-photo compositions, no happy friends at a bar, no posed group shots. "
         f"No bent necks or looking away. Clearly visible."
     )
 
@@ -1072,6 +1079,8 @@ def _heuristic_v2_visual_art_direction(
         primary_setting = "lounge"
     elif primary_setting in ("bar", "club"):
         primary_setting = "corner table with soft ambient light"
+    elif primary_setting in ("office", "desk", "computer", "callcenter", "work"):
+        primary_setting = "rain-slicked street corner at night"
     setting_str = f"An intimate, atmospheric {primary_setting} in {location}."
 
     if cast_mode == "group":
@@ -1195,6 +1204,10 @@ def refine_story_visual_art_direction(story: Story, *, use_llm: bool = True) -> 
                 f"- Hero Hook: {hook}\n\n"
                 f"STORY TEXT:\n{full_text or situation or hook}\n\n"
                 f"MANDATE: Analyze each confession's characters, setting, emotional state, key events, relationship dynamics, and atmosphere. "
+                f"The image MUST raise heartbeats ('raising heart beats') with intense emotion, electric chemistry, passion, or raw vulnerability. "
+                f"Never create dull pictures or sterile modern realism. "
+                f"STRICTLY FORBIDDEN: never depict someone sitting behind a computer, working at a desk, typing on a laptop, or in an office. "
+                f"Even if the text mentions work, a callcenter, or a computer, capture the heightened emotional moment (e.g. the night escape, meeting in the rain, intimate encounter, or yearning for freedom). "
                 f"Create a story-specific scene reflecting the actual narrative and emotional tone. "
                 f"Strictly avoid generic stock-photo compositions such as happy friends at a bar, posed group shots, or repetitive social scenes. "
                 f"Produce distinct visual compositions, locations, lighting, emotions, character relationships, and atmospheres."
@@ -1263,6 +1276,9 @@ def extract_v2_visual_art_direction(
                 f"Pivotal Beat: {portrait_narrative_moment(story)}\n\n"
                 f"Extract all 6 dimensions (characters, setting, emotional state, key events, relationship dynamics, atmosphere) "
                 f"plus composition, lighting, color palette, visual style, narrative focus, and polaroid scene into valid JSON. "
+                f"The scene must raise heartbeats with intense emotion, electric chemistry, or raw vulnerability. "
+                f"Never create dull pictures or sterile modern realism. "
+                f"Strictly forbidden: never depict someone sitting behind a computer, at a desk, or in an office. "
                 f"Strictly avoid generic stock-photo compositions such as happy friends at a bar, posed group shots, or repetitive social scenes."
             )
             raw = (getattr(response, "content", None) or str(response) or "").strip()
