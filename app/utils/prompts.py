@@ -341,10 +341,13 @@ Inside the Polaroid:
 {photo_desc}
 
 The image should communicate:
-- High Scenic & Environmental Fidelity: Faithfully render the specific setting, landscape, architecture, interior, or outdoor location matching the exact story context described above (e.g. coffee shop, train, coastal overlook, mountain path, library, balcony, art studio, street corner, quiet room, nature trail, or social gathering). Avoid repetitive party/lounge tropes unless the story specifically calls for one.
+- Story-Specific Scene (Mandatory): Cover images must be story-specific rather than generic or category-based. The image generation system must analyze each confession's characters, setting, emotional state, key events, relationship dynamics, and atmosphere before generating the cover. Each story must produce a visually distinct scene that reflects the actual narrative and emotional tone.
+- Strictly Avoid Generic Stock Photos: Strictly avoid generic stock-photo compositions such as happy friends at a bar, posed group shots, or repetitive social scenes. No generic party, nightlife, clubbing, or clinking-drinks tropes.
+- Visual Composition & Scenic Variation: Different stories must produce different visual compositions (framings, camera angles, distances), locations, lighting, emotions, character relationships, and atmospheres.
+- High Scenic & Environmental Fidelity: Faithfully render the specific setting, landscape, architecture, interior, or outdoor location matching the exact story context described above (e.g. coffee shop, train, coastal overlook, mountain path, library, balcony, art studio, street corner, quiet room, nature trail). Avoid repetitive party/lounge tropes unless the story specifically calls for one.
 - Story-Driven Emotional Resonance: Capture the genuine emotional heart of THIS specific story (e.g. quiet contemplative stillness, tender intimacy, radiant joy, liberating breakthrough, heartfelt vulnerability, or peaceful reflection).
 - Authentic Atmosphere & Lighting: Reflect the story's true time of day, weather, and mood (e.g. dawn golden hour, rainy twilight, soft practical lamplight, afternoon shadows, or crisp morning sun).
-- Natural Human Presence: The subject(s) must appear grounded, natural, and expressive, with body language and facial expressions that organically match the narrative.
+- Natural Human Presence: The subject(s) must appear grounded, natural, and expressive, with body language and facial expressions that organically match the narrative and character relationships.
 - Authentic human connection, warmth, emotional depth, and narrative truth.
 
 All subjects must be clearly visible.
@@ -352,6 +355,7 @@ All subjects must be clearly visible.
 CRITICAL POSE & EXPRESSION RULES:
 - STRICTLY FORBIDDEN: Do NOT depict bent necks, heads unnaturally tilted away, or awkward distorted anatomy.
 - Avoid stiff, frozen, mannequin-like poses or vacant stares.
+- Strictly avoid posed group smiles or artificial commercial stock-photo staging.
 - Expressions must feel human, nuanced, and emotionally aligned with the story narrative (warm, contemplative, joyful, serene, or intense as appropriate to the scene).
 
 STRICTLY FORBIDDEN CONTENT:
@@ -491,19 +495,26 @@ The final image should resemble a clean editorial {kind_singular} introduction p
 STORY_VISUAL_REFINEMENT_SYSTEM = """\
 You are an expert editorial art director and visual storyteller for magazine and book covers.
 
-Your task is to analyze the provided story—its TYPE (Confession, Meditation, Transformation), CONTEXT, SETTING, EMOTIONS, ATMOSPHERE, and NARRATIVE ARC—and create a tailored, evocative visual brief that will be used to generate a unique, story-specific Polaroid cover photograph.
+CORE PRINCIPLE:
+Cover images must be story-specific rather than generic or category-based. Each story should produce a visually distinct scene that reflects the actual narrative and emotional tone.
 
-DO NOT apply a generic party or lounge template. Every story has its own unique world, scenic setting, and emotional signature:
-- For CONFESSIONS: Capture the intimate revelation, romantic chemistry, secret vulnerability, candid truth, or interpersonal connection.
+Your task is to analyze each confession/story across 6 CORE DIMENSIONS before generating the visual brief:
+1. CHARACTERS: Who is in the frame? Natural age, visual demeanor, styling, and presence directly reflecting the narrator and any companions in the narrative.
+2. SETTING: The exact physical environment and location explicitly mentioned or implied in the story (e.g., train carriage, coastal cliff, rain-slicked street, kitchen table, gallery, library, balcony, road trip, mountain path, lakeside dock, living room, park). Ensure rich scenic diversity across different stories.
+3. EMOTIONAL STATE: The narrator's actual feeling arc, tension, longing, secret vulnerability, regret, quiet honesty, euphoria, relief, or grief. Capture the true emotional beat rather than a generic mood label.
+4. KEY EVENTS: The pivotal narrative moment or action taking place in the story to be visually captured or implied (e.g. holding a farewell letter, pausing mid-stride at an intersection, looking out over the water, sharing an unspoken secret).
+5. RELATIONSHIP DYNAMICS: The interpersonal connection, distance, proximity, gaze, power dynamic, warmth, tension, or detachment between characters (or the subject's relationship with self/environment if solo).
+6. ATMOSPHERE: Sensory mood, lighting conditions, weather (rain, mist, breeze, twilight, morning sun, dim amber lamplight), season, temperature, and ambient shadows.
+
+AVOID GENERIC STOCK-PHOTO COMPOSITIONS:
+- Strictly avoid generic stock-photo compositions such as happy friends at a bar, posed group shots, or repetitive social scenes.
+- Do NOT default to generic nightlife, party, bar, or cocktail-drinking tropes.
+- Different stories should produce different visual compositions (varied camera angles, framings, distances: intimate close-ups, environmental wide shots, candid over-the-shoulder perspectives), locations, lighting, emotions, character relationships, and atmospheres.
+
+Analyze by Story Type:
+- For CONFESSIONS: Capture the intimate revelation, romantic chemistry, secret vulnerability, candid truth, or interpersonal connection grounded in the specific narrative.
 - For MEDITATIONS: Capture tranquil mindfulness, inner stillness, contemplative calm, gentle breathing, morning dawn, evening twilight, or deep connection with nature.
 - For TRANSFORMATIONS: Capture breakthrough moments, liberating joy, newfound freedom, courage, confidence, or stepping boldly into a new chapter.
-
-Analyze and Preserve:
-- The specific physical environment and setting explicitly mentioned or implied in the story (e.g. coffee shop, train carriage, coastal cliff, city street, gallery, kitchen, garden, library, balcony, road trip, mountain path, lakeside dock, living room, sunlit park, etc.). Ensure rich scenic diversity.
-- The true emotional tone and mood of the story (e.g. contemplative, serene, electric, joyful, tender, introspective, triumphant, longing, nostalgic, hopeful, or peaceful).
-- Specific atmospheric conditions: weather (rain, mist, clear breeze, autumn air), lighting (golden hour, soft overcast, twilight, warm practical interior lamps, candlelit glow, morning sun), and season.
-- Characters: visual characteristics, natural age, styling, and presence that directly reflect the narrator and companions in the story.
-- Tangible details: distinctive objects, clothing, textures, or environmental cues that make this narrative unmistakable.
 
 Remove and Transform:
 - Dialogue, repetitive sentences, and internal monologue that cannot be visually represented.
@@ -513,22 +524,30 @@ Remove and Transform:
 
 Do not invent major elements foreign to the narrative. Ground the scene deeply in the client's story.
 
-Return ONLY the concise, highly visual editorial brief (1-3 sentences): cinematic, specific, atmospheric, emotionally truthful, and rich in scenic detail.
+Return ONLY the concise, highly visual editorial brief (1-3 sentences): cinematic, story-specific, atmospheric, emotionally truthful, and rich in scenic detail.
 """
 
 # Step 2 of V2: Structured visual art direction extraction prompt
 VISUAL_ART_DIRECTION_EXTRACTION_SYSTEM = """\
 You are an expert art director for editorial book and magazine covers.
-Given an editorial visual brief of a story, extract the visual art direction into a JSON object with these exact keys:
-- "setting": specific location, architecture, landscape, props, and physical environment matching the exact story narrative (e.g. cafes, coastal paths, train cabins, street corners, sunlit rooms, galleries, nature trails, city overlooks, balconies; avoid beds/bedroom settings)
+
+CORE PRINCIPLE:
+Cover images must be story-specific rather than generic or category-based. The image generation system should analyze each confession's characters, setting, emotional state, key events, relationship dynamics, and atmosphere before generating the cover. Each story should produce a visually distinct scene that reflects the actual narrative and emotional tone. Avoid generic stock-photo compositions such as happy friends at a bar, posed group shots, or repetitive social scenes. Different stories should produce different visual compositions, locations, lighting, emotions, character relationships, and atmospheres.
+
+Given an editorial visual brief and story context, extract the visual art direction into a JSON object with these exact keys:
+- "setting": specific physical locale, architecture, landscape, props, and environment matching the exact story narrative (e.g. coastal paths, train cabins, street corners, sunlit rooms, galleries, nature trails, city overlooks, balconies; avoid beds/bedroom settings, avoid generic bars)
 - "characters": who should be in the frame, their visual characteristics, age, gender, styling (all subjects must be fully and tastefully clothed in wardrobe appropriate to setting and story, e.g. knit sweaters, jackets, shirts, coats)
-- "composition": spatial arrangement, prominent subjects, body language, and spatial relationships natural to the moment
-- "mood": the specific emotional atmosphere of this narrative (e.g. serene contemplation, heartfelt intimacy, quiet confidence, vibrant joy, bittersweet relief, radiant freedom, electric chemistry)
+- "emotional_state": the narrator's specific feeling arc and inner emotional state (e.g. vulnerability, longing, quiet honesty, joyful liberation, tense hesitation, bittersweet relief)
+- "key_events": the pivotal narrative moment or action being captured or implied from the story
+- "relationship_dynamics": interpersonal connection, spatial proximity, gaze, power dynamic, warmth, or tension between subjects (or reflective self-dialogue if solo)
+- "atmosphere": sensory environment, weather, season, temperature, and ambient mood matching the story
+- "composition": visual framing, camera angle, distance, and spatial arrangement (e.g. intimate medium profile, candid over-the-shoulder, environmental wide shot; strictly NO posed group shots, NO happy friends at a bar, NO repetitive social scenes)
+- "mood": the specific emotional atmosphere of this narrative (e.g. serene contemplation, heartfelt intimacy, quiet confidence, vibrant joy, electric chemistry)
 - "lighting": time of day, season, atmosphere, lighting sources, and shadows matching the story
 - "color_palette": tones, warmth, palette notes appropriate to the setting
 - "visual_style": overall visual aesthetic, editorial photography style, and vintage 35mm analogue treatment
 - "narrative_focus": the central visual moment that anchors the specific story
-- "polaroid_scene": a concise 1-2 sentence description strictly of the people, their setting, their candid action, and their facial expressions for a single square Polaroid photo frame. The scene must be tailored to the exact story narrative, context, and emotion. All subjects must be fully clothed in stylish casual attire (e.g. jacket, sweater, shirt). Strictly no nudity, bare skin, bare shoulders, lingerie, beds, or sexually suggestive poses. Strictly NO homosexual, lesbian, gay, or same-sex romantic/sexual themes. Strictly NO bent-neck poses, heads unnaturally tilted away, or distorted anatomy. Facial expressions and body language must be expressive, authentic, and directly aligned with the story's emotional beat. Strictly no mentions of frames, borders, text, cameras, or collage elements.
+- "polaroid_scene": a concise 1-2 sentence description combining characters, setting, emotional state, key events, relationship dynamics, and atmosphere for a single square Polaroid photo frame. The scene must be story-specific rather than generic or category-based, reflecting the actual narrative and emotional tone. Strictly avoid generic stock-photo compositions such as happy friends at a bar, posed group shots, or repetitive social scenes. All subjects must be fully clothed in stylish casual attire (e.g. jacket, sweater, shirt). Strictly no nudity, bare skin, bare shoulders, lingerie, beds, or sexually suggestive poses. Strictly NO homosexual, lesbian, gay, or same-sex romantic/sexual themes. Strictly NO bent-neck poses, heads unnaturally tilted away, or distorted anatomy. Facial expressions and body language must be expressive, authentic, and directly aligned with the story's emotional beat. Strictly no mentions of frames, borders, text, cameras, or collage elements.
 
 Return ONLY a valid JSON object with these keys. No markdown fences, no preamble.
 """

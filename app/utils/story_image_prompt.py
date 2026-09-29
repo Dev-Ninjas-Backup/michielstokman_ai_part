@@ -978,52 +978,71 @@ def _heuristic_v2_photograph_description(story: Story) -> str:
         s0 = settings[0]
         if s0 in ("bed", "bedroom", "sheets"):
             s0 = "private lounge"
+        elif s0 in ("bar", "club"):
+            s0 = "corner table with soft ambient light"
         setting_desc = f"in an atmospheric {s0}"
     elif location:
         setting_desc = f"in {location}"
     else:
         setting_desc = "in an intimate, atmospheric setting"
 
+    situation = (story.situation or "").strip()
+    beat_snippet = ""
+    if situation:
+        first_sent = situation.split(".")[0].strip()
+        if len(first_sent) > 10 and not any(kw in first_sent.lower() for kw in ["bar", "cocktail", "party"]):
+            beat_snippet = f", reflecting the moment of {first_sent.lower()}"
+
     if stype == StoryType.meditation:
         if cast_mode == "group":
-            subjects = f"An adult {gender} and two companions"
-            action = "resting in quiet contemplation, sharing a peaceful, mindful moment of stillness"
+            subjects = f"An adult {gender} and companions"
+            action = "sharing a quiet, mindful moment of contemplative silence and grounded stillness"
+            comp = "Natural unposed spacing and environmental framing"
         elif cast_mode == "pair":
             subjects = f"An adult {gender} and a companion"
             action = "seated in serene stillness, gently breathing in a tranquil, reflective space"
+            comp = "Intimate profile framing and calm interpersonal closeness"
         else:
             subjects = f"A {age_str}{gender}"
             action = "in a deeply peaceful, contemplative state of mindfulness and inner quiet"
+            comp = "Contemplative medium shot with centered posture"
         mood_posture = "Gentle breathing, serene expression, and grounded presence"
 
     elif stype == StoryType.transformation:
         if cast_mode == "group":
-            subjects = f"An adult {gender} and two companions"
-            action = "standing together with radiant confidence, sharing an empowering moment of freedom"
+            subjects = f"An adult {gender} and companions"
+            action = "gathered in an authentic, empowering moment of newfound freedom and mutual courage"
+            comp = "Dynamic environmental framing and candid body language"
         elif cast_mode == "pair":
             subjects = f"An adult {gender} and a companion"
             action = "sharing an inspiring, open-hearted moment of breakthrough and mutual encouragement"
+            comp = "Candid two-shot with expressive connection"
         else:
             subjects = f"A {age_str}{gender}"
             action = "radiating newfound confidence and quiet strength, looking forward with clear purpose"
+            comp = "Cinematic framing with poised and resolute presence"
         mood_posture = "Self-assured presence, natural poised posture, and an expressive, liberated demeanor"
 
     else:  # confession or default
         if cast_mode == "group":
-            subjects = f"An adult {gender} and two close companions"
-            action = "sharing an intimate, candid conversation with genuine warmth and natural expressions"
+            subjects = f"An adult {gender} and close companions"
+            action = "sharing a nuanced, candid conversation with subtle emotional depth"
+            comp = "Unposed candid framing and authentic interpersonal distance without posed grouping"
         elif cast_mode == "pair":
             subjects = f"An adult {gender} and a companion"
-            action = "sharing an intimate, heartfelt moment of vulnerability and deep connection"
+            action = "sharing an intimate, heartfelt moment of vulnerability, unspoken tension, and deep connection"
+            comp = "Intimate over-the-shoulder framing and nuanced emotional closeness"
         else:
             subjects = f"A {age_str}{gender}"
             action = "captured in a candid, intimate, reflective moment of personal truth"
+            comp = "Candid medium framing and reflective emotional focus"
         mood_posture = "Candid warmth, subtle expressive eyes, and natural emotional posture"
 
     return (
-        f"{subjects} {action}, {setting_desc}. "
-        f"Fully clothed in stylish, casual attire matching the setting. "
-        f"{mood_posture}. No bent necks or looking away. Clearly visible."
+        f"{subjects} {action}{beat_snippet}, {setting_desc}. "
+        f"{comp}. Fully clothed in stylish, casual attire matching the setting. "
+        f"{mood_posture}. No generic stock-photo compositions, no happy friends at a bar, no posed group shots. "
+        f"No bent necks or looking away. Clearly visible."
     )
 
 
@@ -1051,22 +1070,32 @@ def _heuristic_v2_visual_art_direction(
     primary_setting = settings_list[0] if settings_list else "space"
     if primary_setting in ("bed", "bedroom", "sheets"):
         primary_setting = "lounge"
+    elif primary_setting in ("bar", "club"):
+        primary_setting = "corner table with soft ambient light"
     setting_str = f"An intimate, atmospheric {primary_setting} in {location}."
 
     if cast_mode == "group":
-        characters_str = f"An adult {gender} and two close companions, fully clothed in elegant, casual attire (jackets and sweaters)."
-        comp_str = "Three figures seated closely in the frame, sharing a candid moment with natural, intimate spacing."
+        characters_str = f"An adult {gender} and close companions, fully clothed in elegant, casual attire (jackets and sweaters)."
+        comp_str = "Natural unposed environmental composition with authentic spacing between subjects; strictly avoid posed group shots or repetitive social scenes."
+        rel_dynamics = "Subtle conversational dynamics, candid distance, and genuine shared history without artificial group posing."
     elif cast_mode == "pair":
         characters_str = f"An adult {gender} and a companion, fully clothed in tasteful attire, sharing an intimate connection."
-        comp_str = "Two figures positioned close together, subtle body language conveying closeness and emotional resonance."
+        comp_str = "Intimate two-shot or over-the-shoulder framing, subtle body language conveying emotional closeness and unspoken depth; unposed and natural."
+        rel_dynamics = "Intimate emotional resonance, shared vulnerability, and nuanced interpersonal tension."
     else:
         characters_str = f"A {age_str}{gender} fully clothed in tasteful, elegant knitwear or jacket."
-        comp_str = "A single figure naturally grounded in the scene, candid posture facing slightly away from the lens."
+        comp_str = "A single figure naturally grounded in the scene with candid medium framing, authentic posture facing slightly toward or parallel to the lens; unposed and natural."
+        rel_dynamics = "Introspective solitude, self-reckoning, and quiet dialogue between the narrator and the surrounding space."
 
     lighting_str = (
         f"Dim ambient practical light, {weather_list[0]} atmosphere with soft shadows."
         if weather_list
         else "Dim ambient lighting with soft warm highlights catching skin and gentle shadows."
+    )
+    atmosphere_str = (
+        f"Sensory {weather_list[0]} environment with authentic weather texture and evocative ambient shadows."
+        if weather_list
+        else "Evocative, moody sensory environment with practical lamplight and quiet emotional stillness."
     )
 
     stype = getattr(story, "story_type", None)
@@ -1076,6 +1105,8 @@ def _heuristic_v2_visual_art_direction(
             if emotions_list
             else "Tranquil, deeply mindful, calm, and inner stillness."
         )
+        emotional_state_str = "Quiet, mindful presence, release of tension, and deep inner peace."
+        key_events_str = "A quiet, centering breath and a gentle return to stillness and presence."
         narrative_focus_str = "A quiet, centering breath and a gentle return to inner peace and stillness."
     elif stype == StoryType.transformation:
         mood_str = (
@@ -1083,12 +1114,25 @@ def _heuristic_v2_visual_art_direction(
             if emotions_list
             else "Empowered, liberating, breakthrough clarity, and newfound confidence."
         )
+        emotional_state_str = "Liberating self-realization, courageous clarity, and breaking through past limitations."
+        key_events_str = "A pivotal breakthrough moment of stepping boldly into one's own truth and freedom."
         narrative_focus_str = "A pivotal breakthrough moment of stepping boldly into one's own truth and freedom."
     else:
         mood_str = (
             f"Intimate, reflective, nuanced tension touching on {', '.join(emotions_list[:3])}."
             if emotions_list
             else "Intimate, reflective, subtle tension, and quiet emotional connection."
+        )
+        emotional_state_str = (
+            f"Vulnerable emotional reckoning touching on {', '.join(emotions_list[:3])}."
+            if emotions_list
+            else "Intimate vulnerability, unspoken truth, and honest emotional tension."
+        )
+        situation = (story.situation or "").strip()
+        key_events_str = (
+            f"The pivotal moment of {situation.rstrip('.').lower()}."
+            if situation
+            else "A quiet, pivotal beat of shared honesty and understated emotional release."
         )
         narrative_focus_str = "A quiet, pivotal beat of shared honesty and understated emotional release."
 
@@ -1106,6 +1150,10 @@ def _heuristic_v2_visual_art_direction(
         "visual_style": visual_style_str,
         "narrative_focus": narrative_focus_str,
         "polaroid_scene": polaroid_scene_str,
+        "emotional_state": emotional_state_str,
+        "key_events": key_events_str,
+        "relationship_dynamics": rel_dynamics,
+        "atmosphere": atmosphere_str,
     }
 
 
@@ -1113,7 +1161,7 @@ def refine_story_visual_art_direction(story: Story, *, use_llm: bool = True) -> 
     """Step 1 of V2: Transform the story into a concise editorial visual brief.
 
     Instructs the LLM (or deterministic heuristic) to extract:
-    - Who, Where, When, What's happening visually, Emotion, Composition, Appearance, Lighting/Color, Story identity
+    - Characters, Setting, Emotional State, Key Events, Relationship Dynamics, Atmosphere
     - Excludes dialogue, internal monologue, and explicit sexual acts.
     """
     from app.model.story import StoryType
@@ -1129,19 +1177,27 @@ def refine_story_visual_art_direction(story: Story, *, use_llm: bool = True) -> 
         situation = (story.situation or "n/a").strip()
         background = (story.background or "n/a").strip()
         hook = (getattr(story, "hero_hook", None) or "n/a").strip()
+        emotional_state = portrait_emotional_state(story)
+        narrative_moment = portrait_narrative_moment(story)
 
         try:
             llm = get_story_llm(temperature=0.35)
             response = llm.invoke(
                 f"{STORY_VISUAL_REFINEMENT_SYSTEM}\n\n"
-                f"STORY METADATA:\n"
+                f"STORY METADATA & 6-DIMENSION ANALYSIS:\n"
                 f"- Story Type: {kind.capitalize()}\n"
                 f"- Title: {title}\n"
                 f"- Narrator: {author}, {story.age if story.age is not None else 'unspecified'}yo, {story.gender or 'unspecified'}, {location}\n"
-                f"- Situation: {situation}\n"
-                f"- Background: {background}\n"
+                f"- Characters / Companions: {background}\n"
+                f"- Setting / Locale: {location} (Situation: {situation})\n"
+                f"- Emotional State Arc: {emotional_state}\n"
+                f"- Key Events / Narrative Beat: {narrative_moment}\n"
                 f"- Hero Hook: {hook}\n\n"
-                f"STORY TEXT:\n{full_text or situation or hook}\n"
+                f"STORY TEXT:\n{full_text or situation or hook}\n\n"
+                f"MANDATE: Analyze each confession's characters, setting, emotional state, key events, relationship dynamics, and atmosphere. "
+                f"Create a story-specific scene reflecting the actual narrative and emotional tone. "
+                f"Strictly avoid generic stock-photo compositions such as happy friends at a bar, posed group shots, or repetitive social scenes. "
+                f"Produce distinct visual compositions, locations, lighting, emotions, character relationships, and atmospheres."
             )
             content = (getattr(response, "content", None) or str(response) or "").strip().strip('"').strip("'")
             content = _sanitize_v2_scene_text(content)
@@ -1158,7 +1214,9 @@ def refine_story_visual_art_direction(story: Story, *, use_llm: bool = True) -> 
     art = _heuristic_v2_visual_art_direction(story)
     return (
         f"A cinematic editorial scene set in {art['setting']} {art['characters']} {art['composition']} "
-        f"The atmosphere is {art['mood'].lower()} with {art['lighting'].lower()} "
+        f"Emotional state reflects {art.get('emotional_state', art['mood'])}. "
+        f"Relationship dynamics: {art.get('relationship_dynamics', 'intimate and grounded')}. "
+        f"The atmosphere is {art.get('atmosphere', art['lighting'])}. "
         f"The visual mood is sophisticated, sensual, mysterious, and reflective rather than explicit. "
         f"{art['color_palette']} {art['narrative_focus']}"
     )
@@ -1182,6 +1240,10 @@ def extract_v2_visual_art_direction(
     - "visual_style"
     - "narrative_focus"
     - "polaroid_scene"
+    - "emotional_state"
+    - "key_events"
+    - "relationship_dynamics"
+    - "atmosphere"
     """
     from app.utils.prompts import VISUAL_ART_DIRECTION_EXTRACTION_SYSTEM
 
@@ -1193,10 +1255,15 @@ def extract_v2_visual_art_direction(
             response = llm.invoke(
                 f"{VISUAL_ART_DIRECTION_EXTRACTION_SYSTEM}\n\n"
                 f"EDITORIAL VISUAL BRIEF:\n{brief}\n\n"
-                f"STORY METADATA:\n"
+                f"STORY METADATA & CONTEXT:\n"
                 f"Story Type: {story.story_type.value.capitalize() if getattr(story, 'story_type', None) else 'Confession'}\n"
                 f"Narrator: {story.first_name or 'Anonymous'}, {story.age if story.age is not None else 'unspecified'}yo, {story.gender or 'unspecified'}, {story.location or 'unspecified'}\n"
                 f"Title: {story.title or 'Untitled'}\n"
+                f"Emotional Arc: {portrait_emotional_state(story)}\n"
+                f"Pivotal Beat: {portrait_narrative_moment(story)}\n\n"
+                f"Extract all 6 dimensions (characters, setting, emotional state, key events, relationship dynamics, atmosphere) "
+                f"plus composition, lighting, color palette, visual style, narrative focus, and polaroid scene into valid JSON. "
+                f"Strictly avoid generic stock-photo compositions such as happy friends at a bar, posed group shots, or repetitive social scenes."
             )
             raw = (getattr(response, "content", None) or str(response) or "").strip()
             if "```" in raw:
@@ -1219,6 +1286,10 @@ def extract_v2_visual_art_direction(
                         "visual_style": "visual_style",
                         "narrative_focus": "narrative_focus",
                         "polaroid_scene": "polaroid_scene",
+                        "emotional_state": "emotional_state",
+                        "key_events": "key_events",
+                        "relationship_dynamics": "relationship_dynamics",
+                        "atmosphere": "atmosphere",
                     }
                     for k, v in parsed.items():
                         norm_k = key_map.get(k.lower())
@@ -1236,9 +1307,13 @@ def extract_v2_visual_art_direction(
                         "visual_style",
                         "narrative_focus",
                         "polaroid_scene",
+                        "emotional_state",
+                        "key_events",
+                        "relationship_dynamics",
+                        "atmosphere",
                     ]:
                         if not normalized.get(required_key):
-                            normalized[required_key] = fallback[required_key]
+                            normalized[required_key] = fallback.get(required_key, "")
 
                     logger.info("V2 structured visual art direction path=llm story=%s", getattr(story, "id", None))
                     return normalized

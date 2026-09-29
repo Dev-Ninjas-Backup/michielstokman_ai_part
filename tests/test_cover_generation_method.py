@@ -1633,3 +1633,106 @@ def test_v2_photograph_description_emotional_and_scenic_variation():
     assert "intimate" in conf_desc.lower() or "candid" in conf_desc.lower() or "personal truth" in conf_desc.lower()
 
 
+def test_v2_client_feedback_story_specific_and_6_dimensions_in_prompts():
+    """Verify prompts enforce story-specific scenes, 6 dimensions, and ban generic stock photos."""
+    from app.utils.prompts import (
+        STORY_VISUAL_REFINEMENT_SYSTEM,
+        V2_COVER_PROMPT_TEMPLATE,
+        VISUAL_ART_DIRECTION_EXTRACTION_SYSTEM,
+    )
+
+    # 1. STORY_VISUAL_REFINEMENT_SYSTEM
+    assert "Cover images must be story-specific rather than generic or category-based" in STORY_VISUAL_REFINEMENT_SYSTEM
+    assert "CHARACTERS" in STORY_VISUAL_REFINEMENT_SYSTEM
+    assert "SETTING" in STORY_VISUAL_REFINEMENT_SYSTEM
+    assert "EMOTIONAL STATE" in STORY_VISUAL_REFINEMENT_SYSTEM
+    assert "KEY EVENTS" in STORY_VISUAL_REFINEMENT_SYSTEM
+    assert "RELATIONSHIP DYNAMICS" in STORY_VISUAL_REFINEMENT_SYSTEM
+    assert "ATMOSPHERE" in STORY_VISUAL_REFINEMENT_SYSTEM
+    assert "Strictly avoid generic stock-photo compositions such as happy friends at a bar, posed group shots, or repetitive social scenes" in STORY_VISUAL_REFINEMENT_SYSTEM
+    assert "Different stories should produce different visual compositions" in STORY_VISUAL_REFINEMENT_SYSTEM
+
+    # 2. VISUAL_ART_DIRECTION_EXTRACTION_SYSTEM
+    assert "Cover images must be story-specific rather than generic or category-based" in VISUAL_ART_DIRECTION_EXTRACTION_SYSTEM
+    assert '"emotional_state"' in VISUAL_ART_DIRECTION_EXTRACTION_SYSTEM
+    assert '"key_events"' in VISUAL_ART_DIRECTION_EXTRACTION_SYSTEM
+    assert '"relationship_dynamics"' in VISUAL_ART_DIRECTION_EXTRACTION_SYSTEM
+    assert '"atmosphere"' in VISUAL_ART_DIRECTION_EXTRACTION_SYSTEM
+    assert "Avoid generic stock-photo compositions such as happy friends at a bar, posed group shots, or repetitive social scenes" in VISUAL_ART_DIRECTION_EXTRACTION_SYSTEM
+
+    # 3. V2_COVER_PROMPT_TEMPLATE
+    assert "Cover images must be story-specific rather than generic or category-based" in V2_COVER_PROMPT_TEMPLATE
+    assert "Strictly avoid generic stock-photo compositions such as happy friends at a bar, posed group shots, or repetitive social scenes" in V2_COVER_PROMPT_TEMPLATE
+    assert "Different stories must produce different visual compositions" in V2_COVER_PROMPT_TEMPLATE
+
+
+def test_v2_extract_art_direction_includes_all_6_dimensions():
+    """Verify that extract_v2_visual_art_direction extracts the 6 client-specified dimensions."""
+    from app.utils.story_image_prompt import extract_v2_visual_art_direction
+
+    story = _story(
+        title="Rain on the Tramway",
+        first_name="Clara",
+        age=31,
+        gender="female",
+        location="Zurich, Switzerland",
+        situation="Watching the cold autumn rain while sitting across from someone I loved silently for years.",
+        story_text="We shared an umbrella to the station and spoke in whispers.",
+    )
+
+    art = extract_v2_visual_art_direction(story, use_llm=False)
+    all_dimensions = [
+        "characters",
+        "setting",
+        "emotional_state",
+        "key_events",
+        "relationship_dynamics",
+        "atmosphere",
+        "composition",
+        "mood",
+        "lighting",
+        "color_palette",
+        "visual_style",
+        "narrative_focus",
+        "polaroid_scene",
+    ]
+    for dim in all_dimensions:
+        assert dim in art, f"Missing dimension: {dim}"
+        assert isinstance(art[dim], str)
+        assert len(art[dim].strip()) > 0
+
+    assert "posed group shots" in art["composition"].lower() or "unposed" in art["composition"].lower()
+    assert "vulnerab" in art["emotional_state"].lower() or "tension" in art["emotional_state"].lower() or "intimate" in art["emotional_state"].lower()
+
+
+def test_v2_visual_refinement_passes_6_dimensions_to_llm():
+    """Verify that refine_story_visual_art_direction passes structured 6-dimension context to the LLM."""
+    from app.utils.story_image_prompt import refine_story_visual_art_direction
+
+    story = _story(
+        title="Leaving the Harbor Behind",
+        first_name="Marcus",
+        age=40,
+        gender="male",
+        location="Marseille, France",
+        situation="Walking away from the docks at dawn after making the hardest choice of my life.",
+        story_text="The morning mist was cold against my jacket, and the gulls called overhead.",
+    )
+
+    mock_llm = MagicMock()
+    mock_llm.invoke.return_value = "A lone 40-year-old man in a dark woolen coat walking along a misty Marseille pier at dawn."
+
+    with patch("app.utils.story_image_prompt.settings.XAI_API_KEY", "xai-test-key"):
+        with patch("app.utils.story_image_prompt.get_story_llm", return_value=mock_llm):
+            result = refine_story_visual_art_direction(story, use_llm=True)
+            mock_llm.invoke.assert_called_once()
+            called_prompt = mock_llm.invoke.call_args[0][0]
+            assert "6-DIMENSION ANALYSIS" in called_prompt
+            assert "Emotional State Arc:" in called_prompt
+            assert "Key Events / Narrative Beat:" in called_prompt
+            assert "Marseille" in called_prompt
+            assert "Strictly avoid generic stock-photo compositions" in called_prompt
+            assert result == "A lone 40-year-old man in a dark woolen coat walking along a misty Marseille pier at dawn."
+
+
+
