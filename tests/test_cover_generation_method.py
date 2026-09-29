@@ -1576,9 +1576,60 @@ def test_build_v2_cover_prompt_removes_homosexual_keywords_and_enforces_square_p
     assert '"HOMOSEXUAL"' not in prompt
     assert '"26 YEARS / FEMALE"' in prompt
 
-    # 5. Party, dancing, and relaxed celebration required
-    assert "partying, dancing, and having fun together" in prompt
+    # 5. Scenic and emotional fidelity matching story narrative
+    assert "High Scenic & Environmental Fidelity" in prompt
+    assert "Story-Driven Emotional Resonance" in prompt
     assert "STRICTLY FORBIDDEN: Do NOT depict bent necks" in prompt
     assert "STRICTLY NO homosexual, lesbian, gay, queer, or same-sex romantic or sexual themes." in prompt
+
+
+def test_v2_photograph_description_emotional_and_scenic_variation():
+    """Verify that different story types produce distinct emotional and scenic descriptions."""
+    from app.utils.story_image_prompt import build_v2_photograph_description
+
+    # Meditation story: quiet, reflective, nature/stillness setting
+    med_story = _meditation_story(
+        title="Breathe with the Dawn",
+        hero_hook="Returning to the breath as light fills the temple garden.",
+        location="Kyoto, Japan",
+        city="Kyoto",
+        country="Japan",
+        age=32,
+        gender="female",
+    )
+    med_desc = build_v2_photograph_description(med_story, use_llm=False)
+    assert "peaceful" in med_desc.lower() or "mindful" in med_desc.lower() or "contemplat" in med_desc.lower()
+    assert "party" not in med_desc.lower()
+    assert "cocktail" not in med_desc.lower()
+
+    # Transformation story: empowering breakthrough, confident
+    trans_story = _story(
+        story_type=StoryType.transformation,
+        title="Breaking the Mold",
+        hero_hook="I looked in the mirror and finally saw someone capable of leaving.",
+        location="Lisbon, Portugal",
+        city="Lisbon",
+        country="Portugal",
+        age=29,
+        gender="female",
+    )
+    trans_desc = build_v2_photograph_description(trans_story, use_llm=False)
+    assert "confidence" in trans_desc.lower() or "freedom" in trans_desc.lower() or "breakthrough" in trans_desc.lower()
+    assert "party" not in trans_desc.lower()
+    assert "cocktail" not in med_desc.lower()
+
+    # Confession story: intimate candid conversation or reflection
+    conf_story = _story(
+        story_type=StoryType.confession,
+        title="Midnight at the Station",
+        hero_hook="We waited for the last train under flickering amber lights.",
+        location="Berlin, Germany",
+        city="Berlin",
+        country="Germany",
+        age=35,
+        gender="male",
+    )
+    conf_desc = build_v2_photograph_description(conf_story, use_llm=False)
+    assert "intimate" in conf_desc.lower() or "candid" in conf_desc.lower() or "personal truth" in conf_desc.lower()
 
 

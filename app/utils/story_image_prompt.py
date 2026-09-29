@@ -952,30 +952,23 @@ _MELANCHOLIC_CUES_RE = re.compile(
 
 
 def _sanitize_v2_scene_text(text: str) -> str:
-    """Scrub homosexual keywords and melancholic bent-neck cues, replacing with relaxed party atmosphere."""
+    """Scrub homosexual keywords and extreme bent-neck cues while preserving emotional atmosphere."""
     if not text:
         return ""
-    cleaned = _HOMOSEXUAL_KEYWORDS_RE.sub("joyful social", text)
-    cleaned = _MELANCHOLIC_CUES_RE.sub("smiling and enjoying drinks together", cleaned)
+    cleaned = _HOMOSEXUAL_KEYWORDS_RE.sub("close companion", text)
+    cleaned = _MELANCHOLIC_CUES_RE.sub("thoughtful and engaged in the moment", cleaned)
     cleaned = re.sub(r"\s+", " ", cleaned).strip()
     return cleaned
 
 
 def _heuristic_v2_photograph_description(story: Story) -> str:
     """Deterministic, story-grounded 1-2 sentence description for the V2 Polaroid slot."""
+    from app.model.story import StoryType
+
     cast_mode = _cast_mode(story)
     gender = (story.gender or "person").strip().lower()
     age_str = f"{story.age}-year-old " if story.age is not None else "adult "
-
-    if cast_mode == "group":
-        subjects = f"An adult {gender} and two companions"
-        action = "completely relaxed, partying and dancing together, laughing and celebrating with drinks"
-    elif cast_mode == "pair":
-        subjects = f"An adult {gender} and a companion"
-        action = "completely relaxed, dancing and celebrating together with drinks and laughter"
-    else:
-        subjects = f"A {age_str}{gender}"
-        action = "in a vibrant, relaxed party moment, smiling and enjoying music and drinks"
+    stype = getattr(story, "story_type", None)
 
     blob = _story_blob(story, story_chars=500)
     settings = list(dict.fromkeys(m.group(1).lower() for m in _SCENE_SETTING_RE.finditer(blob))) if blob else []
@@ -984,14 +977,54 @@ def _heuristic_v2_photograph_description(story: Story) -> str:
     if settings:
         s0 = settings[0]
         if s0 in ("bed", "bedroom", "sheets"):
-            s0 = "lounge"
-        setting_desc = f"in an intimate, dimly lit {s0}"
+            s0 = "private lounge"
+        setting_desc = f"in an atmospheric {s0}"
     elif location:
         setting_desc = f"in {location}"
     else:
-        setting_desc = "in an intimate, dimly lit setting"
+        setting_desc = "in an intimate, atmospheric setting"
 
-    return f"{subjects} {action}, {setting_desc}. Fully clothed in stylish, casual attire. Cheerful smiles, candid laughter, dancing and celebrating together. No bent necks or looking away. Clearly visible."
+    if stype == StoryType.meditation:
+        if cast_mode == "group":
+            subjects = f"An adult {gender} and two companions"
+            action = "resting in quiet contemplation, sharing a peaceful, mindful moment of stillness"
+        elif cast_mode == "pair":
+            subjects = f"An adult {gender} and a companion"
+            action = "seated in serene stillness, gently breathing in a tranquil, reflective space"
+        else:
+            subjects = f"A {age_str}{gender}"
+            action = "in a deeply peaceful, contemplative state of mindfulness and inner quiet"
+        mood_posture = "Gentle breathing, serene expression, and grounded presence"
+
+    elif stype == StoryType.transformation:
+        if cast_mode == "group":
+            subjects = f"An adult {gender} and two companions"
+            action = "standing together with radiant confidence, sharing an empowering moment of freedom"
+        elif cast_mode == "pair":
+            subjects = f"An adult {gender} and a companion"
+            action = "sharing an inspiring, open-hearted moment of breakthrough and mutual encouragement"
+        else:
+            subjects = f"A {age_str}{gender}"
+            action = "radiating newfound confidence and quiet strength, looking forward with clear purpose"
+        mood_posture = "Self-assured presence, natural poised posture, and an expressive, liberated demeanor"
+
+    else:  # confession or default
+        if cast_mode == "group":
+            subjects = f"An adult {gender} and two close companions"
+            action = "sharing an intimate, candid conversation with genuine warmth and natural expressions"
+        elif cast_mode == "pair":
+            subjects = f"An adult {gender} and a companion"
+            action = "sharing an intimate, heartfelt moment of vulnerability and deep connection"
+        else:
+            subjects = f"A {age_str}{gender}"
+            action = "captured in a candid, intimate, reflective moment of personal truth"
+        mood_posture = "Candid warmth, subtle expressive eyes, and natural emotional posture"
+
+    return (
+        f"{subjects} {action}, {setting_desc}. "
+        f"Fully clothed in stylish, casual attire matching the setting. "
+        f"{mood_posture}. No bent necks or looking away. Clearly visible."
+    )
 
 
 def _heuristic_v2_visual_art_direction(
@@ -999,6 +1032,8 @@ def _heuristic_v2_visual_art_direction(
     visual_brief: str | None = None,
 ) -> dict[str, str]:
     """Deterministic, structured visual art direction extracted without LLM."""
+    from app.model.story import StoryType
+
     cast_mode = _cast_mode(story)
     gender = (story.gender or "person").strip().lower()
     age_str = f"{story.age}-year-old " if story.age is not None else "adult "
@@ -1033,14 +1068,32 @@ def _heuristic_v2_visual_art_direction(
         if weather_list
         else "Dim ambient lighting with soft warm highlights catching skin and gentle shadows."
     )
-    mood_str = (
-        f"Intimate, reflective, nuanced tension touching on {', '.join(emotions_list[:3])}."
-        if emotions_list
-        else "Intimate, reflective, subtle tension, and quiet emotional connection."
-    )
+
+    stype = getattr(story, "story_type", None)
+    if stype == StoryType.meditation:
+        mood_str = (
+            f"Tranquil, deeply mindful, calm, and serene connection touching on {', '.join(emotions_list[:3])}."
+            if emotions_list
+            else "Tranquil, deeply mindful, calm, and inner stillness."
+        )
+        narrative_focus_str = "A quiet, centering breath and a gentle return to inner peace and stillness."
+    elif stype == StoryType.transformation:
+        mood_str = (
+            f"Empowering, courageous, and liberating shift touching on {', '.join(emotions_list[:3])}."
+            if emotions_list
+            else "Empowered, liberating, breakthrough clarity, and newfound confidence."
+        )
+        narrative_focus_str = "A pivotal breakthrough moment of stepping boldly into one's own truth and freedom."
+    else:
+        mood_str = (
+            f"Intimate, reflective, nuanced tension touching on {', '.join(emotions_list[:3])}."
+            if emotions_list
+            else "Intimate, reflective, subtle tension, and quiet emotional connection."
+        )
+        narrative_focus_str = "A quiet, pivotal beat of shared honesty and understated emotional release."
+
     color_palette_str = "Warm amber and honey tones, deep charcoal shadows, muted natural earthy palette."
     visual_style_str = "Authentic vintage 35mm snapshot, tactile film grain, soft focus, editorial realism."
-    narrative_focus_str = "A quiet, pivotal beat of shared honesty and understated emotional release."
     polaroid_scene_str = _heuristic_v2_photograph_description(story)
 
     return {
@@ -1067,7 +1120,8 @@ def refine_story_visual_art_direction(story: Story, *, use_llm: bool = True) -> 
     from app.utils.prompts import STORY_VISUAL_REFINEMENT_SYSTEM
 
     if use_llm and (settings.XAI_API_KEY or "").strip():
-        kind = "meditation" if getattr(story, "story_type", None) == StoryType.meditation else "confession"
+        stype = getattr(story, "story_type", None)
+        kind = stype.value if hasattr(stype, "value") else (str(stype) if stype else "confession")
         full_text = (story.story_text or story.story_input or "").strip()[:6000]
         title = (story.title or story.member_title or getattr(story, "ai_generated_title", None) or "Untitled").strip()
         author = (story.first_name or "Anonymous").strip()
@@ -1081,7 +1135,7 @@ def refine_story_visual_art_direction(story: Story, *, use_llm: bool = True) -> 
             response = llm.invoke(
                 f"{STORY_VISUAL_REFINEMENT_SYSTEM}\n\n"
                 f"STORY METADATA:\n"
-                f"- Story Type: {kind}\n"
+                f"- Story Type: {kind.capitalize()}\n"
                 f"- Title: {title}\n"
                 f"- Narrator: {author}, {story.age if story.age is not None else 'unspecified'}yo, {story.gender or 'unspecified'}, {location}\n"
                 f"- Situation: {situation}\n"
@@ -1140,6 +1194,7 @@ def extract_v2_visual_art_direction(
                 f"{VISUAL_ART_DIRECTION_EXTRACTION_SYSTEM}\n\n"
                 f"EDITORIAL VISUAL BRIEF:\n{brief}\n\n"
                 f"STORY METADATA:\n"
+                f"Story Type: {story.story_type.value.capitalize() if getattr(story, 'story_type', None) else 'Confession'}\n"
                 f"Narrator: {story.first_name or 'Anonymous'}, {story.age if story.age is not None else 'unspecified'}yo, {story.gender or 'unspecified'}, {story.location or 'unspecified'}\n"
                 f"Title: {story.title or 'Untitled'}\n"
             )

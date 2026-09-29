@@ -341,26 +341,25 @@ Inside the Polaroid:
 {photo_desc}
 
 The image should communicate:
-- vibrant, relaxed party and celebration atmosphere
-- people genuinely relaxing, partying, dancing, and having fun together
-- candid, joyful smiles, laughing together, holding cocktail glasses
-- active, happy, celebratory summer-night party ambience
-- authentic human connection, warmth, and shared enjoyment
+- High Scenic & Environmental Fidelity: Faithfully render the specific setting, landscape, architecture, interior, or outdoor location matching the exact story context described above (e.g. coffee shop, train, coastal overlook, mountain path, library, balcony, art studio, street corner, quiet room, nature trail, or social gathering). Avoid repetitive party/lounge tropes unless the story specifically calls for one.
+- Story-Driven Emotional Resonance: Capture the genuine emotional heart of THIS specific story (e.g. quiet contemplative stillness, tender intimacy, radiant joy, liberating breakthrough, heartfelt vulnerability, or peaceful reflection).
+- Authentic Atmosphere & Lighting: Reflect the story's true time of day, weather, and mood (e.g. dawn golden hour, rainy twilight, soft practical lamplight, afternoon shadows, or crisp morning sun).
+- Natural Human Presence: The subject(s) must appear grounded, natural, and expressive, with body language and facial expressions that organically match the narrative.
+- Authentic human connection, warmth, emotional depth, and narrative truth.
 
 All subjects must be clearly visible.
 
 CRITICAL POSE & EXPRESSION RULES:
-- STRICTLY FORBIDDEN: Do NOT depict bent necks, heads tilted away, or staring blankly out windows into the distance.
-- STRICTLY FORBIDDEN: Do NOT depict melancholic, sad, depressed, lonely, brooding, or bored expressions.
-- STRICTLY FORBIDDEN: Do NOT depict stiff, isolated, or awkward body language.
-- ALL subjects must look completely relaxed, cheerful, engaged with each other, partying, dancing, smiling, and having a great time.
+- STRICTLY FORBIDDEN: Do NOT depict bent necks, heads unnaturally tilted away, or awkward distorted anatomy.
+- Avoid stiff, frozen, mannequin-like poses or vacant stares.
+- Expressions must feel human, nuanced, and emotionally aligned with the story narrative (warm, contemplative, joyful, serene, or intense as appropriate to the scene).
 
 STRICTLY FORBIDDEN CONTENT:
 - STRICTLY NO homosexual, lesbian, gay, queer, or same-sex romantic or sexual themes.
 - Do not depict explicit sexual activity.
 - Do not depict nudity.
 - Do not depict pornography.
-- The scene must depict a celebratory, relaxed group of friends partying, dancing, laughing, and enjoying drinks in a lively social setting.
+- All subjects must be fully and tastefully clothed in wardrobe appropriate to the setting and season (e.g. knitwear, jackets, shirts, coats, or casual daywear).
 
 PHOTOGRAPHIC STYLE
 
@@ -490,56 +489,46 @@ The final image should resemble a clean editorial {kind_singular} introduction p
 
 # Step 1 of V2: Clean story-to-visual-art-direction editor prompt
 STORY_VISUAL_REFINEMENT_SYSTEM = """\
-You are an editorial story-to-visual-art-direction editor.
+You are an expert editorial art director and visual storyteller for magazine and book covers.
 
-Read the provided story and create a concise visual refinement that will be used as the input for an AI image-generation model.
+Your task is to analyze the provided story—its TYPE (Confession, Meditation, Transformation), CONTEXT, SETTING, EMOTIONS, ATMOSPHERE, and NARRATIVE ARC—and create a tailored, evocative visual brief that will be used to generate a unique, story-specific Polaroid cover photograph.
 
-Your goal is NOT to rewrite the story or summarize every event.
+DO NOT apply a generic party or lounge template. Every story has its own unique world, scenic setting, and emotional signature:
+- For CONFESSIONS: Capture the intimate revelation, romantic chemistry, secret vulnerability, candid truth, or interpersonal connection.
+- For MEDITATIONS: Capture tranquil mindfulness, inner stillness, contemplative calm, gentle breathing, morning dawn, evening twilight, or deep connection with nature.
+- For TRANSFORMATIONS: Capture breakthrough moments, liberating joy, newfound freedom, courage, confidence, or stepping boldly into a new chapter.
 
-Instead, identify the strongest visual, celebratory, and atmospheric elements that should influence the generated image.
+Analyze and Preserve:
+- The specific physical environment and setting explicitly mentioned or implied in the story (e.g. coffee shop, train carriage, coastal cliff, city street, gallery, kitchen, garden, library, balcony, road trip, mountain path, lakeside dock, living room, sunlit park, etc.). Ensure rich scenic diversity.
+- The true emotional tone and mood of the story (e.g. contemplative, serene, electric, joyful, tender, introspective, triumphant, longing, nostalgic, hopeful, or peaceful).
+- Specific atmospheric conditions: weather (rain, mist, clear breeze, autumn air), lighting (golden hour, soft overcast, twilight, warm practical interior lamps, candlelit glow, morning sun), and season.
+- Characters: visual characteristics, natural age, styling, and presence that directly reflect the narrator and companions in the story.
+- Tangible details: distinctive objects, clothing, textures, or environmental cues that make this narrative unmistakable.
 
-Preserve:
-- The main character and their relevant visual characteristics
-- Important supporting characters
-- The primary location and environment (terrace, lounge, party, outdoor setting)
-- Time of day, season, and atmosphere
-- Celebratory party vibes, dancing, laughing, and joyful social relaxation between characters
-- Important objects, clothing, architecture, cocktail glasses, or environmental details
-- Distinctive visual elements that make this story recognizable
+Remove and Transform:
+- Dialogue, repetitive sentences, and internal monologue that cannot be visually represented.
+- Detailed sexual acts, explicit anatomical descriptions, bare skin, lingerie, or bedroom intimacy that would trigger safety filters (transform into tasteful, emotionally charged moments: fully clothed in stylish casual wear, seated at a cafe, walking along a path, or sharing an expressive look).
+- ANY homosexual, lesbian, gay, queer, or same-sex romantic/sexual keywords or explicit themes (transform into deep genuine friendship, companionship, or shared adventure).
+- Avoid exaggerated, distorted poses such as extreme bent necks or awkward staring away. Ensure the subject feels natural, present, and alive.
 
-Remove:
-- Dialogue
-- Repetitive sentences
-- Internal monologue that cannot be visually represented
-- Detailed sexual acts, explicit anatomical descriptions, bare skin, lingerie, or bedroom intimacy that would trigger vision safety filters
-- Minor chronological events that are not visually important
-- Exact prices, measurements, or irrelevant factual details
-- Details that would distract from the main visual concept
-- ANY homosexual, lesbian, gay, queer, or same-sex romantic/sexual keywords, tags, or themes (strictly remove words like "homosexual", "lesbian", "gay", "same-sex", etc.). NEVER frame the scene around homosexual romance or intimacy. Always transform any interpersonal connection into a joyful, relaxed, vibrant party and celebration atmosphere where friends are relaxing, dancing, laughing, and celebrating together.
-- ANY melancholic, depressed, sad, lonely, or brooding cues (such as staring out windows, bent necks, sorrowful looks). Instead, portray people actively relaxing, having fun, partying, dancing, and laughing together.
+Do not invent major elements foreign to the narrative. Ground the scene deeply in the client's story.
 
-Do not invent major story elements that are not present in the source.
-
-Prioritize visual storytelling over plot summary.
-
-The result should read like a concise editorial visual brief: cinematic, specific, atmospheric, celebratory, and easy for an image-generation model to interpret.
-
-Return only the refined visual description.
+Return ONLY the concise, highly visual editorial brief (1-3 sentences): cinematic, specific, atmospheric, emotionally truthful, and rich in scenic detail.
 """
 
 # Step 2 of V2: Structured visual art direction extraction prompt
 VISUAL_ART_DIRECTION_EXTRACTION_SYSTEM = """\
 You are an expert art director for editorial book and magazine covers.
 Given an editorial visual brief of a story, extract the visual art direction into a JSON object with these exact keys:
-- "setting": location, architecture, landscape, props, physical environment (use public or living spaces such as lounges, terraces, cafes, streets; avoid beds/bedroom settings)
-- "characters": who should be in the frame, their visual characteristics, age, gender, styling (all subjects must be fully and tastefully clothed in elegant casual wear such as knit sweaters, jackets, or shirts)
-- "composition": spatial arrangement, who is prominent, body language, and spatial relationships
-- "mood": vibrant, celebratory, relaxed, joyful party atmosphere with warmth and laughter (strictly avoid melancholic, depressing, sad, or gloomy moods)
-- "lighting": time of day, season, atmosphere, lighting sources, and shadows
-- "color_palette": tones, warmth, palette notes
-- "visual_style": overall visual aesthetic, editorial photography style, and artistic treatment
-- "narrative_focus": the central visual moment that anchors the story
-- "polaroid_scene": a concise 1-2 sentence description strictly of the people, their setting, their candid action, and their facial expressions for a single square Polaroid photo frame. All subjects must be fully clothed in stylish casual attire (e.g. jacket, sweater, shirt). Strictly no nudity, bare skin, bare shoulders, lingerie, beds, or sexually suggestive poses. Strictly NO homosexual, lesbian, gay, or same-sex romantic/sexual themes. Strictly NO bent-neck poses, heads tilted away, staring out windows, or melancholic/sad expressions. The subjects must look relaxed, lively, joyful, partying, dancing, laughing together, and enjoying drinks in a vibrant social setting (such as a terrace, lounge, or party venue). Strictly no mentions of frames, borders, text, cameras, or collage elements.
+- "setting": specific location, architecture, landscape, props, and physical environment matching the exact story narrative (e.g. cafes, coastal paths, train cabins, street corners, sunlit rooms, galleries, nature trails, city overlooks, balconies; avoid beds/bedroom settings)
+- "characters": who should be in the frame, their visual characteristics, age, gender, styling (all subjects must be fully and tastefully clothed in wardrobe appropriate to setting and story, e.g. knit sweaters, jackets, shirts, coats)
+- "composition": spatial arrangement, prominent subjects, body language, and spatial relationships natural to the moment
+- "mood": the specific emotional atmosphere of this narrative (e.g. serene contemplation, heartfelt intimacy, quiet confidence, vibrant joy, bittersweet relief, radiant freedom, electric chemistry)
+- "lighting": time of day, season, atmosphere, lighting sources, and shadows matching the story
+- "color_palette": tones, warmth, palette notes appropriate to the setting
+- "visual_style": overall visual aesthetic, editorial photography style, and vintage 35mm analogue treatment
+- "narrative_focus": the central visual moment that anchors the specific story
+- "polaroid_scene": a concise 1-2 sentence description strictly of the people, their setting, their candid action, and their facial expressions for a single square Polaroid photo frame. The scene must be tailored to the exact story narrative, context, and emotion. All subjects must be fully clothed in stylish casual attire (e.g. jacket, sweater, shirt). Strictly no nudity, bare skin, bare shoulders, lingerie, beds, or sexually suggestive poses. Strictly NO homosexual, lesbian, gay, or same-sex romantic/sexual themes. Strictly NO bent-neck poses, heads unnaturally tilted away, or distorted anatomy. Facial expressions and body language must be expressive, authentic, and directly aligned with the story's emotional beat. Strictly no mentions of frames, borders, text, cameras, or collage elements.
 
 Return ONLY a valid JSON object with these keys. No markdown fences, no preamble.
 """
