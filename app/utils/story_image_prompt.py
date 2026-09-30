@@ -1032,24 +1032,24 @@ def _heuristic_v2_photograph_description(story: Story) -> str:
     else:  # confession or default
         if cast_mode == "group":
             subjects = f"An adult {gender} and close companions"
-            action = "sharing a nuanced, candid conversation with subtle emotional depth"
-            comp = "Unposed candid framing and authentic interpersonal distance without posed grouping"
+            action = "sharing a quiet, candid conversation with subtle emotional depth"
+            comp = "Natural unposed documentary framing with authentic interpersonal distance"
         elif cast_mode == "pair":
             subjects = f"An adult {gender} and a companion"
-            action = "sharing an intimate, heartfelt moment of vulnerability, unspoken tension, and deep connection"
-            comp = "Intimate over-the-shoulder framing and nuanced emotional closeness"
+            action = "sharing an intimate, honest moment of emotional vulnerability and quiet connection"
+            comp = "Intimate over-the-shoulder framing and subtle emotional closeness"
         else:
             subjects = f"A {age_str}{gender}"
-            action = "captured in a candid, intimate, reflective moment of personal truth"
-            comp = "Candid medium framing and reflective emotional focus"
-        mood_posture = "Candid warmth, subtle expressive eyes, and natural emotional posture"
+            action = "captured in a private emotional moment, quietly processing personal truth with subtle vulnerability"
+            comp = "Intimate documentary portrait with natural framing"
+        mood_posture = "Natural body language, subtle gesture (hand resting gently on chest or quiet posture), soft thoughtful gaze, and emotionally honest expression"
 
     return (
         f"{subjects} {action}{beat_snippet}, {setting_desc}. "
         f"{comp}. Fully clothed in stylish, casual attire matching the setting. "
-        f"{mood_posture}. Raising heartbeats with visceral emotional intensity. "
-        f"Evocative cinematic atmosphere. No generic stock-photo compositions, no happy friends at a bar, no posed group shots. "
-        f"No bent necks or looking away. Clearly visible."
+        f"{mood_posture}. Emotional intimacy and deeply authentic human truth, as if witnessing a real private moment. "
+        f"Soft motivated natural light. No generic stock-photo compositions, no happy friends at a bar, no posed group shots. "
+        f"No bent necks or unnatural head tilts. Clearly visible."
     )
 
 
@@ -1083,6 +1083,7 @@ def _heuristic_v2_visual_art_direction(
         primary_setting = "rain-slicked street corner at night"
     setting_str = f"An intimate, atmospheric {primary_setting} in {location}."
 
+    stype = getattr(story, "story_type", None)
     if cast_mode == "group":
         characters_str = f"An adult {gender} and close companions, fully clothed in elegant, casual attire (jackets and sweaters)."
         comp_str = "Natural unposed environmental composition with authentic spacing between subjects; strictly avoid posed group shots or repetitive social scenes."
@@ -1093,21 +1094,25 @@ def _heuristic_v2_visual_art_direction(
         rel_dynamics = "Intimate emotional resonance, shared vulnerability, and nuanced interpersonal tension."
     else:
         characters_str = f"A {age_str}{gender} fully clothed in tasteful, elegant knitwear or jacket."
-        comp_str = "A single figure naturally grounded in the scene with candid medium framing, authentic posture facing slightly toward or parallel to the lens; unposed and natural."
+        if stype == StoryType.meditation:
+            comp_str = "A single figure seated or standing in grounded stillness with centered medium framing, gentle breath; unposed and natural."
+        elif stype == StoryType.transformation:
+            comp_str = "A single figure naturally poised with open, expansive framing, radiant confidence and quiet strength; unposed and natural."
+        else:
+            comp_str = "A single figure in an intimate documentary portrait, natural body language (such as hand resting gently against chest or soft thoughtful gaze); unposed and emotionally honest."
         rel_dynamics = "Introspective solitude, self-reckoning, and quiet dialogue between the narrator and the surrounding space."
 
     lighting_str = (
-        f"Dim ambient practical light, {weather_list[0]} atmosphere with soft shadows."
+        f"Soft practical light, {weather_list[0]} atmosphere with gentle shadows."
         if weather_list
-        else "Dim ambient lighting with soft warm highlights catching skin and gentle shadows."
+        else "Soft motivated natural light with gentle ambient highlights and subtle film shadows."
     )
     atmosphere_str = (
-        f"Sensory {weather_list[0]} environment with authentic weather texture and evocative ambient shadows."
+        f"Sensory {weather_list[0]} environment with authentic weather texture and quiet emotional truth."
         if weather_list
-        else "Evocative, moody sensory environment with practical lamplight and quiet emotional stillness."
+        else "Intimate, atmospheric sensory environment with soft natural light and quiet emotional truth."
     )
 
-    stype = getattr(story, "story_type", None)
     if stype == StoryType.meditation:
         mood_str = (
             f"Tranquil, deeply mindful, calm, and serene connection touching on {', '.join(emotions_list[:3])}."
@@ -1135,18 +1140,18 @@ def _heuristic_v2_visual_art_direction(
         emotional_state_str = (
             f"Vulnerable emotional reckoning touching on {', '.join(emotions_list[:3])}."
             if emotions_list
-            else "Intimate vulnerability, unspoken truth, and honest emotional tension."
+            else "Intimate vulnerability, unspoken truth, quiet processing of emotion, and authentic personal honesty."
         )
         situation = (story.situation or "").strip()
         key_events_str = (
-            f"The pivotal moment of {situation.rstrip('.').lower()}."
+            f"The private moment of {situation.rstrip('.').lower()}."
             if situation
-            else "A quiet, pivotal beat of shared honesty and understated emotional release."
+            else "A quiet, private beat of shared honesty and understated emotional release."
         )
-        narrative_focus_str = "A quiet, pivotal beat of shared honesty and understated emotional release."
+        narrative_focus_str = "A quiet, private beat of shared honesty and understated emotional release."
 
-    color_palette_str = "Warm amber and honey tones, deep charcoal shadows, muted natural earthy palette."
-    visual_style_str = "Authentic vintage 35mm snapshot, tactile film grain, soft focus, editorial realism."
+    color_palette_str = "Monochrome tones: rich charcoal blacks, soft silvery grays, gentle ivory highlights, authentic film tonal range."
+    visual_style_str = "Strictly black-and-white vintage 35mm analogue snapshot, visible organic film grain, soft focus, faded blacks, muted contrast, documentary editorial realism."
     polaroid_scene_str = _heuristic_v2_photograph_description(story)
 
     return {
@@ -1203,11 +1208,13 @@ def refine_story_visual_art_direction(story: Story, *, use_llm: bool = True) -> 
                 f"- Key Events / Narrative Beat: {narrative_moment}\n"
                 f"- Hero Hook: {hook}\n\n"
                 f"STORY TEXT:\n{full_text or situation or hook}\n\n"
-                f"MANDATE: Analyze each confession's characters, setting, emotional state, key events, relationship dynamics, and atmosphere. "
-                f"The image MUST raise heartbeats ('raising heart beats') with intense emotion, electric chemistry, passion, or raw vulnerability. "
-                f"Never create dull pictures or sterile modern realism. "
+                f"MANDATE: Analyze the story's emotional truth across characters, setting, emotional state, and atmosphere. "
+                f"The image should create an immediate feeling of recognition and emotional intimacy — as if the viewer has unexpectedly witnessed a real private moment. "
+                f"Focus on the emotional truth of the story rather than a literal illustration of a dramatic narrative event. "
+                f"Capture genuine human emotion, quiet vulnerability, personal honesty, and authentic presence. "
+                f"Natural expression, subtle body language (e.g. hand on chest, soft gaze), authentic imperfections, soft natural light, and film texture. "
                 f"STRICTLY FORBIDDEN: never depict someone sitting behind a computer, working at a desk, typing on a laptop, or in an office. "
-                f"Even if the text mentions work, a callcenter, or a computer, capture the heightened emotional moment (e.g. the night escape, meeting in the rain, intimate encounter, or yearning for freedom). "
+                f"Even if the text mentions work, a callcenter, or an office, visualize the private emotional moment (e.g. standing quietly near a window processing the feeling, a quiet walk at night, or looking out at the sky). "
                 f"Create a story-specific scene reflecting the actual narrative and emotional tone. "
                 f"Strictly avoid generic stock-photo compositions such as happy friends at a bar, posed group shots, or repetitive social scenes. "
                 f"Produce distinct visual compositions, locations, lighting, emotions, character relationships, and atmospheres."
@@ -1274,10 +1281,10 @@ def extract_v2_visual_art_direction(
                 f"Title: {story.title or 'Untitled'}\n"
                 f"Emotional Arc: {portrait_emotional_state(story)}\n"
                 f"Pivotal Beat: {portrait_narrative_moment(story)}\n\n"
-                f"Extract all 6 dimensions (characters, setting, emotional state, key events, relationship dynamics, atmosphere) "
-                f"plus composition, lighting, color palette, visual style, narrative focus, and polaroid scene into valid JSON. "
-                f"The scene must raise heartbeats with intense emotion, electric chemistry, or raw vulnerability. "
-                f"Never create dull pictures or sterile modern realism. "
+                f"Extract all dimensions (characters, setting, emotional state, key events, relationship dynamics, atmosphere, "
+                f"composition, lighting, color palette, visual style, narrative focus, and polaroid scene) into valid JSON. "
+                f"The scene must capture emotional intimacy, genuine human truth, and quiet vulnerability — creating an immediate feeling of recognition, as if witnessing a real private moment. "
+                f"Never create theatrical movie stills, artificial melodrama, dull pictures, or sterile modern realism. "
                 f"Strictly forbidden: never depict someone sitting behind a computer, at a desk, or in an office. "
                 f"Strictly avoid generic stock-photo compositions such as happy friends at a bar, posed group shots, or repetitive social scenes."
             )
