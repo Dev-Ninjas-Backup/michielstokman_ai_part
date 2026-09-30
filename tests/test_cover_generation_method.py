@@ -1769,4 +1769,93 @@ def test_v2_never_generates_computer_or_office_scene_for_daily_grind_story():
     assert "raising heartbeats" not in desc.lower()
 
 
+def test_v2_prompt_incorporates_authentic_moment_and_framing_freedom():
+    """Verify that V2 cover prompts use authentic moment phrasing and flexible framing rather than rigid rules."""
+    from app.utils.story_image_prompt import build_v2_cover_prompt
+    from app.utils.prompts import (
+        V2_COVER_PROMPT_TEMPLATE,
+        STORY_VISUAL_REFINEMENT_SYSTEM,
+        VISUAL_ART_DIRECTION_EXTRACTION_SYSTEM,
+    )
+
+    story = _story(
+        title="Midnight Reflection",
+        first_name="Rory",
+        age=24,
+        gender="male",
+        location="Cardiff, UK",
+        situation="Standing alone in a quiet room processing a difficult realization.",
+    )
+    prompt = build_v2_cover_prompt(story, use_llm_scene=False)
+
+    # 1. Authentic moment that feels naturally photographed vs beautiful photographic moment
+    assert "an authentic moment that feels naturally photographed" in prompt
+    assert "beautiful photographic moment" not in prompt
+    assert "an authentic moment that feels naturally photographed" in STORY_VISUAL_REFINEMENT_SYSTEM
+    assert "an authentic moment that feels naturally photographed" in VISUAL_ART_DIRECTION_EXTRACTION_SYSTEM
+
+    # 2. Framing freedom vs All subjects must be clearly visible
+    assert "Any subject shown must be naturally readable within the frame; framing may be close, medium, or environmental depending on the emotional moment." in prompt
+    assert "All subjects must be clearly visible" not in prompt
+    assert "All subjects must be clearly visible" not in V2_COVER_PROMPT_TEMPLATE
+
+    # 3. Location fidelity over cinematic attraction
+    assert "Use the actual location or environment implied by the story" in prompt
+    assert "Do not substitute a visually attractive location simply because it looks cinematic" in prompt
+
+
+def test_v2_category_emotional_differentiation():
+    """Verify that photographic treatment is shared brand while emotional photography direction varies by category."""
+    from app.utils.story_image_prompt import build_v2_cover_prompt
+    from app.model.story import StoryType
+
+    confession = _story(title="Truth Told", story_type=StoryType.confession, first_name="Maya")
+    meditation = _meditation_story(title="Deep Quiet", first_name="Emi")
+    transformation = _story(title="New Dawn", story_type=StoryType.transformation, first_name="Sarah")
+
+    p_conf = build_v2_cover_prompt(confession, use_llm_scene=False)
+    p_med = build_v2_cover_prompt(meditation, use_llm_scene=False)
+    p_trans = build_v2_cover_prompt(transformation, use_llm_scene=False)
+
+    # Shared brand photographic treatment
+    for p in (p_conf, p_med, p_trans):
+        assert "STRICTLY BLACK AND WHITE" in p
+        assert "organic film grain" in p
+        assert "soft focus" in p
+        assert "faded blacks" in p
+        assert "muted contrast" in p
+
+    # Category-specific emotional direction
+    assert "Confessions: intimate, vulnerable, emotionally revealing" in p_conf
+    assert "confession archive" in p_conf
+
+    assert "Meditations: calm, inward, contemplative stillness" in p_med
+    assert "meditation archive" in p_med
+
+    assert "Transformations / Liberations: expressive, free, open, radiant courage" in p_trans
+    assert "transformation archive" in p_trans
+
+
+def test_v2_confession_gestures_vary_without_forcing_hand_on_chest():
+    """Verify that confession descriptions vary gestures rather than repeating a single hand-on-chest pose."""
+    from app.utils.story_image_prompt import _heuristic_v2_photograph_description
+
+    s1 = _story(title="First Secret", first_name="Aiden")
+    s2 = _story(title="Whispers in the Dark", first_name="Elena")
+    s3 = _story(title="A Long Journey Home", first_name="Lucas")
+    s4 = _story(title="Midnight Awakening", first_name="Zoe")
+
+    d1 = _heuristic_v2_photograph_description(s1)
+    d2 = _heuristic_v2_photograph_description(s2)
+    d3 = _heuristic_v2_photograph_description(s3)
+    d4 = _heuristic_v2_photograph_description(s4)
+
+    descriptions = [d1, d2, d3, d4]
+    # Verify that not all descriptions use the hand on chest pose
+    hand_on_chest_count = sum(1 for d in descriptions if "hand resting near chest" in d)
+    assert hand_on_chest_count < len(descriptions), "Gestures must vary across stories!"
+    assert any("wall" in d or "sitting" in d or "walking" in d or "object" in d or "collar" in d for d in descriptions)
+
+
+
 

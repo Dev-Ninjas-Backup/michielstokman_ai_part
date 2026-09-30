@@ -24,7 +24,7 @@ from app.schemas.schema_ai import StoryGenerateRequest, StoryType
 #    - PHOTOGRAPHIC STYLE: Strictly black-and-white vintage 35mm analogue
 #      snapshot with visible organic film grain, soft focus, faded blacks,
 #      muted contrast, and soft motivated natural light.
-#    - Focus: Person + genuine emotion + natural environment + beautiful photographic moment.
+#    - Focus: Person + genuine emotion + natural environment + an authentic moment that feels naturally photographed.
 #    - Used by: build_v2_cover_prompt(), refine_story_visual_art_direction(),
 #      and extract_v2_visual_art_direction().
 #
@@ -363,24 +363,24 @@ Inside the Polaroid:
 {photo_desc}
 
 The image should communicate:
-- Story-Specific Emotional Truth: Cover images must be story-specific rather than generic or category-based. Focus on the emotional truth of the narrative: Person + genuine emotion + natural environment + beautiful photographic moment. Avoid literally illustrating complex dramatic narrative action or staged movie scenes; photograph a private human moment that feels emotionally true.
+- Story-Specific Emotional Truth: Cover images must be story-specific rather than generic or category-based. Focus on the emotional truth of the narrative: Person + genuine emotion + natural environment + an authentic moment that feels naturally photographed. Avoid literally illustrating complex dramatic narrative action or staged movie scenes; photograph a private human moment that feels emotionally true.
 - Emotional Intimacy & Human Truth: The image should create an immediate feeling of recognition and emotional intimacy — as if the viewer has unexpectedly witnessed a real private moment. Capture genuine human emotion, quiet vulnerability, personal honesty, and authentic presence. Never create theatrical movie stills, artificial melodrama, dull pictures, or sterile emotionless scenes. The image should feel discovered rather than designed.
 - Strictly Avoid Dull / Corporate / Computer Scenes: STRICTLY FORBIDDEN to depict someone sitting behind a computer, working at a desk, typing on a laptop, wearing a headset, in an office cubicle, or engaged in mundane administrative daily routine. Even if a confession mentions daily work or feeling trapped in an office/call-center, NEVER visualize the computer or desk—ALWAYS visualize the private emotional moment: standing quietly near a window processing the feeling, walking down a quiet street at night, a moment of stillness, or looking out at the sky.
 - Strictly Avoid Generic Stock Photos: Strictly avoid generic stock-photo compositions such as happy friends at a bar, posed group shots, or repetitive social scenes. No generic party, nightlife, clubbing, or cocktail tropes.
 - Visual Composition & Scenic Variation: Different stories must produce different visual compositions (framings, camera angles, distances: intimate close-ups, environmental wide frames, candid natural perspectives), locations, lighting, emotions, character relationships, and atmospheres.
-- High Scenic & Environmental Fidelity: Faithfully render the specific setting, landscape, architecture, interior, or outdoor location matching the story's emotional atmosphere (e.g. quiet room with window light, coastal overlook, mountain path, balcony, street corner at twilight, quiet nature trail).
+- High Scenic & Environmental Fidelity: Use the actual location or environment implied by the story. Do not substitute a visually attractive location simply because it looks cinematic. Keep the environment simple, grounded, and emotionally meaningful to the narrative.
 - Story-Driven Emotional Resonance: Capture the genuine emotional heart of THIS specific story (quiet contemplative stillness, tender intimacy, radiant joy, liberating breakthrough, heartfelt vulnerability, or peaceful reflection).
 - Soft Motivated Natural Lighting: Use soft, motivated natural light matching the scene (e.g. soft window light, dawn mist, rainy twilight, gentle afternoon shadows, or warm practical lamp glow). Avoid harsh studio flashes or artificial cinematic effects.
 - Natural Human Presence: The subject(s) must appear grounded, natural, and authentic, with subtle body language and facial expressions that organically reflect the narrative.
 - Authentic human connection, quiet warmth, emotional depth, and personal truth.
 
-All subjects must be clearly visible.
+Any subject shown must be naturally readable within the frame; framing may be close, medium, or environmental depending on the emotional moment.
 
 CRITICAL POSE & EXPRESSION RULES BY STORY TYPE:
-- FOR CONFESSIONS: Private, vulnerable, emotionally revealing, intimate body language (e.g. subtle gesture, hand resting gently against chest, soft natural gaze, quiet processing of emotion, personal truth).
-- FOR MEDITATIONS: Still, grounded, contemplative, gentle breath, inner peace, quiet natural or room presence.
-- FOR TRANSFORMATIONS / LIBERATIONS: Open, expansive, movement, newfound freedom, courage, quiet confidence, or radiant joy.
-- GENERAL POSE RULES: Avoid stiff mannequin poses, artificial commercial stock smiles, or theatrical over-acting. STRICTLY FORBIDDEN: Do NOT depict bent necks, heads unnaturally tilted away, or awkward distorted anatomy.
+- FOR CONFESSIONS (Intimate / Vulnerable): Private, vulnerable, emotionally revealing, intimate body language. Use subtle gestures appropriate to the specific confession: hand near chest, holding an object, touching hair, resting against a wall, looking through a window, walking alone, sitting quietly, or soft thoughtful gaze. The emotion must be consistent (intimate, vulnerable, personal truth); the gesture should naturally vary per story.
+- FOR MEDITATIONS (Calm / Inward): Still, grounded, calm, inward, contemplative, gentle breath, inner peace, quiet natural or room presence.
+- FOR TRANSFORMATIONS / LIBERATIONS (Expressive / Free): Open, expansive, movement, newfound freedom, courage, quiet confidence, or radiant joy.
+- GENERAL POSE RULES: Any subject shown must be naturally readable within the frame; framing may be close, medium, or environmental depending on the emotional moment. Avoid stiff mannequin poses, artificial commercial stock smiles, or theatrical over-acting. STRICTLY FORBIDDEN: Do NOT depict bent necks, heads unnaturally tilted away, or awkward distorted anatomy.
 
 STRICTLY FORBIDDEN CONTENT:
 - STRICTLY NO homosexual, lesbian, gay, queer, or same-sex romantic or sexual themes.
@@ -389,11 +389,11 @@ STRICTLY FORBIDDEN CONTENT:
 - Do not depict pornography.
 - All subjects must be fully and tastefully clothed in wardrobe appropriate to the setting and season (e.g. knitwear, jackets, shirts, coats, or casual daywear).
 
-PHOTOGRAPHIC STYLE
+PHOTOGRAPHIC STYLE & BRAND TREATMENT
 
 The photograph inside the Polaroid must be STRICTLY BLACK AND WHITE.
 
-Use an authentic vintage 35mm analogue snapshot aesthetic:
+Use an authentic vintage 35mm analogue snapshot aesthetic (common brand photographic treatment across all categories):
 
 - organic film grain
 - natural photographic texture
@@ -405,6 +405,11 @@ Use an authentic vintage 35mm analogue snapshot aesthetic:
 - fine film scratches
 - soft motivated natural light (window light, twilight, soft shadows)
 - authentic documentary/editorial film character
+
+CATEGORY EMOTIONAL PHOTOGRAPHY DIRECTION (the photographic treatment is part of the common brand, but emotional photography direction varies by category):
+- For Confessions: intimate, vulnerable, emotionally revealing, quiet processing of emotion, personal truth
+- For Meditations: calm, inward, contemplative stillness, gentle breathing, inner peace
+- For Transformations / Liberations: expressive, free, open, radiant courage, newfound confidence, empowering release
 
 Avoid:
 
@@ -420,7 +425,7 @@ Avoid:
 - plastic-looking skin
 - AI-looking faces
 
-The photograph should feel like a real personal photograph from an old confession archive.
+The photograph should feel like a real personal photograph from an authentic {kind_singular} archive.
 
 POLAROID CAPTION
 
@@ -525,7 +530,7 @@ CORE PHILOSOPHY:
 Cover images must be story-specific rather than generic or category-based. Each story should produce a visually distinct scene that reflects the actual narrative and emotional tone.
 Photograph the emotional truth of the story, not a literal illustration of a dramatic narrative event.
 The core visual idea is simple and powerful:
-Person + genuine emotion + natural environment + beautiful photographic moment.
+Person + genuine emotion + natural environment + an authentic moment that feels naturally photographed.
 The image should feel discovered rather than designed — like an intimate documentary or editorial portrait captured by a real photographer.
 
 EMOTIONAL INTIMACY & AUTHENTIC HUMAN TRUTH:
@@ -537,15 +542,15 @@ EMOTIONAL INTIMACY & AUTHENTIC HUMAN TRUTH:
 - If a story mentions an office, call center, desk, computer, or mundane routine, DO NOT visualize the computer or office! Always visualize the private emotional truth: standing quietly near a window processing the realization, walking down a quiet street at night, a moment of stillness, or looking out at the sky.
 
 ANALYZE BY STORY TYPE (CLEAR EMOTIONAL & POSE SEPARATION):
-- For CONFESSIONS: Private, vulnerable, emotionally revealing, intimate body language (e.g. subtle gesture, hand resting gently against chest, eyes softly closed or looking down, quiet processing of emotion, personal truth).
-- For MEDITATIONS: Still, grounded, contemplative, breath, inner peace, quiet natural or room presence.
-- For TRANSFORMATIONS: Open, expansive, movement, newfound freedom, courage, quiet confidence, or radiant joy.
+- For CONFESSIONS (Intimate / Vulnerable): Private, vulnerable, emotionally revealing, intimate body language. Use subtle gestures appropriate to the specific confession: hand near chest, holding an object, touching hair, resting against a wall, looking through a window, walking alone, sitting quietly, etc. The emotion is consistent; the gesture should naturally vary per story.
+- For MEDITATIONS (Calm / Inward): Still, grounded, calm, inward, contemplative, breath, inner peace, quiet natural or room presence.
+- For TRANSFORMATIONS / LIBERATIONS (Expressive / Free): Open, expansive, movement, newfound freedom, courage, quiet confidence, or radiant joy.
 
 YOUR TASK — ANALYZE THE STORY'S EMOTIONAL TRUTH ACROSS CORE DIMENSIONS:
-1. CHARACTERS: Who is in the frame? Natural age, visual demeanor, styling, and authentic human presence directly reflecting the narrator and any companions.
-2. SETTING: The physical environment and atmosphere (e.g., train window, coastal path, rain-slicked street, quiet room with soft window light, gallery, balcony, mountain path, lakeside dock, park). Ensure rich scenic diversity across different stories. NEVER use an office, desk, or computer.
+1. CHARACTERS: Who is in the frame? Natural age, visual demeanor, styling, and authentic human presence directly reflecting the narrator and any companions. Any subject shown must be naturally readable within the frame; framing may be close, medium, or environmental depending on the emotional moment.
+2. SETTING: Use the actual location or environment implied by the story. Do not substitute a visually attractive location simply because it looks cinematic. Keep the environment simple, authentic, and emotionally grounded to the narrative. NEVER use an office, desk, or computer.
 3. EMOTIONAL STATE: The narrator's specific feeling arc, private vulnerability, quiet honesty, emotional reckoning, peaceful stillness, or personal truth.
-4. KEY EVENTS: The private emotional moment or turning point being captured (e.g. a woman alone near a window processing a realization with hand on chest; pausing mid-stride on a quiet street; looking out over the water). Emotional interpretation over literal action.
+4. KEY EVENTS: The private emotional moment or turning point being captured (e.g. a person quietly processing a realization near a window, pausing mid-stride along a quiet street, resting against a wall in contemplation, or holding a cup while lost in thought). Emotional interpretation over literal action.
 5. RELATIONSHIP DYNAMICS: The interpersonal connection, distance, proximity, gaze, warmth, or quiet self-reckoning if solo.
 6. ATMOSPHERE: Sensory mood, soft motivated natural light (window light, twilight, morning sun, gentle lamplight), weather, and ambient shadows.
 
@@ -569,10 +574,10 @@ VISUAL_ART_DIRECTION_EXTRACTION_SYSTEM = """\
 You are an expert art director for editorial book and magazine covers.
 
 CORE PRINCIPLE:
-Cover images must be story-specific rather than generic or category-based. Photograph the emotional truth of the story rather than illustrating literal narrative drama. The core visual idea is simple: Person + genuine emotion + natural environment + beautiful photographic moment. The image should create an immediate feeling of recognition and emotional intimacy — as if the viewer has unexpectedly witnessed a real private moment. Capture genuine human emotion and quiet vulnerability. Never create theatrical movie stills, artificial drama, dull pictures, or sterile modern realism. Strictly forbidden to depict someone sitting behind a computer, working at a desk, or in an office. Avoid generic stock-photo compositions such as happy friends at a bar, posed group shots, or repetitive social scenes. Different stories should produce different visual compositions, locations, lighting, emotions, character relationships, and atmospheres.
+Cover images must be story-specific rather than generic or category-based. Photograph the emotional truth of the story rather than illustrating literal narrative drama. The core visual idea is simple: Person + genuine emotion + natural environment + an authentic moment that feels naturally photographed. The image should create an immediate feeling of recognition and emotional intimacy — as if the viewer has unexpectedly witnessed a real private moment. Capture genuine human emotion and quiet vulnerability. Never create theatrical movie stills, artificial drama, dull pictures, or sterile modern realism. Strictly forbidden to depict someone sitting behind a computer, working at a desk, or in an office. Avoid generic stock-photo compositions such as happy friends at a bar, posed group shots, or repetitive social scenes. Different stories should produce different visual compositions, locations, lighting, emotions, character relationships, and atmospheres.
 
 Given an editorial visual brief and story context, extract the visual art direction into a JSON object with these exact keys:
-- "setting": specific physical locale, architecture, landscape, and natural environment matching the story's emotional atmosphere (e.g. coastal paths, train cabins, street corners, sunlit rooms, galleries, nature trails, city overlooks, balconies; avoid beds/bedroom settings, avoid generic bars, strictly NO offices, desks, or computers)
+- "setting": the actual physical environment implied by the story (do not substitute a visually attractive location simply because it looks cinematic; keep the environment simple, grounded, and emotionally meaningful to the narrative; avoid beds/bedroom settings, avoid generic bars, strictly NO offices, desks, or computers)
 - "characters": who should be in the frame, their visual characteristics, age, gender, styling (all subjects must be fully and tastefully clothed in wardrobe appropriate to setting and story, e.g. knit sweaters, jackets, shirts, coats)
 - "emotional_state": the narrator's specific feeling arc and inner emotional state with genuine human intimacy (e.g. quiet vulnerability, emotional honesty, personal reckoning, peaceful stillness, or newfound courage; never dull, sterile, or theatrical)
 - "key_events": the private emotional moment being captured or implied from the story (emotional interpretation, never mundane office/computer work or literal action scenes)
@@ -584,7 +589,7 @@ Given an editorial visual brief and story context, extract the visual art direct
 - "color_palette": monochrome tones: rich charcoal blacks, soft silvery grays, gentle ivory highlights, authentic film tonal range
 - "visual_style": strictly black-and-white vintage 35mm analogue snapshot, visible organic film grain, soft focus, faded blacks, muted contrast, documentary editorial realism
 - "narrative_focus": the central private emotional moment that anchors the specific story
-- "polaroid_scene": a concise 1-2 sentence description combining characters, setting, emotional state, and atmosphere for a single square Polaroid photo frame. The scene must photograph the emotional truth of the story: person + genuine emotion + natural environment + beautiful photographic moment. It must create an immediate feeling of recognition and emotional intimacy, as if witnessing a real private moment. For confessions: private, vulnerable, emotionally revealing, natural body language (e.g. subtle gesture, hand resting gently against chest, soft natural gaze, quiet processing of emotion). For meditations: still, grounded, contemplative, breath, inner peace. For transformations: open, expansive, movement, newfound freedom, courage. Never create dull pictures or theatrical movie stills. Strictly forbidden to depict someone sitting behind a computer, working at a desk, or in an office. Strictly avoid generic stock-photo compositions such as happy friends at a bar, posed group shots, or repetitive social scenes. All subjects must be fully clothed in stylish casual attire (e.g. jacket, sweater, shirt). Strictly no nudity, bare skin, bare shoulders, lingerie, beds, or sexually suggestive poses. Strictly NO homosexual, lesbian, gay, or same-sex romantic/sexual themes. Strictly NO bent-neck poses, heads unnaturally tilted away, or distorted anatomy. Facial expressions and body language must feel natural, understated, and emotionally true. Strictly no mentions of frames, borders, text, cameras, or collage elements.
+- "polaroid_scene": a concise 1-2 sentence description combining characters, setting, emotional state, and atmosphere for a single square Polaroid photo frame. The scene must photograph the emotional truth of the story: person + genuine emotion + natural environment + an authentic moment that feels naturally photographed. It must create an immediate feeling of recognition and emotional intimacy, as if witnessing a real private moment. Any subject shown must be naturally readable within the frame; framing may be close, medium, or environmental depending on the emotional moment. For confessions (intimate/vulnerable): subtle varied gestures appropriate to the story (hand near chest, holding an object, touching hair, resting against a wall, looking through a window, sitting quietly, walking alone; never forcing a single pose). For meditations (calm/inward): still, grounded, contemplative, gentle breath, inner peace. For transformations (expressive/free): open, expansive, movement, newfound freedom, courage. Never create dull pictures or theatrical movie stills. Strictly forbidden to depict someone sitting behind a computer, working at a desk, or in an office. Strictly avoid generic stock-photo compositions such as happy friends at a bar, posed group shots, or repetitive social scenes. All subjects must be fully clothed in stylish casual attire (e.g. jacket, sweater, shirt). Strictly no nudity, bare skin, bare shoulders, lingerie, beds, or sexually suggestive poses. Strictly NO homosexual, lesbian, gay, or same-sex romantic/sexual themes. Strictly NO bent-neck poses, heads unnaturally tilted away, or distorted anatomy. Facial expressions and body language must feel natural, understated, and emotionally true. Strictly no mentions of frames, borders, text, cameras, or collage elements.
 
 Return ONLY a valid JSON object with these keys. No markdown fences, no preamble.
 """
