@@ -3,7 +3,7 @@ name: Build and Push Docker Image
 on:
   push:
     branches:
-      - main  # Triggers immediately when you push code to the main branch
+      - main
 
 # Lets GITHUB_TOKEN read this private repo so the EC2 deploy step can fetch it.
 permissions:
