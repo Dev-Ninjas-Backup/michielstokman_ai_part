@@ -212,8 +212,10 @@ V2_COVER_STYLE_SPEC = (
 
 V2_COVER_ANALOGUE_TREATMENT = (
     "Analogue treatment: Strictly black-and-white, authentic vintage 35mm snapshot. "
-    "Visible organic film grain, soft focus, faded blacks, muted contrast, gentle highlight bloom, "
-    "subtle dust and fine scratches. Intimate documentary portraiture with soft motivated natural light. "
+    "Visible organic film grain, soft focus background roll-off with razor-sharp focus on the eyes and face, "
+    "rich velvety blacks with gentle faded shadow tones, muted contrast balanced by striking directional chiaroscuro, "
+    "gentle highlight bloom, subtle dust and fine scratches. Luminous catchlights in the subject's eyes. "
+    "Intimate documentary portraiture with soft motivated natural light. "
     "The image should create an immediate feeling of recognition and emotional intimacy — as if the viewer "
     "has unexpectedly witnessed a real private moment. Avoid a polished digital or cheerful stock-photo look."
 )
@@ -225,141 +227,38 @@ V2_COVER_CLOSING_CONSTRAINTS = (
 
 V2_COVER_PROMPT_TEMPLATE = """\
 Create a complete TTL {category_title} story introduction page using the attached client reference as the PRIMARY visual, layout, typography, spacing, and composition reference.
-
 The goal is to closely match the visual simplicity and editorial hierarchy of the client reference.
-
 The final page must NOT look like a full story page. It is only a SHORT STORY INTRODUCTION / COVER PAGE.
-
-IMPORTANT:
-The design must contain very little text.
-The photograph and headline are the dominant visual elements.
-Do not fill empty space with additional story text.
+IMPORTANT: The design must contain very little text. The photograph and headline are the dominant visual elements. Do not fill empty space with additional story text.
 
 DESIGN DIRECTION
-
-- Warm ivory paper background.
-- Subtle natural paper texture.
-- Generous whitespace.
-- Generous horizontal margins on both the left and right sides of the page with ample breathing room.
-- Balanced wide layout proportions across both sides (spacious editorial page spread, never narrow or cramped against the edges).
-- Complete square page / square cover format (1:1 aspect ratio, perfectly square canvas).
-- Straight-on view.
-- Minimal handmade editorial aesthetic.
-- Black and raspberry pink (#D72655) are the only design colours.
-- No gradients.
-- No additional accent colours.
-- No decorative stickers.
-- No unnecessary graphic elements.
-- Premium editorial print aesthetic.
-- No phone, monitor, device frame, website mockup, or surrounding UI.
+- Warm ivory paper background with subtle natural paper texture, generous whitespace, and balanced wide layout proportions across both sides.
+- Complete square page / square cover format (1:1 aspect ratio, perfectly square canvas), straight-on view, no device frame or mockup.
+- Minimal handmade editorial aesthetic. Solid deep black and raspberry pink (#D72655) are the only design colours. No gradients, no additional accent colours, no decorative stickers.
 
 CRITICAL TEXT LIMITATION & READABILITY
-
-This is a STORY INTRODUCTION PAGE, NOT A FULL STORY PAGE.
-
-ALL TEXT MUST BE CRISP, HIGH-CONTRAST, AND EASILY READABLE at normal viewing distance.
-Never render microscopic, tiny, blurry, or illegible text.
-
-Use ONLY the exact text specified below.
-
-Do NOT extract additional sentences from the source story.
-Do NOT generate paragraphs from the story.
-Do NOT summarize the story into multiple sentences.
-Do NOT add dialogue.
-Do NOT add extra descriptive text.
-Do NOT repeat the story text.
-
-Keep the introduction extremely short: maximum 1–2 short lines (under 15 words total).
-Ensure the body text is rendered at a clean regular/normal font weight (strictly NOT bold, NOT heavy) at a large, impactful reading size — completely legible, large, and sharp.
-Ensure the bottom metadata (location and demographics) is also rendered in a clear, distinctly larger, easily readable font size in regular/normal font weight (NOT bold).
-Ensure the top-right category wordmark ("{category_upper}") is rendered as a distinctive, original hand-lettered brush mark — bold but elegant with slightly imperfect natural strokes and subtle forward slant.
-Do not use any additional text anywhere on the page.
+ALL TEXT MUST BE CRISP, HIGH-CONTRAST, AND EASILY READABLE at normal viewing distance. Use ONLY the exact text specified below. Do NOT extract additional sentences or paragraphs from the story. Keep the introduction extremely short (under 15 words total) in clean regular/normal font weight (NOT bold). Ensure bottom metadata is in clean regular/normal font weight (NOT bold). Top-right category wordmark ("{category_upper}") is an original, distinctive hand-lettered brush mark in vivid raspberry pink. Do not use any additional text anywhere on the page.
 
 HEADER
-
-Top left:
-
-"TTL"
-
-- Text: "TTL" — uppercase letters only.
-- Solid deep black.
-- Bold, heavy, condensed sans-serif typography with confident presence and solid substance.
-- The typography should feel editorial, modern, confident, and slightly handcrafted.
-- Keep the three letters tightly spaced and visually compact (the "TTL" text should be approximately square/compact rather than wide).
-- Placed near the upper-left area with generous margin from the left edge and top edge.
-- Underneath "TTL", add two short hand-painted red brush strokes in vivid deep pink/red (#D72655).
-- The red strokes should look like imperfect real brush marks, slightly rough and organic, positioned horizontally underneath the logo with a slight irregular angle.
-- The logo must contain ONLY: "TTL" plus the two red brush strokes underneath.
-- STRICTLY FORBIDDEN: No "CONFESSIONS" text near the logo, no additional typography, no slogan, tagline, subtitle, or motto, no other words, symbols, icons, borders, hearts, buttons, or shadows around the logo.
-- Strong black-and-red visual contrast with slight handmade character.
-
-Top right:
-
-"{category_upper}"
-
-- Deep vivid crimson / raspberry red (#D72655) — one solid color only, no gradients, no 3D effects, no shadows.
-- Distinctive, original handwritten editorial wordmark inspired by the raw energy of personal journals, intimate stories, and handwritten letters (completely ORIGINAL lettering style — do NOT copy or imitate any existing logo or reference typography, letter shapes, or stroke patterns).
-- Uppercase text only: "{category_upper}".
-- Custom hand-lettered brush typography: bold but elegant, with slightly imperfect natural strokes and expressive handwritten character.
-- The letters should feel individually drawn rather than like a standard font, featuring slight variations in stroke thickness with strong forward movement and a subtle natural slant.
-- Maintain high legibility and readability — avoid overly aggressive graffiti styling, childish or playful typography, and generic script fonts.
-- Visual character: intimate, raw, human, honest, emotional, editorial, contemporary, slightly rebellious, premium storytelling brand.
-- Presented as one strong horizontal wordmark across the top right, with balanced spacing between letters and slight organic irregularity.
-- The first and last letters can have subtle extended brush strokes for personality, keeping the overall silhouette compact and recognizable as a standalone brand mark.
-- Generous space between the word and the top/right edges.
-- STRICTLY FORBIDDEN: Do NOT add any other words, icons, hearts, microphones, speech bubbles, borders, photography, decorative illustrations, taglines, mockups, or extra text around it.
+Top left: "TTL" in solid deep black bold condensed sans-serif with two short hand-painted vivid raspberry pink (#D72655) brush strokes underneath. No slogan, subtitle, or extra text.
+Top right: "{category_upper}" as a distinctive, original hand-lettered brush wordmark in solid raspberry red (#D72655) with natural slant and high legibility.
 
 MAIN TITLE
-
 Large headline on the left:
-
 "{title}"
-
-- Raspberry pink (#D72655).
-- Bold, textured dry-brush marker uppercase lettering (ALL CAPS) with energetic, rough-edged brush strokes, exactly matching the attached reference.
-- Slanted dynamically upward to the right (~10–15 degree upward slant), matching the reference's dynamic slant.
-- Raw, expressive paint-marker / dry-brush street editorial aesthetic (NOT cursive calligraphy, NOT flowing script).
-- Formatted cleanly across 1–2 short stacked lines (e.g. Line 1: "TWO MEN", Line 2: "AND NIA").
-- The complete title MUST be displayed clearly and fully — do NOT crop, hide, truncate, or split the title incorrectly.
-- Scale & Proportions: Prominent and generously sized large headline — bold, clear, and easy to read at a glance, occupying the prominent upper-left area.
-- Make sure the complete phrase "{title}" is immediately and clearly readable.
-- Do not add any subtitle or additional title.
-- Generous side margin from the left edge of the page.
+- Raspberry pink (#D72655), bold textured dry-brush marker uppercase lettering slanted dynamically upward (~10-15 degrees) across 1-2 lines. Prominent and easy to read at a glance.
 
 SHORT STORY INTRODUCTION
-
 Directly below the title, use ONLY this short text:
-
 "{body_text}"
-
-- Clean, regular/normal weight black sans-serif typography (crisp, modern geometric/grotesque sans-serif like regular Helvetica or Inter in clean, normal, lightweight strokes — strictly NOT bold, NOT semibold, and NOT heavy).
-- Substantially Larger Font Size: Keep this text distinctly large and prominent so it commands effortless readability (large editorial lead-in scale, noticeably bigger than standard body copy — NEVER small, tiny, faint, or microscopic), but rendered strictly in clean regular/normal weight.
-- HIGH READABILITY IS ESSENTIAL: Render in crisp, solid black lettering with clean regular/normal stroke weight and high contrast against the ivory paper (clean, lightweight strokes — strictly NOT bold, NOT heavy).
-- Comfortable editorial placement: Maintain clean, comfortable spacing directly below the headline.
-- Maximum 1–2 short lines.
-- Visual Balance: Sits comfortably below the title as a prominent, highly legible lead sentence in clean regular/normal weight, filling the left column space nicely.
-- STRICTLY FORBIDDEN: Do NOT render bold, semibold, or heavy font weight; do NOT render small body text, microscopic fine print, tiny blurry paragraphs, or illegible squiggles.
-- Do not rewrite or modify the sentence.
-- Do not add any additional sentences or story copy.
-- Keep the text clean, normal weight, lightweight, large, sharp, and effortless to read.
+- HIGH READABILITY IS ESSENTIAL: Clean, regular/normal weight black sans-serif typography (strictly NOT bold, NOT heavy), distinctly large and prominent for effortless reading. Maximum 1-2 short lines.
 
 PHOTOGRAPH / POLAROID
-
-Place one large square Polaroid photograph on the right side.
-
-The Polaroid should be the dominant visual element of the page.
-
-- Slight natural rotation.
-- Authentic physical Polaroid appearance.
-- White Polaroid border with classic square photo window (1:1 ratio).
-- Natural paper texture.
-- Clean editorial placement.
-- Wide, spacious format: ensure the Polaroid frame is comfortably square and wide (NOT a tall skinny vertical strip) with ample horizontal width across the right side of the page.
-- Large enough and wide enough to clearly show all people with comfortable breathing room.
-- Generous margin between the Polaroid and the right edge of the page, and clear separation from the left column.
+Place one large square Polaroid photograph on the right side as the commanding hero element of the page spread (~50-55% width).
+- White Polaroid border with classic square photo window (1:1 ratio), slight natural rotation, authentic physical paper texture.
+- Wide spacious format large enough to clearly show all people with comfortable breathing room.
 
 Inside the Polaroid:
-
 {photo_desc}
 
 The image should communicate:
@@ -372,8 +271,8 @@ The image should communicate:
 - Story-Driven Emotional Resonance: Capture the genuine emotional heart of THIS specific story (quiet contemplative stillness, tender intimacy, radiant joy, liberating breakthrough, heartfelt vulnerability, or peaceful reflection).
 - Soft Motivated Natural Lighting: Use soft, motivated natural light matching the scene (e.g. soft window light, dawn mist, rainy twilight, gentle afternoon shadows, or warm practical lamp glow). Avoid harsh studio flashes or artificial cinematic effects.
 - Natural Human Presence: The subject(s) must appear grounded, natural, and authentic, with subtle body language and facial expressions that organically reflect the narrative.
+- Eye Magnetism & Chiaroscuro: Luminous catchlights in the eyes bring emotional resonance and life. Directional chiaroscuro sculpting facial contours with dimensional depth.
 - Authentic human connection, quiet warmth, emotional depth, and personal truth.
-
 Any subject shown must be naturally readable within the frame; framing may be close, medium, or environmental depending on the emotional moment.
 
 CRITICAL POSE & EXPRESSION RULES BY STORY TYPE:
@@ -390,115 +289,52 @@ STRICTLY FORBIDDEN CONTENT:
 - All subjects must be fully and tastefully clothed in wardrobe appropriate to the setting and season (e.g. knitwear, jackets, shirts, coats, or casual daywear).
 
 PHOTOGRAPHIC STYLE & BRAND TREATMENT
-
 The photograph inside the Polaroid must be STRICTLY BLACK AND WHITE.
-
 Use an authentic vintage 35mm analogue snapshot aesthetic (common brand photographic treatment across all categories):
-
-- organic film grain
+- organic film grain with tactile grain texture
 - natural photographic texture
-- soft focus
-- faded blacks
-- muted contrast
-- gentle highlight bloom
-- subtle dust
-- fine film scratches
-- soft motivated natural light (window light, twilight, soft shadows)
+- soft focus background roll-off paired with razor-sharp focal clarity on the eyes and face
+- faded blacks in deep shadow roll-off balanced by rich velvety blacks in the subject
+- muted contrast balanced by natural chiaroscuro and luminous eye catchlights
+- gentle highlight bloom, subtle dust, fine film scratches
 - authentic documentary/editorial film character
-
+- shallow depth of field with creamy background falloff
 CATEGORY EMOTIONAL PHOTOGRAPHY DIRECTION (the photographic treatment is part of the common brand, but emotional photography direction varies by category):
 - For Confessions: intimate, vulnerable, emotionally revealing, quiet processing of emotion, personal truth
 - For Meditations: calm, inward, contemplative stillness, gentle breathing, inner peace
 - For Transformations / Liberations: expressive, free, open, radiant courage, newfound confidence, empowering release
-
-Avoid:
-
-- dull, flat, or sterile modern realism
-- mundane corporate, office, desk, or computer scenes
-- polished digital photography
-- glossy commercial photography
-- stock-photo appearance
-- HDR
-- excessive sharpness
-- oversaturated colours
-- artificial cinematic effects
-- plastic-looking skin
-- AI-looking faces
-
+Avoid: dull, flat, or sterile modern realism, mundane corporate, office, desk, or computer scenes, polished digital photography, glossy commercial photography, stock-photo appearance, HDR, plastic-looking skin, AI-looking faces.
 The photograph should feel like a real personal photograph from an authentic {kind_singular} archive.
 
 POLAROID CAPTION
-
 On the bottom white border of the Polaroid:
-
 "{author_name}"
-
 Directly underneath:
-
 "AUTHOR"
-
-Add a small hand-drawn raspberry-pink heart.
-
-The photograph itself must remain completely black and white.
-
-The raspberry pink heart is allowed only as part of the page's graphic accent colour.
+Add a small hand-drawn raspberry-pink heart. The photograph itself must remain completely black and white.
 
 BOTTOM INFORMATION
-
 At the lower-left area of the page, include ONLY:
-
 "{location_text}"
-
 and below it:
-
 "{demographics_text}"
-{explicit_section}
-- Clean, regular/normal weight modern sans-serif typography (clean, normal, lightweight strokes — strictly NOT bold, NOT semibold, and NOT heavy).
-- Maintained Large Font Size & High Legibility: Render the location and demographics in their distinctly large, clearly readable font size (prominent editorial metadata — NEVER tiny fine print, microscopic text, or faint lines), but strictly in clean regular/normal weight instead of bold.
-- Solid deep black text with crisp contrast against the ivory paper.
-- Well-proportioned spacing with generous margin from the left and bottom edges, balanced with the rest of the page.
+{explicit_section}\
+- Clean, regular/normal weight modern sans-serif typography in solid deep black (strictly NOT bold, NOT heavy).
 
 NO BUTTON / NO CTA
-
 ABSOLUTELY DO NOT GENERATE:
-
 - "READ CONFESSION"
 - "READ {category_upper}"
 - "START LISTENING"
-- any button
-- any CTA
-- any arrow button
-- any rectangular pink button
-- any navigation element
-- any website interface element
-- any footer button
-
-The lower portion of the page must remain clean and open.
+- any button, CTA, arrow button, or website UI element.
 
 OVERALL COMPOSITION
-
 Follow the client's reference as closely as possible:
-
-- TTL logo near upper-left (bold, heavy, condensed solid black uppercase sans-serif "TTL", tightly spaced and visually compact, with two short imperfect hand-painted vivid deep pink/red brush strokes horizontally underneath)
-- {category_upper} at top right (completely original, distinctive hand-lettered brush wordmark in vivid crimson/raspberry red: bold but elegant, intimate and handwritten with subtle natural slant, NOT copying reference typography)
-- Prominent raspberry uppercase dry-brush title on the left (slanted upward, fully displayed across 1–2 lines, bold and clearly readable)
-- Substantially larger, clearly readable short body introduction underneath in crisp regular/normal weight black sans-serif (clean, lightweight, NOT bold, NOT heavy)
-- Large square Polaroid photograph on the right
-- Author name inside the Polaroid
-- Prominently sized, clearly readable metadata section near the lower left (location and demographics in regular/normal font weight, NOT bold)
-{explicit_bullet}- Generous empty space
-- Spacious two-column square layout with increased horizontal width and generous margins on both the left and right sides
-- NO BUTTON
-- NO CTA
-
-The photograph should receive more visual attention than the body text.
-
-The final design should feel spacious, minimal, premium, handmade, editorial, intimate, and authentic.
+- TTL logo near upper-left, {category_upper} at top right, raspberry dry-brush title on the left, clearly readable short body introduction underneath in regular/normal weight black sans-serif, large square Polaroid photograph on the right, author name inside the Polaroid, metadata section near lower left in regular/normal font weight.
+{explicit_bullet}- Generous empty space, spacious two-column square layout, NO BUTTON, NO CTA.
 
 TEXT CONTROL — EXTREMELY IMPORTANT
-
 Only render these textual elements:
-
 1. TTL
 2. {category_upper}
 3. {title}
@@ -508,18 +344,9 @@ Only render these textual elements:
 7. {location_text}
 8. {demographics_text}
 {explicit_numbered_item}\
-Do not render any other text.
-
-Do not add text from the source story.
-
-Do not create a button.
-
-Do not create a CTA.
-
-Do not fill empty space with additional copy.
-
-The final image should resemble a clean editorial {kind_singular} introduction page rather than a full story/article page.
+Do not render any other text. Do not add text from the source story. Do not create a button. Do not create a CTA. Do not fill empty space with additional copy. The final image should resemble a clean editorial {kind_singular} introduction page rather than a full story/article page.
 """
+
 
 
 # Step 1 of V2: Clean story-to-visual-art-direction editor prompt
@@ -553,6 +380,9 @@ YOUR TASK — ANALYZE THE STORY'S EMOTIONAL TRUTH ACROSS CORE DIMENSIONS:
 4. KEY EVENTS: The private emotional moment or turning point being captured (e.g. a person quietly processing a realization near a window, pausing mid-stride along a quiet street, resting against a wall in contemplation, or holding a cup while lost in thought). Emotional interpretation over literal action.
 5. RELATIONSHIP DYNAMICS: The interpersonal connection, distance, proximity, gaze, warmth, or quiet self-reckoning if solo.
 6. ATMOSPHERE: Sensory mood, soft motivated natural light (window light, twilight, morning sun, gentle lamplight), weather, and ambient shadows.
+7. SENSORY ANCHORS & CONCRETE PROPS (MANDATORY FOR STORY UNIQUENESS): Ground every story in tangible physical reality. Identify or infer 1-2 concrete sensory props or physical interactions matching the story (e.g. steam rising from a cup held in cold hands, rain streaking down a tram window, fingers tracing condensation on cold glass, turning up a heavy woolen coat collar, holding a weathered room key, wind lifting hair, streetlamp reflections on wet asphalt). Avoid abstract emotion cliches—photograph what the person is physically holding, touching, or looking at.
+8. CAMERA FRAMING & OPTICAL PERSPECTIVE: Direct the shot with intentional cinematic framing: an intimate 85mm eye-level close-up for raw vulnerability, an atmospheric over-the-shoulder frame for interpersonal tension, or a 35mm environmental landscape for solitary reflection.
+9. LIGHTING & TONAL DEPTH: Soft motivated directional chiaroscuro, luminous catchlights in the eyes, rich velvety blacks, and cinematic shadow sculpting with shallow depth of field.
 
 AVOID GENERIC STOCK-PHOTO COMPOSITIONS:
 - Strictly avoid generic stock-photo compositions such as happy friends at a bar, posed group shots, or repetitive social scenes.
@@ -589,7 +419,8 @@ Given an editorial visual brief and story context, extract the visual art direct
 - "color_palette": monochrome tones: rich charcoal blacks, soft silvery grays, gentle ivory highlights, authentic film tonal range
 - "visual_style": strictly black-and-white vintage 35mm analogue snapshot, visible organic film grain, soft focus, faded blacks, muted contrast, documentary editorial realism
 - "narrative_focus": the central private emotional moment that anchors the specific story
-- "polaroid_scene": a concise 1-2 sentence description combining characters, setting, emotional state, and atmosphere for a single square Polaroid photo frame. The scene must photograph the emotional truth of the story: person + genuine emotion + natural environment + an authentic moment that feels naturally photographed. It must create an immediate feeling of recognition and emotional intimacy, as if witnessing a real private moment. Any subject shown must be naturally readable within the frame; framing may be close, medium, or environmental depending on the emotional moment. For confessions (intimate/vulnerable): subtle varied gestures appropriate to the story (hand near chest, holding an object, touching hair, resting against a wall, looking through a window, sitting quietly, walking alone; never forcing a single pose). For meditations (calm/inward): still, grounded, contemplative, gentle breath, inner peace. For transformations (expressive/free): open, expansive, movement, newfound freedom, courage. Never create dull pictures or theatrical movie stills. Strictly forbidden to depict someone sitting behind a computer, working at a desk, or in an office. Strictly avoid generic stock-photo compositions such as happy friends at a bar, posed group shots, or repetitive social scenes. All subjects must be fully clothed in stylish casual attire (e.g. jacket, sweater, shirt). Strictly no nudity, bare skin, bare shoulders, lingerie, beds, or sexually suggestive poses. Strictly NO homosexual, lesbian, gay, or same-sex romantic/sexual themes. Strictly NO bent-neck poses, heads unnaturally tilted away, or distorted anatomy. Facial expressions and body language must feel natural, understated, and emotionally true. Strictly no mentions of frames, borders, text, cameras, or collage elements.
+- "sensory_anchor": a tangible physical prop or environmental interaction grounded in the narrative (e.g. fingers tracing condensation on cold glass, holding a weathered room key, steam rising into cold night air, rain streaking a window, collar turned up against coastal wind)
+- "polaroid_scene": a concise 1-2 sentence description combining characters, setting, emotional state, and atmosphere for a single square Polaroid photo frame. The scene must photograph the emotional truth of the story: person + genuine emotion + natural environment + an authentic moment that feels naturally photographed. Incorporate the concrete sensory anchor/prop, intentional camera framing (e.g. intimate 85mm close-up or 35mm environmental frame), sharp focal clarity on the eyes with luminous catchlights, and soft motivated directional chiaroscuro with rich velvety blacks. It must create an immediate feeling of recognition and emotional intimacy, as if witnessing a real private moment. Any subject shown must be naturally readable within the frame; framing may be close, medium, or environmental depending on the emotional moment. For confessions (intimate/vulnerable): subtle varied gestures appropriate to the story (hand near chest, holding an object, touching hair, resting against a wall, looking through a window, sitting quietly, walking alone; never forcing a single pose). For meditations (calm/inward): still, grounded, contemplative, gentle breath, inner peace. For transformations (expressive/free): open, expansive, movement, newfound freedom, courage. Never create dull pictures or theatrical movie stills. Strictly forbidden to depict someone sitting behind a computer, working at a desk, or in an office. Strictly avoid generic stock-photo compositions such as happy friends at a bar, posed group shots, or repetitive social scenes. All subjects must be fully clothed in stylish casual attire (e.g. jacket, sweater, shirt). Strictly no nudity, bare skin, bare shoulders, lingerie, beds, or sexually suggestive poses. Strictly NO homosexual, lesbian, gay, or same-sex romantic/sexual themes. Strictly NO bent-neck poses, heads unnaturally tilted away, or distorted anatomy. Facial expressions and body language must feel natural, understated, and emotionally true. Strictly no mentions of frames, borders, text, cameras, or collage elements.
 
 Return ONLY a valid JSON object with these keys. No markdown fences, no preamble.
 """

@@ -1857,5 +1857,85 @@ def test_v2_confession_gestures_vary_without_forcing_hand_on_chest():
     assert any("wall" in d or "sitting" in d or "walking" in d or "object" in d or "collar" in d for d in descriptions)
 
 
+def test_v2_prompt_incorporates_sensory_anchors_catchlights_and_chiaroscuro():
+    """Verify that V2 cover prompts incorporate luminous catchlights, velvety blacks, and directional chiaroscuro."""
+    from app.utils.story_image_prompt import build_v2_cover_prompt
+    from app.utils.prompts import V2_COVER_ANALOGUE_TREATMENT
+
+    story = _story(
+        title="Midnight at the Harbor",
+        first_name="Julian",
+        age=34,
+        gender="male",
+        location="Marseille, France",
+        situation="Watching the fog roll over the cold stone pier.",
+    )
+    prompt = build_v2_cover_prompt(story, use_llm_scene=False)
+
+    # 1. Analogue treatment has catchlights and sharp focus
+    assert "Luminous catchlights in the subject's eyes" in V2_COVER_ANALOGUE_TREATMENT
+    assert "rich velvety blacks with gentle faded shadow tones" in V2_COVER_ANALOGUE_TREATMENT
+    assert "soft focus background roll-off with razor-sharp focus on the eyes and face" in V2_COVER_ANALOGUE_TREATMENT
+
+    # 2. Assembled prompt contains catchlights, chiaroscuro, and velvety blacks
+    assert "Luminous catchlights in the eyes" in prompt or "luminous catchlights in the eyes" in prompt
+    assert "rich velvety blacks" in prompt
+    assert "Directional chiaroscuro" in prompt or "directional chiaroscuro" in prompt
+
+    # 3. Position check: author name and photo_desc sit early in the prompt
+    author_pos = prompt.find("JULIAN")
+    assert author_pos > 0
+    # The photograph description should start well within the first 3,500 characters
+    polaroid_section_start = prompt.find("Inside the Polaroid:")
+    assert polaroid_section_start < 3500, f"Polaroid section starts at {polaroid_section_start}, should be < 3500 for DALL-E 3 safety"
+
+
+def test_v2_extract_art_direction_includes_sensory_anchor():
+    """Verify that extract_v2_visual_art_direction returns sensory_anchor in structured output."""
+    from app.utils.story_image_prompt import extract_v2_visual_art_direction
+
+    story = _story(
+        title="Autumn Whispers",
+        first_name="Camille",
+        age=28,
+        gender="female",
+        location="Lyon, France",
+        situation="Fingers lightly tracing the cold condensation on a glass at a cafe.",
+    )
+    art = extract_v2_visual_art_direction(story, use_llm=False)
+    assert "sensory_anchor" in art
+    assert isinstance(art["sensory_anchor"], str)
+    assert len(art["sensory_anchor"].strip()) > 0
+
+
+def test_v2_heuristic_description_varies_camera_framing_and_sensory_anchors():
+    """Verify that heuristic photograph descriptions vary camera framings and sensory anchors across stories."""
+    from app.utils.story_image_prompt import _heuristic_v2_photograph_description
+
+    s1 = _story(title="First Light", first_name="Aiden", location="Oslo, Norway", situation="Looking out across the quiet fjord.")
+    s2 = _story(title="Last Train to Paris", first_name="Elena", location="Paris, France", situation="Standing under amber lights at the station.")
+    s3 = _story(title="Stone Terrace at Dawn", first_name="Lucas", location="Florence, Italy", situation="Stepping out onto the cool stone terrace.")
+    s4 = _story(title="Rain on the Tram Window", first_name="Zoe", location="Zurich, Switzerland", situation="Watching the rain blur the streetlamps.")
+
+    d1 = _heuristic_v2_photograph_description(s1)
+    d2 = _heuristic_v2_photograph_description(s2)
+    d3 = _heuristic_v2_photograph_description(s3)
+    d4 = _heuristic_v2_photograph_description(s4)
+
+    descriptions = [d1, d2, d3, d4]
+
+    # Verify that framing varies (e.g. 85mm close-up, over-the-shoulder, environmental, candid profile)
+    has_framing_keywords = any(
+        "85mm" in d or "profile" in d or "environmental" in d or "over-the-shoulder" in d
+        for d in descriptions
+    )
+    assert has_framing_keywords, "Descriptions should contain varied cinematic camera framing cues"
+
+    # Verify catchlights and velvety blacks are present
+    for d in descriptions:
+        assert "catchlights" in d.lower()
+        assert "velvety blacks" in d.lower()
+
+
 
 

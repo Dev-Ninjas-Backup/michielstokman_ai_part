@@ -999,51 +999,88 @@ def _heuristic_v2_photograph_description(story: Story) -> str:
         if len(first_sent) > 10 and not any(kw in first_sent.lower() for kw in banned_beat_keywords):
             beat_snippet = f", reflecting the moment of {first_sent.lower()}"
 
+    seed_key = f"{getattr(story, 'title', '')}_{getattr(story, 'first_name', '')}_{getattr(story, 'location', '')}_{situation}"
+    seed_num = abs(hash(seed_key))
+
     if stype == StoryType.meditation:
+        sensory_props_med = [
+            "soft natural light warming bare floorboards and gentle breathing stillness",
+            "hands resting naturally open in the lap, peaceful calm and organic stillness",
+            "a gentle breeze stirring light fabric, quiet mindful presence",
+            "stillness beside a tranquil window with soft diffused natural light",
+        ]
+        sensory_anchor = sensory_props_med[seed_num % len(sensory_props_med)]
+        tonal_depth = "Serene silvery tonal palette with rich velvety blacks, gentle highlights, and luminous catchlights in the eyes"
         if cast_mode == "group":
             subjects = f"An adult {gender} and companions"
             action = "sharing a quiet, mindful moment of contemplative silence and grounded stillness"
-            comp = "Natural unposed spacing and environmental framing"
+            comp = "Natural unposed spacing and environmental framing with sharp subject focus and soft background blur"
         elif cast_mode == "pair":
             subjects = f"An adult {gender} and a companion"
             action = "seated in serene stillness, gently breathing in a tranquil, reflective space"
-            comp = "Intimate profile framing and calm interpersonal closeness"
+            comp = "Intimate profile framing and calm interpersonal closeness with soft natural lighting"
         else:
             subjects = f"A {age_str}{gender}"
             action = "in a deeply peaceful, contemplative state of mindfulness and inner quiet"
-            comp = "Contemplative medium shot with centered posture"
-        mood_posture = "Gentle breathing, serene expression, and grounded presence"
+            comp = "Contemplative medium shot with centered posture, sharp eye clarity and creamy depth of field"
+        mood_posture = f"Gentle breathing, serene expression, {sensory_anchor}, and grounded presence"
 
     elif stype == StoryType.transformation:
+        sensory_props_trans = [
+            "breeze lifting coat and hair toward an open expansive horizon",
+            "sunlight breaking through morning mist, illuminating resolute poised posture",
+            "stepping forward across sunlit stone terrace with open liberated posture",
+            "looking forward toward dawn light with calm unburdened strength",
+        ]
+        sensory_anchor = sensory_props_trans[seed_num % len(sensory_props_trans)]
+        tonal_depth = "Striking directional chiaroscuro with motivated dawn rim-light, luminous catchlights in the eyes, and rich velvety blacks"
         if cast_mode == "group":
             subjects = f"An adult {gender} and companions"
             action = "gathered in an authentic, empowering moment of newfound freedom and mutual courage"
-            comp = "Dynamic environmental framing and candid body language"
+            comp = "Dynamic environmental framing and candid body language with crisp focal clarity"
         elif cast_mode == "pair":
             subjects = f"An adult {gender} and a companion"
             action = "sharing an inspiring, open-hearted moment of breakthrough and mutual encouragement"
-            comp = "Candid two-shot with expressive connection"
+            comp = "Candid two-shot with expressive connection and dimensional spatial depth"
         else:
             subjects = f"A {age_str}{gender}"
             action = "radiating newfound confidence and quiet strength, looking forward with clear purpose"
-            comp = "Grounded documentary framing with poised and resolute presence"
-        mood_posture = "Self-assured presence, natural poised posture, and an expressive, liberated demeanor"
+            comp = "Grounded documentary framing with poised and resolute presence, sharp eye focus and shallow depth of field"
+        mood_posture = f"Self-assured presence, natural poised posture, {sensory_anchor}, and an expressive, liberated demeanor"
 
     else:  # confession or default
+        confession_props = [
+            "steam rising gently into cool air from a warm cup",
+            "fingers lightly tracing the cold condensation on a glass",
+            "rain streaking down glass behind with soft reflections of ambient streetlamps",
+            "fingers tucked into the pocket of a heavy woolen coat against the evening chill",
+            "breeze gently stirring loose hair across the cheek",
+            "holding an old room key or personal letter, thoughtful and engaged in the moment",
+        ]
+        sensory_anchor = confession_props[seed_num % len(confession_props)]
+        tonal_depth = "Soft motivated directional chiaroscuro with luminous catchlights in the eyes, rich velvety blacks, and subtle natural film grain"
+        framing_options = [
+            "Intimate 85mm close-up framing with sharp focal clarity on the eyes and shallow depth of field",
+            "Atmospheric candid profile framing with motivated window light sculpting facial contours",
+            "Cinematic 35mm environmental portrait with natural unposed spatial depth",
+            "Intimate over-the-shoulder framing capturing authentic interpersonal closeness and depth",
+        ]
+        dynamic_framing = framing_options[seed_num % len(framing_options)]
+
         if cast_mode == "group":
             subjects = f"An adult {gender} and close companions"
             action = "sharing a quiet, candid conversation with subtle emotional depth"
             comp = "Natural unposed documentary framing with authentic interpersonal distance"
-            mood_posture = "Candid warmth, subtle expressive eyes, and natural emotional posture"
+            mood_posture = f"Candid warmth, subtle expressive eyes, {sensory_anchor}, and natural emotional posture"
         elif cast_mode == "pair":
             subjects = f"An adult {gender} and a companion"
             action = "sharing an intimate, honest moment of emotional vulnerability and quiet connection"
             comp = "Intimate over-the-shoulder framing and subtle emotional closeness"
-            mood_posture = "Subtle interpersonal closeness, candid warmth, and emotionally honest expression"
+            mood_posture = f"Subtle interpersonal closeness, candid warmth, {sensory_anchor}, and emotionally honest expression"
         else:
             subjects = f"A {age_str}{gender}"
             action = "captured in a private emotional moment, quietly processing personal truth with subtle vulnerability"
-            comp = "Intimate documentary portrait with natural framing"
+            comp = dynamic_framing
             confession_gestures = [
                 "subtle gesture with hand resting near chest, soft thoughtful gaze",
                 "sitting quietly in reflection, hands gently relaxed, soft downward gaze",
@@ -1054,12 +1091,12 @@ def _heuristic_v2_photograph_description(story: Story) -> str:
             ]
             seed_key = getattr(story, "title", None) or getattr(story, "first_name", None) or "confession"
             gesture = confession_gestures[abs(hash(seed_key)) % len(confession_gestures)]
-            mood_posture = f"Natural body language, {gesture}, emotionally honest expression"
+            mood_posture = f"Natural body language, {gesture}, {sensory_anchor}, emotionally honest expression"
 
     return (
         f"{subjects} {action}{beat_snippet}, {setting_desc}. "
         f"{comp}. Fully clothed in stylish, casual attire matching the setting. "
-        f"{mood_posture}. Emotional intimacy and deeply authentic human truth, as if witnessing a real private moment. "
+        f"{mood_posture}. {tonal_depth}. Emotional intimacy and deeply authentic human truth, as if witnessing a real private moment. "
         f"Soft motivated natural light. No generic stock-photo compositions, no happy friends at a bar, no posed group shots. "
         f"No bent necks or unnatural head tilts. Naturally readable within the frame."
     )
@@ -1162,7 +1199,24 @@ def _heuristic_v2_visual_art_direction(
         )
         narrative_focus_str = "A quiet, private beat of shared honesty and understated emotional release."
 
-    color_palette_str = "Monochrome tones: rich charcoal blacks, soft silvery grays, gentle ivory highlights, authentic film tonal range."
+    seed_key = f"{getattr(story, 'title', '')}_{getattr(story, 'first_name', '')}_{getattr(story, 'location', '')}_{situation}"
+    seed_num = abs(hash(seed_key))
+    heuristic_props = [
+        "steam rising gently into cool air from a warm cup",
+        "fingers lightly tracing the cold condensation on a glass",
+        "rain streaking down glass behind with soft reflections of ambient streetlamps",
+        "fingers tucked into the pocket of a heavy woolen coat against the evening chill",
+        "breeze gently stirring loose hair across the cheek",
+        "holding an old room key or personal letter, thoughtful and engaged in the moment",
+    ]
+    sensory_anchor_str = heuristic_props[seed_num % len(heuristic_props)]
+
+    color_palette_str = "Monochrome tones: rich velvety blacks, soft silvery grays, gentle ivory highlights, authentic film tonal range, and luminous eye catchlights."
+    lighting_str = (
+        f"Soft motivated directional chiaroscuro with luminous catchlights in the eyes, rich velvety blacks, and {weather_list[0]} atmosphere."
+        if weather_list
+        else "Soft motivated directional chiaroscuro with luminous catchlights in the eyes, rich velvety blacks, and subtle film shadows."
+    )
     visual_style_str = "Strictly black-and-white vintage 35mm analogue snapshot, visible organic film grain, soft focus, faded blacks, muted contrast, documentary editorial realism."
     polaroid_scene_str = _heuristic_v2_photograph_description(story)
 
@@ -1180,6 +1234,7 @@ def _heuristic_v2_visual_art_direction(
         "key_events": key_events_str,
         "relationship_dynamics": rel_dynamics,
         "atmosphere": atmosphere_str,
+        "sensory_anchor": sensory_anchor_str,
     }
 
 
@@ -1225,6 +1280,8 @@ def refine_story_visual_art_direction(story: Story, *, use_llm: bool = True) -> 
                 f"Focus on the emotional truth of the story: Person + genuine emotion + natural environment + an authentic moment that feels naturally photographed. "
                 f"Capture genuine human emotion, quiet vulnerability, personal honesty, and authentic presence. "
                 f"Natural expression, subtle varied gestures (e.g. hand near chest, holding an object, touching hair, resting against a wall, looking through a window, sitting quietly, or walking alone; never forcing a single pose), authentic imperfections, soft natural light, and film texture. "
+                f"Ground the scene in a concrete sensory anchor / prop (e.g. warm cup, rain on glass, fingers on coat collar, wind lifting hair). "
+                f"Direct with intentional camera framing (intimate 85mm close-up or 35mm environmental frame), soft directional chiaroscuro, and luminous catchlights in the eyes. "
                 f"Use the actual location or environment implied by the story; do not substitute a visually attractive location simply because it looks cinematic. "
                 f"Any subject shown must be naturally readable within the frame; framing may be close, medium, or environmental depending on the emotional moment. "
                 f"STRICTLY FORBIDDEN: never depict someone sitting behind a computer, working at a desk, typing on a laptop, or in an office. "
@@ -1251,6 +1308,7 @@ def refine_story_visual_art_direction(story: Story, *, use_llm: bool = True) -> 
         f"Emotional state reflects {art.get('emotional_state', art['mood'])}. "
         f"Relationship dynamics: {art.get('relationship_dynamics', 'intimate and grounded')}. "
         f"The atmosphere is {art.get('atmosphere', art['lighting'])}. "
+        f"Sensory anchor: {art.get('sensory_anchor', 'concrete tactile detail')}. "
         f"The visual mood is quiet, authentic, and reflective rather than cinematic. "
         f"{art['color_palette']} {art['narrative_focus']}"
     )
@@ -1278,6 +1336,7 @@ def extract_v2_visual_art_direction(
     - "key_events"
     - "relationship_dynamics"
     - "atmosphere"
+    - "sensory_anchor"
     """
     from app.utils.prompts import VISUAL_ART_DIRECTION_EXTRACTION_SYSTEM
 
@@ -1296,9 +1355,10 @@ def extract_v2_visual_art_direction(
                 f"Emotional Arc: {portrait_emotional_state(story)}\n"
                 f"Pivotal Beat: {portrait_narrative_moment(story)}\n\n"
                 f"Extract all dimensions (characters, setting, emotional state, key events, relationship dynamics, atmosphere, "
-                f"composition, lighting, color palette, visual style, narrative focus, and polaroid scene) into valid JSON. "
+                f"composition, lighting, color palette, visual style, narrative focus, sensory anchor, and polaroid scene) into valid JSON. "
                 f"The scene must capture emotional intimacy, genuine human truth, and quiet vulnerability — creating an immediate feeling of recognition, as if witnessing a real private moment. "
                 f"Focus on the core visual idea: Person + genuine emotion + natural environment + an authentic moment that feels naturally photographed. "
+                f"Incorporate concrete sensory anchors/props, intentional camera framing, sharp eye focus with luminous catchlights, and rich velvety blacks. "
                 f"Use the actual location or environment implied by the story; do not substitute a visually attractive location simply because it looks cinematic. "
                 f"Any subject shown must be naturally readable within the frame; framing may be close, medium, or environmental depending on the emotional moment. "
                 f"Use subtle varied gestures appropriate to the story (hand near chest, holding an object, touching hair, resting against a wall, looking through a window, sitting quietly, walking alone; never forcing a single pose). "
@@ -1331,6 +1391,9 @@ def extract_v2_visual_art_direction(
                         "key_events": "key_events",
                         "relationship_dynamics": "relationship_dynamics",
                         "atmosphere": "atmosphere",
+                        "sensory_anchor": "sensory_anchor",
+                        "sensory_anchors": "sensory_anchor",
+                        "prop": "sensory_anchor",
                     }
                     for k, v in parsed.items():
                         norm_k = key_map.get(k.lower())
@@ -1352,6 +1415,7 @@ def extract_v2_visual_art_direction(
                         "key_events",
                         "relationship_dynamics",
                         "atmosphere",
+                        "sensory_anchor",
                     ]:
                         if not normalized.get(required_key):
                             normalized[required_key] = fallback.get(required_key, "")
