@@ -20,7 +20,5 @@ scratch/update_remote_env.py
 scratch/stripe_transition_guide.txt
 scratch/test_live_stripe_webhook_simulation.py
 scratch/michielstokman_api
-branch_structure.json
 .gitignore
-config.bat
 node_modules
