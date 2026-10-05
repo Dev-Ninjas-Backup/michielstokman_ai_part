@@ -22,3 +22,4 @@ scratch/test_live_stripe_webhook_simulation.py
 scratch/michielstokman_api
 .gitignore
 node_modules
+branch_structure.json
