@@ -1194,6 +1194,57 @@ def test_image_generator_guard_trims_only_for_dalle_models():
                     assert "style" not in post.call_args.kwargs["json"]
 
 
+def test_image_generator_moderation_blocked_retry_with_sanitized_prompt():
+    """Verify that HTTP 400 moderation_blocked triggers safety sanitization and retries with a safe prompt."""
+    import base64
+
+    risky_prompt = "Two lovers kissing passionately in bed with bare shoulders and sensual touch."
+    first_resp = MagicMock()
+    first_resp.ok = False
+    first_resp.status_code = 400
+    first_resp.text = '{"error": {"code": "moderation_blocked", "message": "safety_violations=[sexual]"}}'
+    first_resp.json.return_value = {
+        "error": {
+            "code": "moderation_blocked",
+            "message": "safety_violations=[sexual]",
+            "type": "image_generation_user_error",
+        }
+    }
+
+    second_resp = MagicMock()
+    second_resp.ok = True
+    second_resp.status_code = 200
+    second_resp.raise_for_status = MagicMock()
+    second_resp.json.return_value = {
+        "data": [{"b64_json": base64.b64encode(b"safe_image_bytes").decode()}]
+    }
+
+    with patch.object(story_cover.settings, "OPENAI_API_KEY", "sk-test"):
+        with patch.object(story_cover.settings, "OPENAI_IMAGE_MODEL", "gpt-image-2"):
+            with patch("app.utils.image_generator.requests.post", side_effect=[first_resp, second_resp]) as post:
+                with patch(
+                    "app.utils.image_generator.upload_image_to_s3",
+                    return_value=("https://cdn/safe.jpg", "images/safe.jpg"),
+                ):
+                    from app.utils.image_generator import generate_ai_cover_image
+
+                    url, key = generate_ai_cover_image(
+                        title="Love Story",
+                        story_type="confession",
+                        author_name="Lars",
+                        image_prompt=risky_prompt,
+                        gender="male",
+                        lock_identity=False,
+                    )
+                    assert url == "https://cdn/safe.jpg"
+                    assert key == "images/safe.jpg"
+                    assert post.call_count == 2
+                    retried_prompt = post.call_args_list[1].kwargs["json"]["prompt"]
+                    assert "STRICT EDITORIAL SAFETY DIRECTIVE" in retried_prompt
+                    assert "kissing" not in retried_prompt
+                    assert "bare shoulders" not in retried_prompt
+
+
 def test_v1_and_v2_cover_generation_method_routing():
     with patch.object(story_cover.settings, "COVER_GENERATION_METHOD", "v1"):
         assert story_cover.is_v1_method() is True
