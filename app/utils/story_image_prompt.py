@@ -160,10 +160,14 @@ _CELEBRATION_RE = re.compile(
 )
 _MULTI_PERSON_RE = re.compile(
     r"\b("
-    r"partner|lover|boyfriend|girlfriend|husband|wife|spouse|fiancé|fiancee|"
-    r"couple|together|embrace|embracing|kiss(?:ing|ed)?|holding\s+(?:him|her|each\s+other)|"
-    r"in\s+(?:his|her|their)\s+arms|we\s+(?:lay|lie|sat|sit|stood|stand|danced|kiss)|"
-    r"two\s+people|another\s+person|with\s+(?:him|her|them)|beside\s+(?:him|her|them)"
+    r"partner|partners|lover|lovers|boyfriend|girlfriend|husband|wife|spouse|fianc\w*|"
+    r"couple|couples|together|embrace|embracing|kiss(?:ing|ed|es)?|holding\s+(?:him|her|them|each\s+other|hands?)|"
+    r"massage|massaging|massaged|shoulders?|"
+    r"in\s+(?:his|her|their)\s+arms|we\s+(?:lay|lie|sat|sit|stood|stand|danced|walked|kiss|kissed)|"
+    r"two\s+people|two\s+of\s+us|both\s+of\s+us|two\s+(?:men|women|adults|guys|girls)|"
+    r"another\s+person|with\s+(?:him|her|them|my\s+partner|my\s+lover)|beside\s+(?:him|her|them)|"
+    r"next\s+to\s+(?:him|her|them)|side\s+by\s+side|each\s+other|one\s+another|"
+    r"high\s+five|palms?\s+touching|and\s+I|me\s+and"
     r")\b",
     re.I,
 )
@@ -221,7 +225,10 @@ _GROUP_RE = re.compile(
     r"\b("
     r"group|groups|friends|friend\s+group|crew|squad|troupe|crowd|crowds|"
     r"festival|festivals|carnival|parade|"
-    r"reunion|gathering|community|team|strangers|family|families"
+    r"reunion|gathering|community|team|strangers|family|families|"
+    r"three|trio|threesome|two\s+(?:men|women|guys|girls)\s+and|3\s+people|three\s+people|"
+    r"the\s+three\s+of\s+us|four|4\s+people|four\s+friends|4\s+friends|picnic|campfire|"
+    r"circle\s+of\s+friends|double\s+date"
     r")\b",
     re.I,
 )
@@ -267,6 +274,23 @@ def _story_blob(story: Story, *, story_chars: int = 900) -> str:
     )
 
 
+def _extract_explicit_cast(story: Story) -> str | None:
+    """Extract explicit cast descriptions from background, situation, or title."""
+    bg = (getattr(story, "background", "") or "").strip()
+    sit = (getattr(story, "situation", "") or "").strip()
+    title = (getattr(story, "title", "") or "").strip()
+
+    for text in (bg, sit, title):
+        m = re.search(
+            r"\b((?:two|three|four|\d+)\s+(?:adult\s+)?(?:men|women|people|friends|lovers)[^,\.;\n]*)",
+            text,
+            re.I,
+        )
+        if m:
+            return m.group(1).strip()
+    return None
+
+
 def _cast_scan_text(story: Story, brief_text: str | None = None) -> str:
     """Story fields plus the STORY BRIEF, minus the brief's "Do not invent:" clause.
 
@@ -275,6 +299,22 @@ def _cast_scan_text(story: Story, brief_text: str | None = None) -> str:
     its meaning ("Do not invent: other people" would cast a second person).
     """
     parts = [_story_blob(story)]
+    title = " ".join(
+        p
+        for p in (
+            (getattr(story, "title", "") or "").strip(),
+            (getattr(story, "member_title", "") or "").strip(),
+            (getattr(story, "ai_generated_title", "") or "").strip(),
+        )
+        if p
+    )
+    if title and (
+        _MULTI_PERSON_RE.search(title)
+        or _GROUP_RE.search(title)
+        or _CONNECTION_RE.search(title)
+    ):
+        parts.append(title)
+
     if brief_text:
         text = brief_text
         marker = "Do not invent:"
@@ -982,9 +1022,9 @@ def _heuristic_v2_photograph_description(story: Story) -> str:
             s0 = "corner table with soft ambient light"
         elif s0 in ("office", "desk", "computer", "callcenter", "work"):
             s0 = "quiet room near natural window light"
-        setting_desc = f"in an atmospheric {s0}"
+        setting_desc = f"in an intimate, atmospheric {s0}"
     elif location:
-        setting_desc = f"in {location}"
+        setting_desc = f"in an intimate, atmospheric setting in {location}"
     else:
         setting_desc = "in an intimate, atmospheric setting"
 
@@ -1067,16 +1107,97 @@ def _heuristic_v2_photograph_description(story: Story) -> str:
         ]
         dynamic_framing = framing_options[seed_num % len(framing_options)]
 
+        full_context_lower = f"{_story_blob(story)} {getattr(story, 'title', '')}".lower()
+        text_lower = full_context_lower
         if cast_mode == "group":
-            subjects = f"An adult {gender} and close companions"
-            action = "sharing a quiet, candid conversation with subtle emotional depth"
-            comp = "Natural unposed documentary framing with authentic interpersonal distance"
-            mood_posture = f"Candid warmth, subtle expressive eyes, {sensory_anchor}, and natural emotional posture"
+            explicit_cast = _extract_explicit_cast(story)
+            subjects = f"Strictly depict all {explicit_cast} together in the frame" if explicit_cast else f"An adult {gender} and close companions (all clearly depicted together)"
+            comp = "Candid group shot with all companions clearly visible and actively interacting together"
+            if (
+                "two men and" in text_lower
+                or "two adult men" in text_lower
+                or "three" in text_lower
+                or "trio" in text_lower
+                or "3 people" in text_lower
+                or (explicit_cast and any(w in explicit_cast.lower() for w in ("three", "two men", "two adult men", "3")))
+            ):
+                action = "three close companions (two adult men and one adult woman) holding hands and sharing a warm, candid laugh together at an outdoor gathering"
+                comp = "Candid three-shot with all three individuals clearly visible, interacting closely in the frame"
+                mood_posture = "Interlinked hands, genuine shared laughter, authentic camaraderie, and vibrant connection"
+            elif any(k in text_lower for k in ("dance", "dancing", "festival", "party", "music")):
+                action = "friends dancing joyfully together with arms raised in the golden afternoon sunlight at an outdoor music festival with crowd and soft warm haze"
+                comp = "Joyful candid environmental group shot capturing all companions moving naturally together"
+                mood_posture = "Open arms, infectious laughter, radiant sun-kissed energy, and genuine celebration"
+            elif any(k in text_lower for k in ("picnic", "woods", "blanket", "food")):
+                action = "a close group of four friends gathered together on a blanket in the sunlit woods for an outdoor picnic, sharing food, drinks, and lively conversation"
+                comp = "Unposed circular gathering shot showing all friends seated together with warm natural light filtering through the trees"
+                mood_posture = "Relaxed sitting postures, authentic smiles, engaged interaction, and warm camaraderie"
+            elif any(k in text_lower for k in ("beach", "sunset", "ocean", "sea")):
+                action = "a close group of friends in a tight group embrace on the beach at sunset, with arms wrapped around each other's shoulders and smiling together"
+                comp = "Candid group shot with all friends grouped closely together bathed in glowing sunset rim-light"
+                mood_posture = "Arms around shoulders, close proximity, genuine smiles, and heartfelt togetherness"
+            else:
+                group_actions = [
+                    (
+                        "gathered in a tight, joyful group embrace at golden hour, arms wrapped around each other's shoulders and laughing",
+                        "Candid group shot with all friends grouped closely together in the frame",
+                        "Arms around shoulders, close proximity, genuine smiles, and heartfelt togetherness",
+                    ),
+                    (
+                        "a close group of friends walking side by side along an outdoor path into the evening light",
+                        "Candid environmental group composition capturing all individuals together",
+                        "Walking side by side, natural cadence, close companionship, and relaxed postures",
+                    ),
+                ]
+                action, comp, mood_posture = group_actions[seed_num % len(group_actions)]
+
         elif cast_mode == "pair":
-            subjects = f"An adult {gender} and a companion"
-            action = "sharing an intimate, honest moment of emotional vulnerability and quiet connection"
-            comp = "Intimate over-the-shoulder framing and subtle emotional closeness"
-            mood_posture = f"Subtle interpersonal closeness, candid warmth, {sensory_anchor}, and emotionally honest expression"
+            subjects = f"An adult {gender} and their companion/partner (strictly depict both individuals together in the frame)"
+            comp = "Candid two-shot capturing both individuals clearly visible and interacting closely"
+            if "massage" in text_lower or "shoulder" in text_lower:
+                action = "sharing an intimate moment of gentle care as one companion tenderly massages the other's shoulders outdoors in nature"
+                comp = "Candid two-shot with both individuals clearly visible and engaged in natural, relaxed interaction"
+                mood_posture = "Gentle caring touch, deeply relaxed posture, radiant peaceful expression, and authentic closeness"
+            elif any(k in text_lower for k in ("kiss", "kissing", "kissed", "lips", "mouth")):
+                action = "a couple kissing tenderly in an intimate moment, backlit by warm golden-hour rim-light"
+                comp = "Intimate two-shot capturing the couple close together in natural light with both individuals clearly visible"
+                mood_posture = "Faces close together, gentle embrace, authentic romantic connection, and soft natural expression"
+            elif any(k in text_lower for k in ("walk", "walking", "trail", "forest", "path", "hike", "trees")):
+                action = "a couple walking side by side hand in hand along a sunlit nature trail into the pine trees"
+                comp = "Atmospheric candid framing showing both companions walking together with natural spatial depth"
+                mood_posture = "Holding hands, relaxed stride, warm connection, and unposed presence"
+            elif any(k in text_lower for k in ("beach", "ocean", "sea", "lake", "water", "shore")):
+                action = "a couple seated side by side on the shoreline overlooking the tranquil water at sunset, leaning into each other with gentle warmth"
+                comp = "Candid two-shot capturing both individuals together against the serene horizon"
+                mood_posture = "Shoulders touching, shared warmth, quiet contemplative gaze, and peaceful presence"
+            elif any(k in text_lower for k in ("dance", "dancing", "festival", "music", "party")):
+                action = "a couple dancing joyfully together with arms raised in the golden afternoon sunlight at an outdoor gathering with soft warm haze"
+                comp = "Joyful candid environmental two-shot capturing both companions moving naturally together"
+                mood_posture = "Open arms, infectious laughter, radiant sun-kissed energy, and genuine celebration"
+            elif any(k in text_lower for k in ("high five", "palms", "hands touch")):
+                action = "two companions touching palms / high-fiving with radiant golden sunlight gleaming brilliantly between their hands"
+                comp = "Dynamic candid two-shot capturing the joyful, authentic connection between both subjects"
+                mood_posture = "Genuine smiles, raised hands, radiant energy, and natural unposed body language"
+            else:
+                pair_actions = [
+                    (
+                        "sharing a tender, intimate moment outdoors with gentle physical closeness and shared smiles",
+                        "Candid two-shot showing both companions close together in natural light",
+                        "Interlinked hands, authentic interpersonal closeness, candid warmth, and emotionally honest expression",
+                    ),
+                    (
+                        "seated side by side in peaceful conversation, leaning into each other with unforced warmth",
+                        "Intimate medium framing showing both individuals clearly in frame",
+                        "Shoulders touching, gentle body language, candid warmth, and natural emotional posture",
+                    ),
+                    (
+                        "sharing an authentic laugh and warm embrace in the golden evening light",
+                        "Atmospheric candid two-shot with sharp focus on both subjects",
+                        "Arms wrapped in gentle embrace, joyful expression, and natural connection",
+                    ),
+                ]
+                action, comp, mood_posture = pair_actions[seed_num % len(pair_actions)]
+
         else:
             subjects = f"A {age_str}{gender}"
             action = "captured in a private emotional moment, quietly processing personal truth with subtle vulnerability"
@@ -1093,9 +1214,21 @@ def _heuristic_v2_photograph_description(story: Story) -> str:
             gesture = confession_gestures[abs(hash(seed_key)) % len(confession_gestures)]
             mood_posture = f"Natural body language, {gesture}, {sensory_anchor}, emotionally honest expression"
 
+    if any(w in setting_desc.lower() for w in ("beach", "shore", "island", "coast", "summer", "festival")):
+        wardrobe = "Tastefully dressed in relaxed summer casual wear (e.g. linen shirt, summer dress, or festival attire matching the setting)."
+    else:
+        wardrobe = "Fully clothed in stylish, casual attire matching the setting."
+
+    mandate_prefix = ""
+    separator = ", " if cast_mode in ("pair", "group") else " "
+    if cast_mode == "group":
+        mandate_prefix = "MANDATORY: Depict multiple characters interacting together in the scene; do not depict a single person alone. "
+    elif cast_mode == "pair":
+        mandate_prefix = "MANDATORY: Depict both individuals together in the scene interacting closely; do not depict a single person alone. "
+
     return (
-        f"{subjects} {action}{beat_snippet}, {setting_desc}. "
-        f"{comp}. Fully clothed in stylish, casual attire matching the setting. "
+        f"{mandate_prefix}{subjects}{separator}{action}{beat_snippet}, {setting_desc}. "
+        f"{comp}. {wardrobe} "
         f"{mood_posture}. {tonal_depth}. Emotional intimacy and deeply authentic human truth, as if witnessing a real private moment. "
         f"Soft motivated natural light. No generic stock-photo compositions, no happy friends at a bar, no posed group shots. "
         f"No bent necks or unnatural head tilts. Naturally readable within the frame."
@@ -1134,13 +1267,14 @@ def _heuristic_v2_visual_art_direction(
 
     stype = getattr(story, "story_type", None)
     if cast_mode == "group":
-        characters_str = f"An adult {gender} and close companions, fully clothed in elegant, casual attire (jackets and sweaters)."
-        comp_str = "Natural unposed environmental composition with authentic spacing between subjects; strictly avoid posed group shots or repetitive social scenes."
-        rel_dynamics = "Subtle conversational dynamics, candid distance, and genuine shared history without artificial group posing."
+        explicit_cast = _extract_explicit_cast(story)
+        characters_str = f"Strictly depict {explicit_cast or 'an adult ' + gender + ' and close companions'} together in the frame, tastefully clothed in setting-appropriate casual attire."
+        comp_str = "Natural unposed environmental group composition with authentic connection between subjects; strictly depict all characters together and avoid posed stock-photo clichés."
+        rel_dynamics = "Authentic camaraderie, genuine shared history, and unposed interpersonal connection."
     elif cast_mode == "pair":
-        characters_str = f"An adult {gender} and a companion, fully clothed in tasteful attire, sharing an intimate connection."
-        comp_str = "Intimate two-shot or over-the-shoulder framing, subtle body language conveying emotional closeness and unspoken depth; unposed and natural."
-        rel_dynamics = "Intimate emotional resonance, shared vulnerability, and nuanced interpersonal tension."
+        characters_str = f"Strictly depict an adult {gender} and their companion/partner together in the frame, sharing an authentic intimate connection."
+        comp_str = "Intimate two-shot framing showing both individuals clearly in the scene with emotional closeness and tactile connection; unposed and natural."
+        rel_dynamics = "Intimate emotional resonance, shared vulnerability, and genuine physical and emotional closeness."
     else:
         characters_str = f"A {age_str}{gender} fully clothed in tasteful, elegant knitwear or jacket."
         if stype == StoryType.meditation:
@@ -1557,6 +1691,33 @@ def build_v2_cover_prompt(
     else:
         photo_desc = _sanitize_v2_scene_text(build_v2_photograph_description(story, use_llm=use_llm_scene).strip().rstrip("."))
 
+    cast_mode = _cast_mode(story)
+    explicit_cast = _extract_explicit_cast(story)
+
+    if cast_mode == "group":
+        cast_desc = explicit_cast or "all companions in the group"
+        cast_mandate_block = (
+            f"MANDATORY CAST REQUIREMENT (CRITICAL — DO NOT GENERATE A SINGLE PERSON):\n"
+            f"This photograph MUST depict MULTIPLE PEOPLE ({cast_desc}) together in the frame.\n"
+            f"ALL individuals must be clearly visible and actively interacting together in the scene "
+            f"(such as a tight group embrace, dancing together, holding hands, or gathered around an outdoor picnic).\n"
+            f"STRICTLY FORBIDDEN: DO NOT generate only one person alone. Depicting only one individual is an unacceptable failure for this story."
+        )
+    elif cast_mode == "pair":
+        companion_desc = f"an adult {story.gender or 'person'} and their companion/partner"
+        cast_mandate_block = (
+            f"MANDATORY CAST REQUIREMENT (CRITICAL — DO NOT GENERATE A SINGLE PERSON):\n"
+            f"This photograph MUST depict EXACTLY TWO PEOPLE together in the frame ({companion_desc}).\n"
+            f"BOTH individuals must be clearly visible, physically close, and actively interacting together in the scene "
+            f"(such as kissing, embracing, holding hands, massaging shoulders, or smiling warmly together).\n"
+            f"STRICTLY FORBIDDEN: DO NOT generate only one person alone. Depicting a single isolated individual is an unacceptable failure for this story."
+        )
+    else:
+        cast_mandate_block = (
+            "MANDATORY CAST REQUIREMENT:\n"
+            "A single individual in an authentic, evocative private moment reflecting personal truth."
+        )
+
     author_name = (story.first_name or "Anonymous").strip().upper()
 
     prompt = V2_COVER_PROMPT_TEMPLATE.format(
@@ -1572,6 +1733,7 @@ def build_v2_cover_prompt(
         explicit_numbered_item=explicit_numbered_item,
         button_label=button_label,
         photo_desc=photo_desc,
+        cast_mandate_block=cast_mandate_block,
         author_name=author_name,
     )
     return prompt

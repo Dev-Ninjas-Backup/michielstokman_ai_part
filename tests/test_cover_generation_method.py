@@ -1937,5 +1937,75 @@ def test_v2_heuristic_description_varies_camera_framing_and_sensory_anchors():
         assert "velvety blacks" in d.lower()
 
 
+def test_v2_multi_person_cast_detection_and_prompt_enforcement():
+    """Verify that multi-person stories (pairs and groups) strictly enforce all characters and prohibit single-person generation."""
+    from app.utils.story_image_prompt import (
+        _cast_mode,
+        _heuristic_v2_photograph_description,
+        build_v2_cover_prompt,
+    )
+
+    # 1. Trio story: Two Men and Nia
+    trio_story = _story(
+        title="Two Men and Nia",
+        first_name="Rory",
+        background="Two adult men and one adult Black woman",
+        situation="Enjoying cocktails together in an atmospheric setting.",
+    )
+    assert _cast_mode(trio_story) == "group"
+    desc_trio = _heuristic_v2_photograph_description(trio_story)
+    assert "Two adult men and one adult Black woman" in desc_trio
+    assert "three-shot" in desc_trio or "three close companions" in desc_trio
+    prompt_trio = build_v2_cover_prompt(trio_story, use_llm_scene=False)
+    assert "MANDATORY CAST REQUIREMENT (CRITICAL — DO NOT GENERATE A SINGLE PERSON):" in prompt_trio
+    assert "Two adult men and one adult Black woman" in prompt_trio
+    assert "DO NOT generate only one person alone" in prompt_trio
+
+    # 2. Romantic pair: Sunset Kiss
+    kiss_story = _story(
+        title="Sunset Kiss",
+        first_name="Sophie",
+        background="Mark and I on the beach",
+        situation="We kissed as the sun went down over the ocean.",
+    )
+    assert _cast_mode(kiss_story) == "pair"
+    desc_kiss = _heuristic_v2_photograph_description(kiss_story)
+    assert "kissing" in desc_kiss.lower()
+    prompt_kiss = build_v2_cover_prompt(kiss_story, use_llm_scene=False)
+    assert "MANDATORY CAST REQUIREMENT (CRITICAL — DO NOT GENERATE A SINGLE PERSON):" in prompt_kiss
+    assert "EXACTLY TWO PEOPLE" in prompt_kiss
+
+    # 3. Touch / Care: Shoulder massage in nature
+    massage_story = _story(
+        title="By the Lake",
+        first_name="Elena",
+        situation="He gently massaged my shoulders by the tranquil lake.",
+    )
+    assert _cast_mode(massage_story) == "pair"
+    desc_massage = _heuristic_v2_photograph_description(massage_story)
+    assert "massag" in desc_massage.lower()
+    assert "shoulder" in desc_massage.lower()
+
+    # 4. Festival dancing group
+    festival_story = _story(
+        title="Festival of Light",
+        first_name="Maya",
+        situation="Dancing with my friends in the crowd at the outdoor festival.",
+    )
+    assert _cast_mode(festival_story) == "group"
+    desc_festival = _heuristic_v2_photograph_description(festival_story)
+    assert "dancing" in desc_festival.lower() or "arms raised" in desc_festival.lower()
+
+    # 5. Forest walk hand in hand
+    forest_story = _story(
+        title="Pine Trail",
+        first_name="Liam",
+        situation="Walking along the pine trail hand in hand with my partner.",
+    )
+    assert _cast_mode(forest_story) == "pair"
+    desc_forest = _heuristic_v2_photograph_description(forest_story)
+    assert "hand in hand" in desc_forest.lower() or "holding hands" in desc_forest.lower()
+
+
 
 
