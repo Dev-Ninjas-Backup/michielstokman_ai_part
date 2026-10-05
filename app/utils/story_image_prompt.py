@@ -1001,6 +1001,109 @@ def _sanitize_v2_scene_text(text: str) -> str:
     return cleaned
 
 
+_MAGNETIC_ATTRACTION_RE = re.compile(
+    r"\b("
+    r"magnetic|attract\w*|chemistry|spark\w*|passion\w*|desir\w*|allur\w*|"
+    r"flirt\w*|crush|captivat\w*|enchant\w*|seduct\w*|sensual\w*|intoxicat\w*|"
+    r"longing|yearning|electric\w*|whisper\w*|gorgeous|"
+    r"handsome|beautiful|attractive|radiant|love|lovers?|romance|romantic|"
+    r"caress\w*|closeness|connected|connection"
+    r")\b",
+    re.I,
+)
+
+_JOY_CELEBRATION_RE = re.compile(
+    r"\b("
+    r"joy|joyful|laugh\w*|smile|smiling|smiled|celebrat\w*|dance|dancing|"
+    r"happy|happiness|festiv\w*|fun|cheer|ecstatic|euphori\w*|exhilarat\w*|"
+    r"delight\w*|bliss\w*|lighthearted|sun-kissed|sunshine|vacation|trip|holiday"
+    r")\b",
+    re.I,
+)
+
+
+def _detect_v2_lighting_and_atmosphere(story: Story, seed_num: int) -> tuple[str, str]:
+    """Detect dynamic, story-tailored lighting and sensory atmosphere.
+
+    Returns (lighting_description, atmosphere_description).
+    Ensures huge lighting versatility across stories:
+    - Golden hour / sunset rim-lighting with warm flare
+    - Dappled woodland canopy light
+    - Festive twilight with lantern and string-light glow
+    - Crisp sun-drenched coastal daylight
+    - Intimate candlelight / hearth amber glow
+    - Soft misty morning dawn
+    """
+    full_text = f"{_story_blob(story)} {getattr(story, 'title', '')}".lower()
+
+    # 1. Sunset / Golden hour / Beach / Summer / Trip / Journey
+    if any(k in full_text for k in ("sunset", "dusk", "golden hour", "beach", "ocean", "sea", "lake", "coast", "shore", "island", "trip", "journey", "holiday", "vacation", "summer")):
+        return (
+            "Radiant low-angle golden-hour backlight with warm sun flare, glowing rim-lighting accentuating hair and shoulders, luminous catchlights in the eyes, and rich velvety blacks",
+            "Sun-drenched golden warmth with sparkling horizon reflections and an intoxicating, romantic evening glow",
+        )
+
+    # 2. Forest / Woodland / Trail / Picnic / Nature
+    if any(k in full_text for k in ("forest", "wood", "woods", "trees", "pine", "trail", "mountain", "park", "picnic", "hike", "nature")):
+        return (
+            "Natural sunbeams filtering through leafy tree canopy with organic dappled light patterns, warm directional highlights, luminous catchlights in the eyes, and rich velvety blacks",
+            "Fresh outdoor sensory environment with clean forest air, sun-warmed pine needles, and serene natural depth",
+        )
+
+    # 3. Festival / Celebration / Party / Dance / Nightlife
+    if any(k in full_text for k in ("festival", "party", "dance", "dancing", "music", "gathering", "celebrat", "cocktail", "club")):
+        return (
+            "Deep twilight atmospheric light balanced with glowing warm bokeh from hanging festival lanterns and string lights, motivated rim-light, luminous catchlights in the eyes, and rich velvety blacks",
+            "Electric festival energy with soft warm atmospheric haze, outdoor celebration, and vibrant interpersonal warmth",
+        )
+
+    # 4. Bright sun-drenched day / Terrace / Open air
+    if any(k in full_text for k in ("sun", "sunny", "sunlight", "day", "afternoon", "terrace", "balcony", "street", "city")):
+        return (
+            "Bright natural daylight with crisp directional modeling, radiant sun-kissed highlights, luminous catchlights in the eyes, and rich velvety blacks",
+            "Airy sunlit clarity with crisp dimensional spatial depth, light warm breeze, and vibrant natural presence",
+        )
+
+    # 5. Intimate candlelight / Hearth / Cozy room / Night
+    if any(k in full_text for k in ("candle", "candlelight", "wine", "midnight", "night", "lounge", "bar", "sofa", "bed", "whisper", "secret")):
+        return (
+            "Warm flickering candlelight and amber practical lamplight casting soft sensual chiaroscuro, luminous catchlights in the eyes, and rich velvety blacks",
+            "Intimate, close sensory sanctuary with warm amber shadows, quiet privacy, and deep emotional resonance",
+        )
+
+    # 6. Misty dawn / Fog / Rain / Cold
+    if any(k in full_text for k in ("dawn", "morning", "sunrise", "fog", "mist", "rain", "winter", "cold", "frost")):
+        return (
+            "Ethereal morning dawn light diffusing softly through mist, delicate silvery highlights, luminous catchlights in the eyes, and rich velvety blacks",
+            "Quiet evocative morning stillness with cool dewy air, soft atmospheric haze, and subtle contemplative mood",
+        )
+
+    # Varied fallback based on seed_num to prevent any repetition across stories
+    fallback_profiles = [
+        (
+            "Radiant low-angle golden-hour backlight with warm sun flare, glowing rim-lighting accentuating hair and shoulders, luminous catchlights in the eyes, and rich velvety blacks",
+            "Sun-drenched golden warmth with sparkling horizon reflections and an intoxicating, romantic evening glow",
+        ),
+        (
+            "Natural sunbeams filtering through leafy tree canopy with organic dappled light patterns, warm directional highlights, luminous catchlights in the eyes, and rich velvety blacks",
+            "Fresh outdoor sensory environment with clean forest air, sun-warmed pine needles, and serene natural depth",
+        ),
+        (
+            "Warm flickering candlelight and amber practical lamplight casting soft sensual chiaroscuro, luminous catchlights in the eyes, and rich velvety blacks",
+            "Intimate, close sensory sanctuary with warm amber shadows, quiet privacy, and deep emotional resonance",
+        ),
+        (
+            "Deep twilight atmospheric light balanced with glowing warm bokeh from hanging lanterns, motivated rim-light, luminous catchlights in the eyes, and rich velvety blacks",
+            "Atmospheric twilight with soft warm ambient haze and vibrant emotional presence",
+        ),
+        (
+            "Bright natural daylight with crisp directional modeling, radiant sun-kissed highlights, luminous catchlights in the eyes, and rich velvety blacks",
+            "Airy sunlit clarity with crisp dimensional spatial depth and vibrant natural presence",
+        ),
+    ]
+    return fallback_profiles[seed_num % len(fallback_profiles)]
+
+
 def _heuristic_v2_photograph_description(story: Story) -> str:
     """Deterministic, story-grounded 1-2 sentence description for the V2 Polaroid slot."""
     from app.model.story import StoryType
@@ -1041,6 +1144,7 @@ def _heuristic_v2_photograph_description(story: Story) -> str:
 
     seed_key = f"{getattr(story, 'title', '')}_{getattr(story, 'first_name', '')}_{getattr(story, 'location', '')}_{situation}"
     seed_num = abs(hash(seed_key))
+    lighting_desc, atmosphere_desc = _detect_v2_lighting_and_atmosphere(story, seed_num)
 
     if stype == StoryType.meditation:
         sensory_props_med = [
@@ -1050,7 +1154,7 @@ def _heuristic_v2_photograph_description(story: Story) -> str:
             "stillness beside a tranquil window with soft diffused natural light",
         ]
         sensory_anchor = sensory_props_med[seed_num % len(sensory_props_med)]
-        tonal_depth = "Serene silvery tonal palette with rich velvety blacks, gentle highlights, and luminous catchlights in the eyes"
+        tonal_depth = f"Serene silvery tonal palette with rich velvety blacks, gentle highlights, and luminous catchlights in the eyes. {lighting_desc}"
         if cast_mode == "group":
             subjects = f"An adult {gender} and companions"
             action = "sharing a quiet, mindful moment of contemplative silence and grounded stillness"
@@ -1063,7 +1167,7 @@ def _heuristic_v2_photograph_description(story: Story) -> str:
             subjects = f"A {age_str}{gender}"
             action = "in a deeply peaceful, contemplative state of mindfulness and inner quiet"
             comp = "Contemplative medium shot with centered posture, sharp eye clarity and creamy depth of field"
-        mood_posture = f"Gentle breathing, serene expression, {sensory_anchor}, and grounded presence"
+        mood_posture = f"Gentle breathing, serene expression, {sensory_anchor}, and grounded presence (peaceful and content, never sad)"
 
     elif stype == StoryType.transformation:
         sensory_props_trans = [
@@ -1073,7 +1177,7 @@ def _heuristic_v2_photograph_description(story: Story) -> str:
             "looking forward toward dawn light with calm unburdened strength",
         ]
         sensory_anchor = sensory_props_trans[seed_num % len(sensory_props_trans)]
-        tonal_depth = "Striking directional chiaroscuro with motivated dawn rim-light, luminous catchlights in the eyes, and rich velvety blacks"
+        tonal_depth = f"Striking directional chiaroscuro with motivated dawn rim-light, luminous catchlights in the eyes, and rich velvety blacks. {lighting_desc}"
         if cast_mode == "group":
             subjects = f"An adult {gender} and companions"
             action = "gathered in an authentic, empowering moment of newfound freedom and mutual courage"
@@ -1098,7 +1202,7 @@ def _heuristic_v2_photograph_description(story: Story) -> str:
             "holding an old room key or personal letter, thoughtful and engaged in the moment",
         ]
         sensory_anchor = confession_props[seed_num % len(confession_props)]
-        tonal_depth = "Soft motivated directional chiaroscuro with luminous catchlights in the eyes, rich velvety blacks, and subtle natural film grain"
+        tonal_depth = f"Directional chiaroscuro sculpting facial contours with luminous catchlights in the eyes and rich velvety blacks. {lighting_desc}"
         framing_options = [
             "Intimate 85mm close-up framing with sharp focal clarity on the eyes and shallow depth of field",
             "Atmospheric candid profile framing with motivated window light sculpting facial contours",
@@ -1152,67 +1256,93 @@ def _heuristic_v2_photograph_description(story: Story) -> str:
                 action, comp, mood_posture = group_actions[seed_num % len(group_actions)]
 
         elif cast_mode == "pair":
-            subjects = f"An adult {gender} and their companion/partner (strictly depict both individuals together in the frame)"
+            subjects = f"Strictly depict both an adult {gender} and their companion/partner together in the frame"
             comp = "Candid two-shot capturing both individuals clearly visible and interacting closely"
             if "massage" in text_lower or "shoulder" in text_lower:
                 action = "sharing an intimate moment of gentle care as one companion tenderly massages the other's shoulders outdoors in nature"
                 comp = "Candid two-shot with both individuals clearly visible and engaged in natural, relaxed interaction"
                 mood_posture = "Gentle caring touch, deeply relaxed posture, radiant peaceful expression, and authentic closeness"
             elif any(k in text_lower for k in ("kiss", "kissing", "kissed", "lips", "mouth")):
-                action = "a couple kissing tenderly in an intimate moment, backlit by warm golden-hour rim-light"
+                action = "kissing tenderly in an intimate moment, backlit by warm golden-hour rim-light"
                 comp = "Intimate two-shot capturing the couple close together in natural light with both individuals clearly visible"
                 mood_posture = "Faces close together, gentle embrace, authentic romantic connection, and soft natural expression"
             elif any(k in text_lower for k in ("walk", "walking", "trail", "forest", "path", "hike", "trees")):
-                action = "a couple walking side by side hand in hand along a sunlit nature trail into the pine trees"
+                action = "walking side by side hand in hand along a sunlit nature trail into the pine trees"
                 comp = "Atmospheric candid framing showing both companions walking together with natural spatial depth"
                 mood_posture = "Holding hands, relaxed stride, warm connection, and unposed presence"
             elif any(k in text_lower for k in ("beach", "ocean", "sea", "lake", "water", "shore")):
-                action = "a couple seated side by side on the shoreline overlooking the tranquil water at sunset, leaning into each other with gentle warmth"
+                action = "seated side by side on the shoreline overlooking the tranquil water at sunset, leaning into each other with gentle warmth"
                 comp = "Candid two-shot capturing both individuals together against the serene horizon"
                 mood_posture = "Shoulders touching, shared warmth, quiet contemplative gaze, and peaceful presence"
             elif any(k in text_lower for k in ("dance", "dancing", "festival", "music", "party")):
-                action = "a couple dancing joyfully together with arms raised in the golden afternoon sunlight at an outdoor gathering with soft warm haze"
+                action = "dancing joyfully together with arms raised in the golden afternoon sunlight at an outdoor gathering with soft warm haze"
                 comp = "Joyful candid environmental two-shot capturing both companions moving naturally together"
                 mood_posture = "Open arms, infectious laughter, radiant sun-kissed energy, and genuine celebration"
             elif any(k in text_lower for k in ("high five", "palms", "hands touch")):
-                action = "two companions touching palms / high-fiving with radiant golden sunlight gleaming brilliantly between their hands"
+                action = "touching palms / high-fiving with radiant golden sunlight gleaming brilliantly between their hands"
                 comp = "Dynamic candid two-shot capturing the joyful, authentic connection between both subjects"
                 mood_posture = "Genuine smiles, raised hands, radiant energy, and natural unposed body language"
+            elif any(k in text_lower for k in ("attract", "magnetic", "chemistry", "spark", "flirt", "sexy", "whisper")):
+                action = "leaning in close with electric romantic chemistry and magnetic attraction, whispering and sharing an alluring, playful half-smile, faces inches apart"
+                comp = "Intimate two-shot capturing the magnetic attraction and physical tension between both companions"
+                mood_posture = "Captivating eye contact, alluring smiles, palpable chemistry, radiant energy, and magnetic romantic connection (strictly never sad or depressed)"
             else:
                 pair_actions = [
                     (
-                        "sharing a tender, intimate moment outdoors with gentle physical closeness and shared smiles",
+                        "sharing a tender, magnetic moment outdoors with electric romantic chemistry and shared smiles",
                         "Candid two-shot showing both companions close together in natural light",
-                        "Interlinked hands, authentic interpersonal closeness, candid warmth, and emotionally honest expression",
+                        "Interlinked hands, authentic interpersonal closeness, candid warmth, and magnetic attraction (never depressed)",
                     ),
                     (
-                        "seated side by side in peaceful conversation, leaning into each other with unforced warmth",
+                        "seated side by side in lively, playful conversation, leaning into each other with unforced warmth",
                         "Intimate medium framing showing both individuals clearly in frame",
-                        "Shoulders touching, gentle body language, candid warmth, and natural emotional posture",
+                        "Shoulders touching, gentle body language, candid warmth, and vibrant emotional connection",
                     ),
                     (
                         "sharing an authentic laugh and warm embrace in the golden evening light",
                         "Atmospheric candid two-shot with sharp focus on both subjects",
-                        "Arms wrapped in gentle embrace, joyful expression, and natural connection",
+                        "Arms wrapped in gentle embrace, joyful expression, and natural romantic chemistry",
                     ),
                 ]
                 action, comp, mood_posture = pair_actions[seed_num % len(pair_actions)]
 
         else:
             subjects = f"A {age_str}{gender}"
-            action = "captured in a private emotional moment, quietly processing personal truth with subtle vulnerability"
             comp = dynamic_framing
-            confession_gestures = [
-                "subtle gesture with hand resting near chest, soft thoughtful gaze",
-                "sitting quietly in reflection, hands gently relaxed, soft downward gaze",
-                "resting lightly against a wall or window frame, contemplative gaze",
-                "walking alone at a quiet pace, lost in honest thought",
-                "holding a personal object or cup, introspective posture",
-                "fingers lightly touching collar or hair, gentle vulnerable expression",
-            ]
-            seed_key = getattr(story, "title", None) or getattr(story, "first_name", None) or "confession"
-            gesture = confession_gestures[abs(hash(seed_key)) % len(confession_gestures)]
-            mood_posture = f"Natural body language, {gesture}, {sensory_anchor}, emotionally honest expression"
+            is_magnetic = bool(_MAGNETIC_ATTRACTION_RE.search(text_lower))
+            is_joy = bool(_JOY_CELEBRATION_RE.search(text_lower))
+
+            if is_magnetic:
+                action = "radiating alluring magnetism, sensual confidence, and captivating presence"
+                magnetic_gestures = [
+                    "captivating magnetic gaze directly connecting with the camera, subtle confident half-smile, fingers lightly touching hair, radiant and alluring",
+                    "leaning naturally against a sunlit balustrade or wall with an enigmatic, seductive smile and glowing magnetic eye contact",
+                    "holding an everyday object or glass at sunset with playful, confident gaze, completely captivating and radiant with inner fire",
+                    "windswept hair and open, alluring posture, radiant with self-assured magnetic beauty",
+                ]
+                gesture = magnetic_gestures[seed_num % len(magnetic_gestures)]
+                mood_posture = f"Alluring posture, {gesture}, {sensory_anchor}, magnetic eye contact and sensual confidence (strictly never depressed or gloomy)"
+            elif is_joy:
+                action = "radiant with infectious joy, carefree liberation, and vibrant warmth"
+                joy_gestures = [
+                    "throwing head back with an uninhibited, genuine laugh, sunlit skin, and radiant energy",
+                    "smiling warmly with open posture, radiant eyes, and joyful presence",
+                    "walking along a sunlit street with lighthearted, radiant energy and genuine smile",
+                ]
+                gesture = joy_gestures[seed_num % len(joy_gestures)]
+                mood_posture = f"Joyful radiant body language, {gesture}, {sensory_anchor}, vibrant happiness and life"
+            else:
+                action = "captured in an authentic private moment, composed with quiet inner strength and personal clarity"
+                contemplative_gestures = [
+                    "resting naturally with hand near collar or cup, thoughtful composed gaze with subtle inner light and dignity",
+                    "sitting in peaceful reflection with gentle relaxed posture and serene, content expression",
+                    "standing poised near natural window light, calm self-assured posture and clear evocative presence",
+                    "leaning naturally against a wall, posture relaxed, thoughtful and emotionally grounded",
+                    "walking at a relaxed pace along a quiet street, calm and centered in thought",
+                    "holding an everyday object or cup, introspective yet composed and vibrant with life",
+                ]
+                gesture = contemplative_gestures[seed_num % len(contemplative_gestures)]
+                mood_posture = f"Natural body language, {gesture}, {sensory_anchor}, emotionally honest and magnetic expression (never sad or depressed)"
 
     if any(w in setting_desc.lower() for w in ("beach", "shore", "island", "coast", "summer", "festival")):
         wardrobe = "Tastefully dressed in relaxed summer casual wear (e.g. linen shirt, summer dress, or festival attire matching the setting)."
@@ -1226,11 +1356,15 @@ def _heuristic_v2_photograph_description(story: Story) -> str:
     elif cast_mode == "pair":
         mandate_prefix = "MANDATORY: Depict both individuals together in the scene interacting closely; do not depict a single person alone. "
 
+    anti_depress_mandate = "CRITICAL: Characters must appear magnetic, attractive, and emotionally alive — STRICTLY FORBIDDEN to depict depressed, sad, gloomy, or tired expressions. "
+
     return (
         f"{mandate_prefix}{subjects}{separator}{action}{beat_snippet}, {setting_desc}. "
         f"{comp}. {wardrobe} "
-        f"{mood_posture}. {tonal_depth}. Emotional intimacy and deeply authentic human truth, as if witnessing a real private moment. "
-        f"Soft motivated natural light. No generic stock-photo compositions, no happy friends at a bar, no posed group shots. "
+        f"{mood_posture}. {tonal_depth}. {atmosphere_desc}. "
+        f"{anti_depress_mandate}"
+        f"Emotional intimacy and deeply authentic human truth, as if witnessing a real private moment. "
+        f"No generic stock-photo compositions, no happy friends at a bar, no posed group shots. "
         f"No bent necks or unnatural head tilts. Naturally readable within the frame."
     )
 
@@ -1285,16 +1419,13 @@ def _heuristic_v2_visual_art_direction(
             comp_str = "A single figure in an intimate documentary portrait, natural body language with subtle unforced gesture (e.g. resting against a wall, sitting quietly, or hand near chest); unposed and emotionally honest."
         rel_dynamics = "Introspective solitude, self-reckoning, and quiet dialogue between the narrator and the surrounding space."
 
-    lighting_str = (
-        f"Soft practical light, {weather_list[0]} atmosphere with gentle shadows."
-        if weather_list
-        else "Soft motivated natural light with gentle ambient highlights and subtle film shadows."
-    )
-    atmosphere_str = (
-        f"Sensory {weather_list[0]} environment with authentic weather texture and quiet emotional truth."
-        if weather_list
-        else "Intimate, atmospheric sensory environment with soft natural light and quiet emotional truth."
-    )
+    situation = (story.situation or "").strip()
+    seed_key = f"{getattr(story, 'title', '')}_{getattr(story, 'first_name', '')}_{getattr(story, 'location', '')}_{situation}"
+    seed_num = abs(hash(seed_key))
+    dynamic_lighting, dynamic_atmosphere = _detect_v2_lighting_and_atmosphere(story, seed_num)
+
+    lighting_str = dynamic_lighting
+    atmosphere_str = dynamic_atmosphere
 
     if stype == StoryType.meditation:
         mood_str = (
@@ -1315,17 +1446,20 @@ def _heuristic_v2_visual_art_direction(
         key_events_str = "A pivotal breakthrough moment of stepping boldly into one's own truth and freedom."
         narrative_focus_str = "A pivotal breakthrough moment of stepping boldly into one's own truth and freedom."
     else:
-        mood_str = (
-            f"Intimate, reflective, nuanced tension touching on {', '.join(emotions_list[:3])}."
-            if emotions_list
-            else "Intimate, reflective, subtle tension, and quiet emotional connection."
-        )
-        emotional_state_str = (
-            f"Vulnerable emotional reckoning touching on {', '.join(emotions_list[:3])}."
-            if emotions_list
-            else "Intimate vulnerability, unspoken truth, quiet processing of emotion, and authentic personal honesty."
-        )
-        situation = (story.situation or "").strip()
+        full_text_art = f"{blob} {getattr(story, 'title', '')}".lower()
+        if _MAGNETIC_ATTRACTION_RE.search(full_text_art):
+            mood_str = "Magnetic attraction, electric romantic chemistry, seductive warmth, and captivating presence (vibrant and alive, never depressed)."
+            emotional_state_str = "Intimate magnetic attraction, unspoken emotional tension, and alluring romantic vitality."
+        elif _JOY_CELEBRATION_RE.search(full_text_art):
+            mood_str = "Radiant joy, sun-kissed celebration, infectious laughter, and carefree freedom."
+            emotional_state_str = "Joyful liberation, shared happiness, and radiant emotional warmth."
+        elif emotions_list:
+            mood_str = f"Intimate, reflective, nuanced tension touching on {', '.join(emotions_list[:3])}."
+            emotional_state_str = f"Vulnerable emotional reckoning touching on {', '.join(emotions_list[:3])}."
+        else:
+            mood_str = "Intimate, reflective, subtle tension, and quiet emotional connection."
+            emotional_state_str = "Intimate vulnerability, unspoken truth, quiet processing of emotion, and authentic personal honesty."
+
         key_events_str = (
             f"The private moment of {situation.rstrip('.').lower()}."
             if situation
@@ -1333,8 +1467,6 @@ def _heuristic_v2_visual_art_direction(
         )
         narrative_focus_str = "A quiet, private beat of shared honesty and understated emotional release."
 
-    seed_key = f"{getattr(story, 'title', '')}_{getattr(story, 'first_name', '')}_{getattr(story, 'location', '')}_{situation}"
-    seed_num = abs(hash(seed_key))
     heuristic_props = [
         "steam rising gently into cool air from a warm cup",
         "fingers lightly tracing the cold condensation on a glass",
@@ -1347,9 +1479,7 @@ def _heuristic_v2_visual_art_direction(
 
     color_palette_str = "Monochrome tones: rich velvety blacks, soft silvery grays, gentle ivory highlights, authentic film tonal range, and luminous eye catchlights."
     lighting_str = (
-        f"Soft motivated directional chiaroscuro with luminous catchlights in the eyes, rich velvety blacks, and {weather_list[0]} atmosphere."
-        if weather_list
-        else "Soft motivated directional chiaroscuro with luminous catchlights in the eyes, rich velvety blacks, and subtle film shadows."
+        f"{dynamic_lighting}, with luminous catchlights in the eyes, rich velvety blacks, and {dynamic_atmosphere.lower()}."
     )
     visual_style_str = "Strictly black-and-white vintage 35mm analogue snapshot, visible organic film grain, soft focus, faded blacks, muted contrast, documentary editorial realism."
     polaroid_scene_str = _heuristic_v2_photograph_description(story)
