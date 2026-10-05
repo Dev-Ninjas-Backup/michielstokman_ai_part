@@ -1,5 +1,6 @@
 import io
 import os
+import re
 import logging
 import requests
 from PIL import Image, ImageDraw, ImageFont
@@ -247,6 +248,28 @@ def generate_ai_cover_image(
             payload["style"] = "natural"
         
         resp = requests.post(url, json=payload, headers=headers, timeout=180)
+        if not resp.ok and resp.status_code == 400 and any(k in resp.text.lower() for k in ("moderation", "safety", "sexual")):
+            logger.warning(
+                "OpenAI image generation rejected by safety system (%s). Applying safety sanitization and retrying with safe editorial prompt...",
+                resp.text[:200],
+            )
+            safe_prompt = re.sub(r"\b(?:kiss(?:ing|ed|es)?|almost-kiss|mouth-to-mouth)\b", "tender embrace", dalle_prompt, flags=re.I)
+            safe_prompt = re.sub(r"\b(?:massag\w*|shoulders?\s+massage)\b", "gentle care", safe_prompt, flags=re.I)
+            safe_prompt = re.sub(r"\b(?:sensual\w*|seduct\w*|erotic\w*|lust\w*|arous\w*|sexual\w*|provocative)\b", "magnetic", safe_prompt, flags=re.I)
+            safe_prompt = re.sub(r"\b(?:bare\s+skin|bare\s+shoulders?|collarbones?|cleavage|undress\w*|naked|nude|lingerie|underwear|bikini|swimsuit|topless)\b", "tasteful attire", safe_prompt, flags=re.I)
+            safe_prompt = re.sub(r"\b(?:bed(?:room)?|sheets|mattress)\b", "cozy terrace", safe_prompt, flags=re.I)
+            safe_prompt = re.sub(r"\b(?:jawline\s+and\s+neck|neck\s+and\s+jawline|touching\s+(?:the\s+)?(?:neck|jawline))\b", "tender embrace", safe_prompt, flags=re.I)
+            safe_prompt = re.sub(r"\b(?:ghb|cocaine|ecstasy|narcotics?)\b", "evening drink", safe_prompt, flags=re.I)
+            safe_prompt = (
+                "STRICT EDITORIAL SAFETY DIRECTIVE: Strictly safe, modest, fully clothed editorial lifestyle photograph. "
+                "Natural eye contact, genuine warm smiles, stylish casual fashion, beautiful lighting, and serene outdoor atmosphere.\n\n"
+                + safe_prompt
+            )
+            payload["prompt"] = safe_prompt
+            resp = requests.post(url, json=payload, headers=headers, timeout=180)
+            if resp.ok:
+                logger.info("OpenAI image generation succeeded on sanitized safety retry.")
+
         if not resp.ok:
             error_detail = resp.text
             try:
@@ -265,7 +288,7 @@ def generate_ai_cover_image(
                 error_detail,
                 model,
                 size,
-                len(dalle_prompt),
+                len(payload.get("prompt", dalle_prompt)),
             )
         resp.raise_for_status()
         data = resp.json()
