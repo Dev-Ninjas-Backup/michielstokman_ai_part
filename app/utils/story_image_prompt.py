@@ -385,13 +385,13 @@ def portrait_emotional_state(story: Story) -> str:
         )
     elif bold and not quiet:
         register = (
-            "outward, daring, and liberating — allow sensual, energetic, or "
-            "provocative heat where the story supports it"
+            "outward, daring, and liberating — allow expressive, energetic, or "
+            "liberating vitality where the story supports it"
         )
     elif intimate and not quiet:
         register = (
-            "intimate and emotionally charged — sensual stillness or charged "
-            "proximity matching the story's heat"
+            "intimate and emotionally charged — evocative stillness or magnetic "
+            "closeness matching the story's emotional depth"
         )
     elif quiet and bold:
         register = (
@@ -767,7 +767,7 @@ def portrait_pose_instruction(story: Story) -> str:
     if re.search(r"\bembrac(?:e|ing|ed)\b|\bin\s+(?:his|her|their)\s+arms\b", lower):
         actions.append("in an embrace matching the story")
     if re.search(r"\bkiss(?:ing|ed)?\b", lower):
-        actions.append("close faces / almost-kiss or kiss as the story implies")
+        actions.append("standing close in a tender romantic connection with shared captivating smiles")
     if re.search(r"\blook(?:ing)?\s+out\b|\bgazing\b|\bstaring\b", lower):
         actions.append("gaze directed into the scene at eye level (not chin-down)")
     # Only when eyes/contemplation are explicit — do NOT trigger on lone "quiet".
@@ -991,12 +991,26 @@ _MELANCHOLIC_CUES_RE = re.compile(
 )
 
 
+def _scrub_sexual_cues(text: str) -> str:
+    """Scrub direct sexual acts, erotic adjectives, and provocative cues into safe editorial equivalents."""
+    cleaned = re.sub(r"\b(?:kiss(?:ing|ed|es)?|almost-kiss|mouth-to-mouth)\b", "tender embrace", text, flags=re.I)
+    cleaned = re.sub(r"\b(?:massag\w*|shoulders?\s+massage)\b", "gentle care", cleaned, flags=re.I)
+    cleaned = re.sub(r"\b(?:sensual\w*|seduct\w*|erotic\w*|lust\w*|arous\w*|sexual\w*|provocative)\b", "magnetic", cleaned, flags=re.I)
+    cleaned = re.sub(r"\b(?:bare\s+skin|bare\s+shoulders?|collarbones?|cleavage|undress\w*|naked|nude|lingerie|underwear|bikini|swimsuit|topless)\b", "tasteful attire", cleaned, flags=re.I)
+    cleaned = re.sub(r"\b(?:bed(?:room)?|sheets|mattress)\b", "cozy terrace", cleaned, flags=re.I)
+    cleaned = re.sub(r"\b(?:jawline\s+and\s+neck|neck\s+and\s+jawline|touching\s+(?:the\s+)?(?:neck|jawline))\b", "tender embrace", cleaned, flags=re.I)
+    cleaned = re.sub(r"\b(?:physical\s+tension|electric\s+tension)\b", "romantic chemistry", cleaned, flags=re.I)
+    cleaned = re.sub(r"\b(?:ghb|cocaine|ecstasy|narcotics?)\b", "evening drink", cleaned, flags=re.I)
+    return cleaned
+
+
 def _sanitize_v2_scene_text(text: str) -> str:
-    """Scrub homosexual keywords and extreme bent-neck cues while preserving emotional atmosphere."""
+    """Scrub sexual, homosexual keywords, drug references, and melancholic cues while preserving emotional atmosphere."""
     if not text:
         return ""
     cleaned = _HOMOSEXUAL_KEYWORDS_RE.sub("close companion", text)
     cleaned = _MELANCHOLIC_CUES_RE.sub("thoughtful and engaged in the moment", cleaned)
+    cleaned = _scrub_sexual_cues(cleaned)
     cleaned = re.sub(r"\s+", " ", cleaned).strip()
     return cleaned
 
@@ -1067,7 +1081,7 @@ def _detect_v2_lighting_and_atmosphere(story: Story, seed_num: int) -> tuple[str
     # 5. Intimate candlelight / Hearth / Cozy room / Night
     if any(k in full_text for k in ("candle", "candlelight", "wine", "midnight", "night", "lounge", "bar", "sofa", "bed", "whisper", "secret")):
         return (
-            "Warm flickering candlelight and amber practical lamplight casting soft sensual chiaroscuro, luminous catchlights in the eyes, and rich velvety blacks",
+            "Warm flickering candlelight and amber practical lamplight casting soft atmospheric chiaroscuro, luminous catchlights in the eyes, and rich velvety blacks",
             "Intimate, eye-soothing sensory sanctuary with warm amber shadows, quiet privacy, and deep emotional resonance",
         )
 
@@ -1089,7 +1103,7 @@ def _detect_v2_lighting_and_atmosphere(story: Story, seed_num: int) -> tuple[str
             "Serene natural sensory environment with sun-warmed foliage, eye-soothing deep canopy shadows, and atmospheric outdoor depth",
         ),
         (
-            "Warm flickering candlelight and amber practical lamplight casting soft sensual chiaroscuro, luminous catchlights in the eyes, and rich velvety blacks",
+            "Warm flickering candlelight and amber practical lamplight casting soft atmospheric chiaroscuro, luminous catchlights in the eyes, and rich velvety blacks",
             "Intimate, eye-soothing sensory sanctuary with warm amber shadows, quiet privacy, and deep emotional resonance",
         ),
         (
@@ -1331,13 +1345,13 @@ def _heuristic_v2_photograph_description(story: Story) -> str:
             subjects = f"Strictly depict both an adult {gender} and their companion/partner together in the frame"
             comp = "Candid two-shot capturing both individuals clearly visible and interacting closely"
             if "massage" in text_lower or "shoulder" in text_lower:
-                action = "sharing an intimate moment of gentle care and magnetic physical touch as one companion tenderly massages the other's shoulders outdoors in nature"
+                action = "sharing an intimate moment of gentle care as one companion tenderly massages the other's shoulders outdoors in nature"
                 comp = "Candid two-shot with both individuals clearly visible and engaged in natural, relaxed interaction with soft-focus natural surroundings"
-                mood_posture = "Dynamic caring posture, gentle touch on relaxed shoulders, captivating alluring half-smile, radiant peaceful expression, and authentic closeness"
+                mood_posture = "Dynamic caring posture, resting comfortably together, captivating warm half-smile, radiant peaceful expression, and authentic closeness"
             elif any(k in text_lower for k in ("kiss", "kissing", "kissed", "lips", "mouth")):
-                action = "kissing tenderly in an intimate moment with deep romantic passion and magnetic physical attraction, backlit by warm golden-hour rim-light"
+                action = "kissing tenderly on the cheek in an intimate romantic moment with magnetic chemistry and captivating presence, backlit by warm golden-hour rim-light"
                 comp = "Intimate two-shot capturing the couple close together in natural light with sharp focal clarity on both faces and both individuals clearly visible"
-                mood_posture = "Dynamic close posture, faces close together, gentle embrace with fingers resting softly on jawline, captivating romantic chemistry, and radiant magnetic warmth"
+                mood_posture = "Dynamic close posture, gentle romantic embrace with hands interlinked, captivating romantic chemistry, radiant magnetic warmth, and shared joyful smiles"
             elif any(k in text_lower for k in ("walk", "walking", "trail", "forest", "path", "hike", "trees")):
                 action = "walking side by side hand in hand along a sunlit nature trail into the pine trees with fluid, relaxed stride"
                 comp = "Atmospheric candid framing showing both companions walking together with natural spatial depth and soft-focus foliage"
@@ -1355,8 +1369,8 @@ def _heuristic_v2_photograph_description(story: Story) -> str:
                 comp = "Dynamic candid two-shot capturing the joyful, authentic connection between both subjects with creamy background blur"
                 mood_posture = "Dynamic body language, genuine smiles, raised hands, radiant energy, captivating eyes, and natural unposed presence"
             elif any(k in text_lower for k in ("attract", "magnetic", "chemistry", "spark", "flirt", "sexy", "whisper")):
-                action = "leaning in close with electric romantic chemistry and magnetic attraction, whispering and sharing an alluring, playful half-smile, faces inches apart"
-                comp = "Intimate two-shot capturing the magnetic attraction and physical tension between both companions with soft ambient background depth"
+                action = "leaning in close with captivating romantic chemistry and magnetic attraction, whispering and sharing an alluring, playful half-smile"
+                comp = "Intimate two-shot capturing the magnetic attraction and emotional chemistry between both companions with soft ambient background depth"
                 mood_posture = "Dynamic close posture, captivating magnetic eye contact, alluring smiles, palpable chemistry, radiant energy, and magnetic romantic connection (strictly never sad or depressed)"
             else:
                 pair_actions = [
@@ -1373,7 +1387,7 @@ def _heuristic_v2_photograph_description(story: Story) -> str:
                     (
                         "sharing an authentic laugh and warm embrace in the golden evening light",
                         "Atmospheric candid two-shot with sharp focus on both subjects and soft ambient bokeh",
-                        "Dynamic fluid embrace, fingers resting softly on shoulder, captivating smiles, and natural electric chemistry",
+                        "Dynamic fluid embrace, fingers resting softly on arm or shoulder, captivating smiles, and natural electric chemistry",
                     ),
                 ]
                 action, comp, mood_posture = pair_actions[seed_num % len(pair_actions)]
@@ -1385,15 +1399,15 @@ def _heuristic_v2_photograph_description(story: Story) -> str:
             is_joy = bool(_JOY_CELEBRATION_RE.search(text_lower))
 
             if is_magnetic:
-                action = "radiating alluring magnetism, sensual confidence, and captivating physical presence"
+                action = "radiating alluring magnetism, charismatic confidence, and captivating physical presence"
                 magnetic_gestures = [
                     "captivating magnetic gaze directly connecting with the camera, subtle confident half-smile, fingers lightly touching hair or collar, radiant and alluring with effortless charm",
-                    "leaning naturally against a sunlit balustrade or wall with relaxed fluid grace, an enigmatic seductive smile, and glowing magnetic eye contact",
+                    "leaning naturally against a sunlit balustrade or wall with relaxed fluid grace, an enigmatic captivating smile, and glowing magnetic eye contact",
                     "holding an everyday object or glass at sunset with a playful, confident gaze, completely captivating and radiant with inner vitality",
-                    "windswept hair and open, alluring posture, radiant with self-assured magnetic beauty, delicate neck line, and luminous eye catchlights",
+                    "windswept hair and open, alluring posture, radiant with self-assured magnetic beauty, graceful posture, and luminous eye catchlights",
                 ]
                 gesture = magnetic_gestures[seed_num % len(magnetic_gestures)]
-                mood_posture = f"Dynamic alluring posture, {gesture}, {sensory_anchor}, captivating magnetic gaze and sensual confidence with eye-soothing aesthetic grace (strictly never depressed or gloomy)"
+                mood_posture = f"Dynamic alluring posture, {gesture}, {sensory_anchor}, captivating magnetic gaze and charismatic confidence with eye-soothing aesthetic grace (strictly never depressed or gloomy)"
             elif is_joy:
                 action = "radiant with infectious joy, carefree liberation, and vibrant warmth"
                 joy_gestures = [
@@ -1909,7 +1923,7 @@ def build_v2_cover_prompt(
             f"MANDATORY CAST REQUIREMENT (CRITICAL — DO NOT GENERATE A SINGLE PERSON):\n"
             f"This photograph MUST depict EXACTLY TWO PEOPLE together in the frame ({companion_desc}).\n"
             f"BOTH individuals must be clearly visible, physically close, and actively interacting together in the scene "
-            f"(such as kissing, embracing, holding hands, massaging shoulders, or smiling warmly together).\n"
+            f"(such as a tender embrace, holding hands, walking arm-in-arm, or smiling warmly together).\n"
             f"STRICTLY FORBIDDEN: DO NOT generate only one person alone. Depicting a single isolated individual is an unacceptable failure for this story."
         )
     else:
