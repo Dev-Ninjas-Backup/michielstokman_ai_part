@@ -42,6 +42,8 @@ class Settings:
         self.ELEVENLABS_SIMILARITY_BOOST: float = float(os.getenv("ELEVENLABS_SIMILARITY_BOOST", "0.80"))
         # Style (0.0-1.0): subtle stylistic variation
         self.ELEVENLABS_STYLE: float = float(os.getenv("ELEVENLABS_STYLE", "0.30"))
+        # TTS Pipeline V2 feature flag (default False for backward-compatibility)
+        self.TTS_PIPELINE_V2: bool = os.getenv("TTS_PIPELINE_V2", "false").strip().lower() in ("true", "1", "yes", "on")
 
         # Vector DB Settings
         self.PINECONE_API_KEY: str | None = os.getenv("PINECONE_API_KEY")

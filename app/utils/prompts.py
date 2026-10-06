@@ -628,6 +628,32 @@ STORY_HUMAN_TEMPLATE = (
 ).replace("<<<CONFESSION_PHOTO_STYLE>>>", CONFESSION_COVER_PHOTOGRAPHY_STYLE)
 
 
+WRITE_FOR_THE_EAR_INSTRUCTIONS: dict[StoryType, str] = {
+    StoryType.confession: (
+        "WRITE FOR THE EAR (Narration Optimization):\n"
+        "- Write for spoken voice: short to medium sentences with varied rhythm and natural contractions.\n"
+        "- Allow organic pauses and authentic hesitation with '...' rather than rigid XML break tags.\n"
+        "- Confession voice must feel raw, intimate, sensory, and deeply personal.\n"
+        "- Never include markdown headings, bullet points, or parentheses in the narrative prose.\n"
+        "- Do not insert XML break tags inside sentences."
+    ),
+    StoryType.meditation: (
+        "WRITE FOR THE EAR (Narration Optimization):\n"
+        "- Write for spoken voice: slow, soothing, present-tense with generous breathing room.\n"
+        "- Second person ('you') in a soft, steady rhythm with natural pauses ('...').\n"
+        "- Never include markdown headings, bullet points, or parentheses in the narrative prose.\n"
+        "- Do not insert XML break tags inside sentences."
+    ),
+    StoryType.transformation: (
+        "WRITE FOR THE EAR (Narration Optimization):\n"
+        "- Write for spoken voice: dynamic rhythm building from vulnerability toward hope and liberation.\n"
+        "- Short, impactful statements alternating with reflective pauses ('...').\n"
+        "- Never include markdown headings, bullet points, or parentheses in the narrative prose.\n"
+        "- Do not insert XML break tags inside sentences."
+    ),
+}
+
+
 def build_story_system_template(story_type: StoryType, gender: Optional[str] = None) -> str:
     """
     Returns the full system prompt for a given story type,
@@ -637,6 +663,12 @@ def build_story_system_template(story_type: StoryType, gender: Optional[str] = N
     """
     instruction = STORY_TYPE_INSTRUCTIONS[story_type]
     base_persona = BASE_PERSONA
+
+    from app.core.config import settings
+    if getattr(settings, "TTS_PIPELINE_V2", False):
+        ear_instruction = WRITE_FOR_THE_EAR_INSTRUCTIONS.get(story_type)
+        if ear_instruction:
+            instruction = f"{instruction}\n\n{ear_instruction}"
 
     gender_lower = (gender or "").lower()
     if "female" in gender_lower or "woman" in gender_lower:

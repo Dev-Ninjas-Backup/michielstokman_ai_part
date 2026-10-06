@@ -285,6 +285,90 @@ def parse_alignment_to_words(alignment: dict) -> list[dict]:
     return words
 
 
+def _generate_voice_elevenlabs_v2(
+    text: str,
+    voice_id: str | None = None,
+    model_id: str | None = None,
+    stability: float | None = None,
+    similarity_boost: float | None = None,
+    style: float | None = None,
+    return_timestamps: bool = True,
+    story_type: str | None = None,
+) -> bytes | tuple[bytes, list[dict]]:
+    """
+    Phase 1 TTS V2 pipeline: profile-based emotional settings and natural text preparation.
+    Called only when TTS_PIPELINE_V2 is enabled.
+    """
+    import base64
+    from app.services.tts_profiles import get_tts_profile, prepare_text_for_tts
+
+    profile = get_tts_profile(story_type)
+    processed_text = prepare_text_for_tts(text, story_type)
+
+    if not settings.ELEVENLABS_API_KEY or settings.ELEVENLABS_API_KEY == "your_elevenlabs_api_key_here":
+        mock_audio = b"ID3\x04\x00\x00\x00\x00\x00\x00"
+        if return_timestamps:
+            words_list = processed_text.split()
+            mock_alignment = []
+            for i, w in enumerate(words_list):
+                if "<break" in w or "time=" in w:
+                    continue
+                mock_alignment.append({
+                    "word": w.strip(".,!?\"()"),
+                    "start": round(i * 0.4, 2),
+                    "end": round(i * 0.4 + 0.3, 2),
+                })
+            return mock_audio, mock_alignment
+        return mock_audio
+
+    resolved_voice_id = ELEVENLABS_VOICES.get(voice_id, voice_id) or settings.ELEVENLABS_VOICE_ID
+    resolved_model_id = model_id or settings.ELEVENLABS_MODEL_ID
+
+    resolved_stability = stability if stability is not None else profile.stability
+    resolved_similarity_boost = similarity_boost if similarity_boost is not None else profile.similarity_boost
+    resolved_style = style if style is not None else profile.style
+    resolved_speed = profile.speed
+
+    if return_timestamps:
+        url = f"https://api.elevenlabs.io/v1/text-to-speech/{resolved_voice_id}/with-timestamps"
+        headers = {
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+            "xi-api-key": settings.ELEVENLABS_API_KEY,
+        }
+    else:
+        url = f"https://api.elevenlabs.io/v1/text-to-speech/{resolved_voice_id}"
+        headers = {
+            "Accept": "audio/mpeg",
+            "Content-Type": "application/json",
+            "xi-api-key": settings.ELEVENLABS_API_KEY,
+        }
+
+    data = {
+        "text": processed_text,
+        "model_id": resolved_model_id,
+        "voice_settings": {
+            "stability": resolved_stability,
+            "similarity_boost": resolved_similarity_boost,
+            "style": resolved_style,
+            "use_speaker_boost": True,
+            "speed": resolved_speed,
+        },
+    }
+
+    response = requests.post(url, json=data, headers=headers)
+    response.raise_for_status()
+
+    if return_timestamps:
+        res_json = response.json()
+        audio_bytes = base64.b64decode(res_json["audio_base64"])
+        alignment = res_json.get("alignment", {})
+        word_alignments = parse_alignment_to_words(alignment)
+        return audio_bytes, word_alignments
+    else:
+        return response.content
+
+
 def generate_voice_elevenlabs(
     text: str,
     voice_id: str | None = None,
@@ -304,6 +388,28 @@ def generate_voice_elevenlabs(
 
     Requires ELEVENLABS_API_KEY in .env.
     """
+    # Safety mechanism: Run V2 pipeline only when TTS_PIPELINE_V2 is enabled for story narrations.
+    # On any exception, log error without story text and fall back cleanly to legacy path.
+    if getattr(settings, "TTS_PIPELINE_V2", False) and return_timestamps:
+        try:
+            return _generate_voice_elevenlabs_v2(
+                text=text,
+                voice_id=voice_id,
+                model_id=model_id,
+                stability=stability,
+                similarity_boost=similarity_boost,
+                style=style,
+                return_timestamps=return_timestamps,
+                story_type=story_type,
+            )
+        except Exception as exc:
+            import logging
+            logging.getLogger(__name__).error(
+                "TTS V2 pipeline failed (%s: %s). Falling back to legacy TTS pipeline.",
+                type(exc).__name__,
+                str(exc),
+            )
+
     # Preprocess text to add breaks/pauses for a sensual, slow delivery
     import re
     # Strip markdown bold/italic tags so the TTS engine doesn't read them or glitch
