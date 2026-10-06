@@ -246,3 +246,68 @@ def test_edge_only_silence_trimming_preserves_internal_silence():
 
         # The internal 1.0s silence must remain intact (~1.0s)
         assert any(abs(d - 1.0) < 0.05 for d in t_durs), f"Internal silence was not preserved: {t_durs}"
+
+
+def test_cloned_voice_guardrails(monkeypatch):
+    """Member cloned (IVC) voice caps style <= 0.25 and keeps stability >= 0.50."""
+    monkeypatch.setattr(settings, "TTS_PIPELINE_V2", True)
+
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+    mock_resp.json.return_value = {
+        "audio_base64": "SUQzBAAAAAAAAA==",
+        "alignment": {"characters": ["H", "i"], "character_start_times_seconds": [0.0, 0.1], "character_end_times_seconds": [0.1, 0.2]}
+    }
+
+    with patch("requests.post", return_value=mock_resp) as mock_post:
+        # Confession profile has stability=0.35, style=0.45
+        # For a custom member clone voice ID:
+        generate_voice_elevenlabs(
+            text="A cloned voice confession.\n\nSecond paragraph.",
+            voice_id="member_custom_voice_xyz_987",
+            return_timestamps=True,
+            story_type="confession"
+        )
+        assert mock_post.called
+        sent_body = mock_post.call_args[1]["json"]
+        settings_sent = sent_body["voice_settings"]
+        # Cloned voice stability must be >= 0.50 (boosted from 0.35)
+        assert settings_sent["stability"] >= 0.50
+        # Cloned voice style must be <= 0.25 (capped from 0.45)
+        assert settings_sent["style"] <= 0.25
+
+
+def test_alignment_excludes_break_tags_and_matches_display_text(monkeypatch):
+    """Break tags must never appear as words in alignment, matching display words 1-to-1."""
+    monkeypatch.setattr(settings, "TTS_PIPELINE_V2", True)
+
+    # Simulate ElevenLabs alignment containing characters from <break time="0.7s" />
+    text_sent = "Hello world.\n\n<break time=\"0.7s\" />\n\nThis shifted."
+    chars = list(text_sent)
+    starts = [i * 0.1 for i in range(len(chars))]
+    ends = [(i + 1) * 0.1 for i in range(len(chars))]
+
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+    mock_resp.json.return_value = {
+        "audio_base64": "SUQzBAAAAAAAAA==",
+        "alignment": {
+            "characters": chars,
+            "character_start_times_seconds": starts,
+            "character_end_times_seconds": ends
+        }
+    }
+
+    with patch("requests.post", return_value=mock_resp):
+        audio, word_alignments = generate_voice_elevenlabs(
+            text="Hello world.\n\nThis shifted.",
+            voice_id="Sophia",
+            return_timestamps=True,
+            story_type="confession"
+        )
+        words = [w["word"] for w in word_alignments]
+        # Confirm break tokens never appear in words
+        for bad_token in ["<break", "break", "time=", "0", "7s", "/>"]:
+            assert bad_token not in words
+        # Confirm 1-to-1 match with display words
+        assert words == ["Hello", "world", "This", "shifted"]
