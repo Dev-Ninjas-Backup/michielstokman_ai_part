@@ -296,113 +296,23 @@ def _generate_voice_elevenlabs_v2(
     story_type: str | None = None,
 ) -> bytes | tuple[bytes, list[dict]]:
     """
-    Phase 1 TTS V2 pipeline: profile-based emotional settings and natural text preparation.
-    Called only when TTS_PIPELINE_V2 is enabled.
+    Phase 2 TTS V2 pipeline: chunking, concurrency, alignment-based trimming,
+    and single-pass loudness normalization.
     """
-    import base64
-    from app.services.tts_profiles import get_tts_profile, prepare_text_for_tts
-
-    profile = get_tts_profile(story_type)
-    processed_text = prepare_text_for_tts(text, story_type)
-
-    if not settings.ELEVENLABS_API_KEY or settings.ELEVENLABS_API_KEY == "your_elevenlabs_api_key_here":
-        mock_audio = b"ID3\x04\x00\x00\x00\x00\x00\x00"
-        if return_timestamps:
-            words_list = processed_text.split()
-            mock_alignment = []
-            for i, w in enumerate(words_list):
-                if "<break" in w or "time=" in w:
-                    continue
-                mock_alignment.append({
-                    "word": w.strip(".,!?\"()"),
-                    "start": round(i * 0.4, 2),
-                    "end": round(i * 0.4 + 0.3, 2),
-                })
-            return mock_audio, mock_alignment
-        return mock_audio
-
-    resolved_voice_id = ELEVENLABS_VOICES.get(voice_id, voice_id) or settings.ELEVENLABS_VOICE_ID
-    resolved_model_id = model_id or settings.ELEVENLABS_MODEL_ID
-
-    resolved_stability = stability if stability is not None else profile.stability
-    resolved_similarity_boost = similarity_boost if similarity_boost is not None else profile.similarity_boost
-    resolved_style = style if style is not None else profile.style
-    resolved_speed = profile.speed
-
-    # Member cloned (IVC) voice safety guardrails:
-    # Cloned voices are susceptible to instability; cap style at 0.25 and keep stability >= 0.50
-    is_cloned_voice = False
-    if voice_id:
-        is_stock = (voice_id in ELEVENLABS_VOICES) or (voice_id in ELEVENLABS_VOICES.values()) or (voice_id == settings.ELEVENLABS_VOICE_ID)
-        is_cloned_voice = not is_stock
-
-    if is_cloned_voice:
-        resolved_stability = max(0.50, resolved_stability)
-        resolved_style = min(0.25, resolved_style)
-
+    from app.services.tts_pipeline import execute_tts_pipeline_v2
+    audio_bytes, alignment = execute_tts_pipeline_v2(
+        text=text,
+        story_type=story_type,
+        voice_id=voice_id,
+        model_id=model_id,
+        stability=stability,
+        similarity_boost=similarity_boost,
+        style=style,
+        return_timestamps=return_timestamps,
+    )
     if return_timestamps:
-        url = f"https://api.elevenlabs.io/v1/text-to-speech/{resolved_voice_id}/with-timestamps"
-        headers = {
-            "Accept": "application/json",
-            "Content-Type": "application/json",
-            "xi-api-key": settings.ELEVENLABS_API_KEY,
-        }
-    else:
-        url = f"https://api.elevenlabs.io/v1/text-to-speech/{resolved_voice_id}"
-        headers = {
-            "Accept": "audio/mpeg",
-            "Content-Type": "application/json",
-            "xi-api-key": settings.ELEVENLABS_API_KEY,
-        }
-
-    data = {
-        "text": processed_text,
-        "model_id": resolved_model_id,
-        "voice_settings": {
-            "stability": resolved_stability,
-            "similarity_boost": resolved_similarity_boost,
-            "style": resolved_style,
-            "use_speaker_boost": True,
-            "speed": resolved_speed,
-        },
-    }
-
-    response = requests.post(url, json=data, headers=headers)
-    response.raise_for_status()
-
-    if return_timestamps:
-        res_json = response.json()
-        audio_bytes = base64.b64decode(res_json["audio_base64"])
-        raw_alignment = res_json.get("alignment", {})
-
-        # Filter out XML break tags so tag tokens (<break, time=, etc.) never leak into word alignment
-        chars = raw_alignment.get("characters", [])
-        starts = raw_alignment.get("character_start_times_seconds", [])
-        ends = raw_alignment.get("character_end_times_seconds", [])
-        filt_chars, filt_starts, filt_ends = [], [], []
-        i = 0
-        n = len(chars)
-        while i < n:
-            if chars[i] == "<" and "".join(chars[i:i+6]).lower() == "<break":
-                while i < n and chars[i] != ">":
-                    i += 1
-                if i < n:
-                    i += 1  # Skip '>'
-                continue
-            filt_chars.append(chars[i])
-            filt_starts.append(starts[i])
-            filt_ends.append(ends[i])
-            i += 1
-
-        clean_alignment = {
-            "characters": filt_chars,
-            "character_start_times_seconds": filt_starts,
-            "character_end_times_seconds": filt_ends,
-        }
-        word_alignments = parse_alignment_to_words(clean_alignment)
-        return audio_bytes, word_alignments
-    else:
-        return response.content
+        return audio_bytes, alignment
+    return audio_bytes
 
 
 def generate_voice_elevenlabs(
