@@ -24,6 +24,7 @@ import math
 import os
 import re
 import shutil
+import statistics
 import subprocess
 import time
 from typing import Optional, Union
@@ -565,6 +566,248 @@ def raw_pcm_to_mp3(pcm_bytes: bytes, loudnorm: bool = True) -> bytes:
     return p2.stdout
 
 
+def compute_articulation_rate(alignment: list[dict], audio_duration_s: Optional[float] = None) -> float:
+    """
+    Computes articulation rate (words per minute) based on spoken words and
+    phonation time (speech duration excluding internal silence gaps > 250 ms).
+    """
+    if not alignment:
+        return 0.0
+
+    words = [w for w in alignment if any(c.isalnum() for c in w.get("word", ""))]
+    if not words:
+        return 0.0
+
+    first_start = words[0]["start"]
+    last_end = words[-1]["end"]
+    speech_time = max(0.001, last_end - first_start)
+
+    # Calculate internal pauses > 250 ms (0.250 s)
+    total_internal_gaps = 0.0
+    for i in range(len(words) - 1):
+        gap = words[i + 1]["start"] - words[i]["end"]
+        if gap > 0.250:
+            total_internal_gaps += gap
+
+    phonation_time = max(0.001, speech_time - total_internal_gaps)
+    return (len(words) / phonation_time) * 60.0
+
+
+def select_outlier_chunks(
+    chunk_metrics: list[dict],  # list of {"index": int, "rate": float, "word_count": int}
+) -> tuple[float, list[dict]]:
+    """
+    Computes median articulation rate across chunks and selects outliers outside
+    the acceptable tolerance band (6% default; 8% for short chunks < 60 words).
+    """
+    valid_rates = [c["rate"] for c in chunk_metrics if c.get("rate", 0) > 0]
+    if not valid_rates:
+        return 0.0, []
+
+    median_rate = statistics.median(valid_rates)
+    if median_rate <= 0:
+        return 0.0, []
+
+    outliers = []
+    for c in chunk_metrics:
+        rate = c.get("rate", 0.0)
+        word_count = c.get("word_count", 0)
+        if rate <= 0:
+            continue
+        threshold = 0.08 if word_count < 60 else 0.06
+        deviation = abs(rate - median_rate) / median_rate
+        if deviation > threshold:
+            outliers.append({
+                "chunk_index": c["index"],
+                "rate": rate,
+                "word_count": word_count,
+                "deviation": deviation,
+                "threshold": threshold,
+            })
+    return median_rate, outliers
+
+
+def apply_chunk_atempo(
+    mp3_bytes: bytes,
+    alignment: list[dict],
+    factor: float,
+) -> tuple[bytes, list[dict]]:
+    """
+    Applies ffmpeg atempo filter to chunk mp3 bytes and scales alignment timestamps.
+    Factor (median / measured) is clamped to [0.92, 1.08].
+    """
+    clamped_factor = min(1.08, max(0.92, factor))
+    if abs(clamped_factor - 1.0) < 0.001:
+        return mp3_bytes, alignment
+
+    ffmpeg_bin = get_ffmpeg_bin()
+    cmd = [
+        ffmpeg_bin, "-y",
+        "-f", "mp3", "-i", "pipe:0",
+        "-filter:a", f"atempo={clamped_factor:.4f}",
+        "-ar", str(PCM_SAMPLE_RATE),
+        "-ac", str(PCM_CHANNELS),
+        "-b:a", "128k",
+        "-f", "mp3", "pipe:1",
+    ]
+    proc = subprocess.run(cmd, input=mp3_bytes, capture_output=True, check=True)
+    scaled_mp3 = proc.stdout
+
+    # Get new audio duration
+    _, new_dur = mp3_to_raw_pcm(scaled_mp3)
+
+    # Scale alignment timestamps: as tempo increases (clamped_factor > 1), duration shrinks
+    scaled_alignment = []
+    prev_end = 0.0
+    for w in alignment:
+        s = max(0.0, round(w["start"] / clamped_factor, 3))
+        e = min(new_dur, max(s, round(w["end"] / clamped_factor, 3)))
+        if s < prev_end:
+            s = prev_end
+        if e < s:
+            e = s
+        prev_end = e
+        scaled_alignment.append({
+            "word": w["word"],
+            "start": s,
+            "end": e,
+        })
+
+    # Final clamp check: ensure last end <= new_dur
+    if scaled_alignment and scaled_alignment[-1]["end"] > new_dur:
+        scaled_alignment[-1]["end"] = new_dur
+
+    return scaled_mp3, scaled_alignment
+
+
+def apply_pace_normalization(
+    ordered_chunks: list[ChunkResult],
+    chunks: list[TextChunk],
+    resolved_voice_id: str,
+    resolved_model_id: str,
+    voice_settings: dict,
+    api_key: str,
+    max_retries: int = 3,
+) -> list[ChunkResult]:
+    """
+    Two-pass relative pace normalization across chunks:
+    1. Computes articulation rate per chunk and story median.
+    2. Identifies outliers (>6% deviation; >8% for chunks < 60 words).
+    3. For outliers >8%: regenerates chunk once with speed = clamp(current_speed * median/measured, 0.85, 1.15),
+       capped at 30% of chunks per story (worst outliers first).
+    4. Applies ffmpeg atempo (factor clamped to [0.92, 1.08]) for remaining or residual deviations.
+    5. Logs per-chunk numbers only (articulation rate, factor, regenerated yes/no). No story text.
+    """
+    if len(ordered_chunks) <= 1:
+        return ordered_chunks
+
+    # Measure initial articulation rates
+    chunk_metrics = []
+    for c_res in ordered_chunks:
+        rate = compute_articulation_rate(c_res.alignment)
+        w_count = len([w for w in c_res.alignment if any(ch.isalnum() for ch in w.get("word", ""))])
+        chunk_metrics.append({
+            "index": c_res.index,
+            "rate": rate,
+            "word_count": w_count,
+        })
+
+    median_rate, outliers = select_outlier_chunks(chunk_metrics)
+    if not outliers or median_rate <= 0:
+        for m in chunk_metrics:
+            logger.info("Pace chunk %d: rate=%.1f WPM, median=%.1f, factor=1.000, regenerated=False", m["index"], m["rate"], median_rate)
+        return ordered_chunks
+
+    # Cap regeneration at 30% of chunks per story
+    max_regenerations = math.floor(len(ordered_chunks) * 0.30)
+
+    # Sort candidates for regeneration: deviation > 0.08, descending deviation
+    regen_candidates = [o for o in outliers if o["deviation"] > 0.08]
+    regen_candidates.sort(key=lambda x: x["deviation"], reverse=True)
+    allowed_regen_indices = {o["chunk_index"] for o in regen_candidates[:max_regenerations]}
+
+    normalized_chunks = list(ordered_chunks)
+    base_speed = voice_settings.get("speed", 1.0)
+
+    for c_idx, c_res in enumerate(ordered_chunks):
+        outlier_info = next((o for o in outliers if o["chunk_index"] == c_idx), None)
+        if not outlier_info:
+            logger.info("Pace chunk %d: rate=%.1f WPM, median=%.1f, factor=1.000, regenerated=False", c_idx, chunk_metrics[c_idx]["rate"], median_rate)
+            continue
+
+        measured_rate = outlier_info["rate"]
+        regenerated = False
+
+        # Band-edge correction: correct toward nearest edge of median +/- 5% (not median itself)
+        if measured_rate < median_rate:
+            target_rate = median_rate * 0.95
+        else:
+            target_rate = median_rate * 1.05
+
+        factor = target_rate / measured_rate if measured_rate > 0 else 1.0
+
+        current_res = c_res
+
+        # Case b: deviation > 8% and within 30% regeneration budget
+        if c_idx in allowed_regen_indices and api_key and api_key != "your_elevenlabs_api_key_here":
+            target_speed = min(1.15, max(0.85, base_speed * factor))
+            adjusted_settings = dict(voice_settings)
+            adjusted_settings["speed"] = round(target_speed, 3)
+
+            try:
+                new_chunk_res = fetch_chunk_audio_with_retry(
+                    chunk=chunks[c_idx],
+                    resolved_voice_id=resolved_voice_id,
+                    resolved_model_id=resolved_model_id,
+                    voice_settings=adjusted_settings,
+                    api_key=api_key,
+                    max_retries=max_retries,
+                )
+                current_res = new_chunk_res
+                regenerated = True
+                # Re-measure
+                new_rate = compute_articulation_rate(current_res.alignment)
+                if new_rate > 0:
+                    measured_rate = new_rate
+                    if measured_rate < median_rate:
+                        target_rate = median_rate * 0.95
+                    else:
+                        target_rate = median_rate * 1.05
+                    factor = target_rate / measured_rate
+            except Exception as exc:
+                logger.warning("Pace chunk %d regeneration failed (%s: %s). Falling back to atempo.", c_idx, type(exc).__name__, str(exc))
+
+        # Apply atempo for residual or initial deviation (clamped to 0.92-1.08)
+        atempo_factor = min(1.08, max(0.92, factor))
+        if abs(atempo_factor - 1.0) >= 0.005:
+            try:
+                scaled_mp3, scaled_alignment = apply_chunk_atempo(
+                    mp3_bytes=current_res.mp3_bytes,
+                    alignment=current_res.alignment,
+                    factor=atempo_factor,
+                )
+                current_res = ChunkResult(
+                    index=current_res.index,
+                    mp3_bytes=scaled_mp3,
+                    alignment=scaled_alignment,
+                    is_paragraph_end=current_res.is_paragraph_end,
+                )
+            except Exception as exc:
+                logger.warning("Pace chunk %d atempo scaling failed (%s: %s).", c_idx, type(exc).__name__, str(exc))
+
+        normalized_chunks[c_idx] = current_res
+        logger.info(
+            "Pace chunk %d: rate=%.1f WPM, median=%.1f, factor=%.3f, regenerated=%s",
+            c_idx,
+            measured_rate,
+            median_rate,
+            round(atempo_factor, 3),
+            regenerated,
+        )
+
+    return normalized_chunks
+
+
 def execute_tts_pipeline_v2(
     text: str,
     story_type: Optional[Union[str, StoryType]] = None,
@@ -625,11 +868,18 @@ def execute_tts_pipeline_v2(
     }
 
     # Derive max chunk size from model limit (10k for multilingual v2, 40k for turbo v2.5; cap at 1500)
-    model_char_limit = 10000 if "multilingual" in str(resolved_model_id).lower() else 40000
-    chunk_max_chars = min(1500, model_char_limit)
+    # When TTS_PACE_NORMALIZE is enabled, use smaller 500-900 char chunks on sentence boundaries
+    pace_norm_enabled = getattr(settings, "TTS_PACE_NORMALIZE", False)
+    if pace_norm_enabled:
+        chunk_min_chars = 500
+        chunk_max_chars = 900
+    else:
+        model_char_limit = 10000 if "multilingual" in str(resolved_model_id).lower() else 40000
+        chunk_min_chars = 800
+        chunk_max_chars = min(1500, model_char_limit)
 
     # Split text into chunks
-    chunks = split_text_into_chunks(prepared_text, min_chars=800, max_chars=chunk_max_chars)
+    chunks = split_text_into_chunks(prepared_text, min_chars=chunk_min_chars, max_chars=chunk_max_chars)
     if not chunks:
         raise ValueError("Prepared text resulted in 0 chunks")
 
@@ -679,6 +929,25 @@ def execute_tts_pipeline_v2(
 
     # Order chunks sequentially
     ordered_chunks = [chunk_results[i] for i in range(len(chunks))]
+
+    # Phase 2 Pass 2: Pace normalization (only when TTS_PACE_NORMALIZE is enabled)
+    if getattr(settings, "TTS_PACE_NORMALIZE", False):
+        try:
+            ordered_chunks = apply_pace_normalization(
+                ordered_chunks=ordered_chunks,
+                chunks=chunks,
+                resolved_voice_id=resolved_voice_id,
+                resolved_model_id=resolved_model_id,
+                voice_settings=voice_settings,
+                api_key=settings.ELEVENLABS_API_KEY,
+                max_retries=max_retries,
+            )
+        except Exception as norm_exc:
+            logger.warning(
+                "TTS pace normalization failed (%s: %s). Continuing with un-normalized chunks.",
+                type(norm_exc).__name__,
+                str(norm_exc),
+            )
 
     # Decode, trim, stitch PCM and shift alignment
     final_pcm_parts: list[bytes] = []
