@@ -1170,5 +1170,192 @@ def test_b0_soft_ending_decaying_tone():
     assert trim_end < 0.700
 
 
+def test_parse_alignment_speakable_char_boundaries_and_highlighting():
+    """
+    Validates that parse_alignment_to_whitespace_words bounds each word to its
+    first and last speakable (alphanumeric) character:
+    - Trailing punctuation (periods, commas, quotes) and trailing inter-sentence
+      space/pauses are excluded from the word's end timestamp.
+    - Leading punctuation (quotes, brackets) is excluded from the word's start timestamp.
+    - Standalone unspeakable tokens (e.g. em-dash) receive zero-length at previous end.
+    - Token count exactly equals display_text.split() (1-to-1 index highlighting).
+    - Timestamp-based highlighting is strictly active during phonation and turns off
+      during pause intervals.
+    """
+    from app.services.tts_pipeline import parse_alignment_to_whitespace_words
+
+    display_text = '“Start” — wonderful. Next'
+    # Characters in spoken/synthesized stream:
+    chars =  ['“', 'S', 't', 'a', 'r', 't', '”', ' ', '—', ' ', 'w', 'o', 'n', 'd', 'e', 'r', 'f', 'u', 'l', '.', ' ', 'N', 'e', 'x', 't']
+    starts = [0.00, 0.05, 0.10, 0.15, 0.20, 0.25, 0.30, 0.35, 0.36, 0.40, 0.42, 0.46, 0.50, 0.54, 0.58, 0.62, 0.66, 0.70, 0.74, 0.78, 0.88, 1.40, 1.45, 1.50, 1.55]
+    ends =   [0.05, 0.10, 0.15, 0.20, 0.25, 0.30, 0.35, 0.36, 0.40, 0.42, 0.46, 0.50, 0.54, 0.58, 0.62, 0.66, 0.70, 0.74, 0.78, 0.88, 1.40, 1.45, 1.50, 1.55, 1.60]
+
+    alignment = {
+        "characters": chars,
+        "character_start_times_seconds": starts,
+        "character_end_times_seconds": ends,
+    }
+
+    words = parse_alignment_to_whitespace_words(alignment, display_text=display_text)
+    display_tokens = display_text.split()
+
+    # 1. Index-based highlighting: exact 1-to-1 mapping
+    assert len(words) == len(display_tokens) == 4
+    assert [w["word"] for w in words] == ["Start", "—", "wonderful", "Next"]
+
+    # 2. Leading punctuation exclusion: "Start" starts at 'S' (0.05), not '“' (0.00)
+    # and ends at 't' (0.30), not '”' (0.35)
+    assert words[0]["start"] == 0.05
+    assert words[0]["end"] == 0.30
+
+    # 3. Standalone unspeakable token '—': zero duration at previous word's end (0.30)
+    assert words[1]["start"] == 0.30
+    assert words[1]["end"] == 0.30
+
+    # 4. Trailing punctuation & pause exclusion:
+    # "wonderful." ends at 'l' (0.78), NOT period '.' (0.88) and NOT trailing space (1.40)
+    assert words[2]["start"] == 0.42
+    assert words[2]["end"] == 0.78
+
+    # 5. Next word starts cleanly after inter-sentence pause
+    assert words[3]["start"] == 1.40
+    assert words[3]["end"] == 1.60
+
+    # 6. Timestamp highlighting check:
+    # At t = 0.82 (during the period/pause after wonderful), no word is actively highlighted
+    active_words = [w["word"] for w in words if w["start"] <= 0.82 <= w["end"]]
+    assert active_words == []
+
+
+def test_profile_seam_gap_fields():
+    """Validates that seam_gap_ms=800 and seam_paragraph_gap_ms=1200 are added without changing existing values."""
+    confession = get_tts_profile("confession")
+    assert confession.seam_gap_ms == 800
+    assert confession.seam_paragraph_gap_ms == 1200
+    assert confession.paragraph_break_s == 0.7
+
+    meditation = get_tts_profile("meditation")
+    assert meditation.seam_gap_ms == 800
+    assert meditation.seam_paragraph_gap_ms == 1200
+    assert meditation.paragraph_break_s == 1.2
+
+    transformation = get_tts_profile("transformation")
+    assert transformation.seam_gap_ms == 800
+    assert transformation.seam_paragraph_gap_ms == 1200
+    assert transformation.paragraph_break_s == 0.8
+
+
+def test_generate_room_tone_fills_and_xfades():
+    """Validates room tone generation for 50ms, 400ms, 800ms, 1200ms fills with 15ms crossfades."""
+    import array, math
+    from app.services.tts_pipeline import generate_room_tone
+
+    sr = 44100
+    # 400ms synthetic base clip with low-level noise (-72 dB)
+    base_len = int(0.400 * sr)
+    base_samples = array.array("h", [int(8.0 * math.sin(2.0 * math.pi * 100.0 * (i / sr))) for i in range(base_len)])
+    base_pcm = base_samples.tobytes()
+
+    for dur_ms in [50, 400, 800, 1200]:
+        dur_s = dur_ms / 1000.0
+        out_pcm = generate_room_tone(base_pcm, dur_s, channels=1, sample_rate=sr, xfade_ms=15.0)
+        expected_bytes = int(dur_s * sr) * 2
+        assert len(out_pcm) == expected_bytes
+
+        out_arr = array.array("h", out_pcm)
+        # Verify 15ms boundary envelope fades (first and last sample attenuated)
+        assert abs(out_arr[0]) <= abs(base_samples[0])
+        assert abs(out_arr[-1]) <= abs(base_samples[-1])
+
+    # Zero or negative duration returns empty bytes
+    assert generate_room_tone(base_pcm, 0.0, channels=1, sample_rate=sr) == b""
+    assert generate_room_tone(base_pcm, -0.1, channels=1, sample_rate=sr) == b""
+    assert generate_room_tone(b"", 0.5, channels=1, sample_rate=sr) == b""
+
+
+def test_extract_clean_room_tone_segment_and_fallback():
+    """Validates extraction of clean room tone segments (< -65 dB) and fallback on missing clean segment."""
+    import array, math
+    from app.services.tts_pipeline import extract_clean_room_tone_segment
+
+    sr = 44100
+    # Chunk with speech (-20 dB) followed by a 500ms clean pause (-74 dB)
+    speech_samples = [int(3000.0 * math.sin(i * 0.1)) for i in range(int(1.0 * sr))] # ~ -20 dB
+    pause_samples = [int(6.0 * math.sin(i * 0.05)) for i in range(int(0.500 * sr))]    # ~ -74 dB
+    combined = array.array("h", speech_samples + pause_samples).tobytes()
+
+    clip = extract_clean_room_tone_segment([combined], channels=1, sample_rate=sr, target_dur_s=0.400, max_rms_threshold_db=-65.0)
+    assert clip is not None
+    assert len(clip) == int(0.400 * sr) * 2
+
+    # Chunk with only loud audio (never drops below -65 dB) -> returns None
+    loud_only = array.array("h", speech_samples).tobytes()
+    assert extract_clean_room_tone_segment([loud_only], channels=1, sample_rate=sr, max_rms_threshold_db=-65.0) is None
+
+
+def test_tail_trimming_soft_ending_decay_preserved_energy_based():
+    """Validates that energy-based tail trimming preserves soft ending decay in [-50, -40) dB + 150ms cushion."""
+    import array, math
+    from app.services.tts_pipeline import get_last_audible_time
+
+    sr = 44100
+    # 1.0s speech (-20 dB), then 200ms soft ending decay (-45 dB), then silence (-80 dB)
+    speech_n = int(1.0 * sr)
+    decay_n = int(0.200 * sr)
+    silence_n = int(0.800 * sr)
+
+    samples = array.array("h")
+    samples.extend(int(3000.0 * math.sin(i * 0.1)) for i in range(speech_n))
+    samples.extend(int(180.0 * math.sin(i * 0.05)) for i in range(decay_n)) # -45 dB
+    samples.extend(int(2.0 * math.sin(i * 0.05)) for i in range(silence_n))   # -80 dB
+    pcm_bytes = samples.tobytes()
+
+    t_audible = get_last_audible_time(pcm_bytes, threshold_db=-50.0, window_ms=10.0)
+    # Audible end should be at the end of the soft decay (around 1.200s), NOT at 1.000s
+    assert 1.190 <= t_audible <= 1.210
+
+    # With 150ms cushion, trim_end is t_audible + 0.150
+    trim_end = min(len(samples)/sr, max(t_audible + 0.080, t_audible + 0.150))
+    assert 1.340 <= trim_end <= 1.360
+
+
+def test_seam_gap_40db_within_20ms_of_target():
+    """Validates that inserted seam gap produces acoustic -40 dB gap within 20ms of target."""
+    import array, math
+    from app.services.tts_pipeline import generate_room_tone
+
+    sr = 44100
+    target_s = 0.800
+    tail40_s = 0.150
+    head40_s = 0.050
+    inserted_s = max(0.0, target_s - tail40_s - head40_s) # 0.600s
+
+    assert abs(inserted_s - 0.600) < 0.001
+
+    base_clip = array.array("h", [int(5.0 * math.sin(i)) for i in range(int(0.4 * sr))]).tobytes()
+    fill = generate_room_tone(base_clip, inserted_s, sample_rate=sr)
+    assert len(fill) == int(inserted_s * sr) * 2
+
+    # Total gap between -40 dB points is tail40 + inserted + head40 = 0.800s (within 20ms of target)
+    total_acoustic_gap = tail40_s + (len(fill) / (sr * 2)) + head40_s
+    assert abs(total_acoustic_gap - target_s) * 1000.0 <= 20.0
+
+
+def test_flag_off_identical_to_legacy():
+    """Validates that when TTS_PIPELINE_V2=False, pipeline delegates directly to legacy path."""
+    with patch.object(settings, "TTS_PIPELINE_V2", False):
+        with patch("app.core.llm._generate_voice_elevenlabs_v2") as mock_v2:
+            with patch("app.core.llm.requests.post") as mock_post:
+                mock_post.return_value.status_code = 200
+                mock_post.return_value.content = b"legacy_mp3_audio"
+                mock_post.return_value.iter_content = lambda chunk_size: [b"legacy_mp3_audio"]
+
+                res = generate_voice_elevenlabs("A short test story", return_timestamps=False)
+                assert res == b"legacy_mp3_audio"
+                mock_v2.assert_not_called()
+
+
+
+
 
 

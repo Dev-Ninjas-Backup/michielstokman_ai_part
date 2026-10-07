@@ -153,10 +153,12 @@ def get_last_audible_time(
     threshold_db: float = -50.0,
     window_ms: float = 10.0,
     search_s: float = 2.0,
+    max_time_s: Optional[float] = None,
 ) -> float:
     """
     Finds the timestamp (in seconds from start of pcm_bytes) where audio energy
     last drops below threshold_db. Scans in window_ms (10 ms) windows over the last search_s (2.0 s).
+    If max_time_s is provided, bounds search to that timestamp to avoid end-of-file container framing artifacts.
     """
     bytes_per_sample = 2
     bytes_per_frame = channels * bytes_per_sample
@@ -173,10 +175,11 @@ def get_last_audible_time(
     window_frames = int((window_ms / 1000.0) * sample_rate)
     tail_frames = int(search_s * sample_rate)
     start_frame = max(0, total_frames - tail_frames)
+    end_frame = min(total_frames, int(max_time_s * sample_rate)) if max_time_s is not None else total_frames
 
     last_audible_frame = start_frame
-    for f_idx in range(start_frame, total_frames, window_frames):
-        chunk = mono_samples[f_idx : min(f_idx + window_frames, total_frames)]
+    for f_idx in range(start_frame, end_frame, window_frames):
+        chunk = mono_samples[f_idx : min(f_idx + window_frames, end_frame)]
         if not chunk:
             continue
         sum_sq = sum(s * s for s in chunk)
@@ -189,6 +192,148 @@ def get_last_audible_time(
             last_audible_frame = f_idx + len(chunk)
 
     return last_audible_frame / float(sample_rate)
+
+
+def extract_clean_room_tone_segment(
+    pcm_bytes_list: list[bytes],
+    channels: int = PCM_CHANNELS,
+    sample_rate: int = PCM_SAMPLE_RATE,
+    target_dur_s: float = 0.400,
+    max_rms_threshold_db: float = -65.0,
+    min_dur_s: float = 0.300,
+) -> Optional[bytes]:
+    """
+    Scans in-memory pcm_bytes_list for the quietest pause segment (target 300-500 ms)
+    where maximum RMS across 20 ms windows is strictly below max_rms_threshold_db (-65 dB).
+    Returns raw PCM bytes of the best segment, or None if no clean segment exists.
+    In memory only. Never raises.
+    """
+    try:
+        bytes_per_sample = 2 * channels
+        win20_frames = int(0.020 * sample_rate)
+        target_frames = int(target_dur_s * sample_rate)
+        min_frames = int(min_dur_s * sample_rate)
+
+        best_segment = None
+        best_mean_rms = 0.0
+
+        for pcm in pcm_bytes_list:
+            if not pcm or len(pcm) < min_frames * bytes_per_sample:
+                continue
+            samples = array.array("h", pcm)
+            total_frames = len(samples) // channels
+            if total_frames < min_frames:
+                continue
+
+            cur_dur_frames = target_frames if total_frames >= target_frames else min_frames
+            step_frames = win20_frames
+
+            for start_f in range(0, total_frames - cur_dur_frames + 1, step_frames):
+                seg = samples[start_f * channels : (start_f + cur_dur_frames) * channels]
+                is_clean = True
+                seg_rms_list = []
+
+                for w_idx in range(0, cur_dur_frames, win20_frames):
+                    w_samples = seg[w_idx * channels : min(w_idx + win20_frames, cur_dur_frames) * channels]
+                    if not w_samples:
+                        continue
+                    sum_sq = sum(s * s for s in w_samples)
+                    rms = math.sqrt(sum_sq / float(len(w_samples)))
+                    db = 20.0 * math.log10(rms / 32767.0) if rms > 0 else -100.0
+                    if db >= max_rms_threshold_db:
+                        is_clean = False
+                        break
+                    seg_rms_list.append(db)
+
+                if is_clean and seg_rms_list:
+                    mean_rms = sum(seg_rms_list) / len(seg_rms_list)
+                    if best_segment is None or mean_rms < best_mean_rms:
+                        best_mean_rms = mean_rms
+                        best_segment = seg.tobytes()
+
+        return best_segment
+    except Exception as exc:
+        logger.warning("Room tone extraction encountered exception (%s: %s).", type(exc).__name__, exc)
+        return None
+
+
+def generate_room_tone(
+    base_pcm: bytes,
+    target_dur_s: float,
+    channels: int = PCM_CHANNELS,
+    sample_rate: int = PCM_SAMPLE_RATE,
+    xfade_ms: float = 15.0,
+) -> bytes:
+    """
+    Generates seamless room tone of target_dur_s from base_pcm in memory.
+    - If target_dur_s <= 0, returns b"".
+    - 15 ms crossfades at transitions and boundary fades.
+    - For fills longer than clip duration, alternates standard and reversed copies
+      with varied loop offsets to eliminate mechanical periodicity.
+    - In memory only.
+    """
+    if not base_pcm or target_dur_s <= 0.0:
+        return b""
+
+    n_target = int(target_dur_s * sample_rate)
+    if n_target <= 0:
+        return b""
+
+    xfade = int((xfade_ms / 1000.0) * sample_rate)
+    base = array.array("h", base_pcm)
+    n_base = len(base) // channels
+    if n_base == 0:
+        return b""
+
+    base_rev = array.array("h")
+    if channels == 1:
+        base_rev.extend(reversed(base))
+    else:
+        for f in range(n_base - 1, -1, -1):
+            for c in range(channels):
+                base_rev.append(base[f * channels + c])
+
+    if n_target <= n_base:
+        out = array.array("h", base[: n_target * channels])
+    else:
+        out = array.array("h", base)
+        copy_cycle = 0
+        while len(out) // channels < n_target:
+            copy_cycle += 1
+            source = base_rev if (copy_cycle % 2 == 1) else base
+            offset = ((copy_cycle * 7) % max(1, (n_base // 4))) * channels
+
+            cur_frames = len(out) // channels
+            eff_xfade = min(xfade, cur_frames, n_base)
+            overlap_start = (cur_frames - eff_xfade) * channels
+
+            for j in range(eff_xfade):
+                w_curr = 1.0 - (j / float(eff_xfade))
+                w_next = j / float(eff_xfade)
+                for c in range(channels):
+                    idx_out = overlap_start + j * channels + c
+                    idx_src = (offset + j * channels + c) % len(source)
+                    blended = int(out[idx_out] * w_curr + source[idx_src] * w_next)
+                    out[idx_out] = max(-32768, min(32767, blended))
+
+            append_start = (offset + eff_xfade * channels) % len(source)
+            if append_start < len(source):
+                out.extend(source[append_start:])
+            else:
+                out.extend(source)
+        out = out[: n_target * channels]
+
+    fade_frames = min(len(out) // (2 * channels), xfade)
+    if fade_frames > 0:
+        for i in range(fade_frames):
+            w = i / float(fade_frames)
+            for c in range(channels):
+                idx_head = i * channels + c
+                idx_tail = len(out) - (i + 1) * channels + c
+                out[idx_head] = int(out[idx_head] * w)
+                out[idx_tail] = int(out[idx_tail] * w)
+
+    return out.tobytes()
 
 
 def parse_alignment_to_whitespace_words(alignment: dict, display_text: Optional[str] = None) -> list[dict]:
@@ -240,27 +385,34 @@ def parse_alignment_to_whitespace_words(alignment: dict, display_text: Optional[
         return []
 
     # 2. Extract spoken word units from filt_chars (grouped by whitespace in character stream)
+    # Word start = start of first speakable character; word end = end of last speakable character
     raw_spoken_units = []
     curr_c, curr_s, curr_e = [], None, None
+    curr_spk_s, curr_spk_e = None, None
     for c, s, e in zip(filt_chars, filt_starts, filt_ends):
         if c in (" ", "\t", "\n", "\r"):
             if curr_c:
                 raw_spoken_units.append({
                     "text": "".join(curr_c),
-                    "start": curr_s,
-                    "end": curr_e,
+                    "start": curr_spk_s if curr_spk_s is not None else curr_s,
+                    "end": curr_spk_e if curr_spk_e is not None else curr_e,
                 })
                 curr_c, curr_s, curr_e = [], None, None
+                curr_spk_s, curr_spk_e = None, None
         else:
             if curr_s is None:
                 curr_s = s
             curr_c.append(c)
             curr_e = e
+            if c.isalnum():
+                if curr_spk_s is None:
+                    curr_spk_s = s
+                curr_spk_e = e
     if curr_c:
         raw_spoken_units.append({
             "text": "".join(curr_c),
-            "start": curr_s,
-            "end": curr_e,
+            "start": curr_spk_s if curr_spk_s is not None else curr_s,
+            "end": curr_spk_e if curr_spk_e is not None else curr_e,
         })
 
     # Filter to speakable units (containing at least one alphanumeric char)
@@ -1202,7 +1354,14 @@ def execute_tts_pipeline_v2(
         # Tail trimming:
         # t_audible = last 10 ms window >= -50 dB
         # trim_end = min(dur, t_audible + 0.150); never cut earlier than t_audible + 0.080
-        t_audible = get_last_audible_time(pcm_bytes, channels=PCM_CHANNELS, sample_rate=PCM_SAMPLE_RATE, threshold_db=-50.0, window_ms=10.0)
+        t_audible = get_last_audible_time(
+            pcm_bytes,
+            channels=PCM_CHANNELS,
+            sample_rate=PCM_SAMPLE_RATE,
+            threshold_db=-50.0,
+            window_ms=10.0,
+            max_time_s=(last_word_end + 0.600) if (last_word_end and last_word_end > 0.0) else None,
+        )
         if t_audible <= 0.0:
             t_audible = last_word_end
         trim_end = min(dur, max(t_audible + 0.080, t_audible + 0.150))
@@ -1214,22 +1373,51 @@ def execute_tts_pipeline_v2(
 
         # Apply 10 ms linear micro-fade inside the cushion
         faded_pcm = apply_pcm_fade(sliced_pcm, fade_ms=10.0, sample_rate=PCM_SAMPLE_RATE)
+        trimmed_dur = len(faded_pcm) / (PCM_SAMPLE_RATE * PCM_BYTES_PER_FRAME)
 
-        measured_head = max(0.0, t_onset - trim_start)
-        measured_tail = max(0.0, trim_end - t_audible)
+        # Measure head40 and tail40 on trimmed faded PCM for -40 dB target seam gap
+        win10_frames = int(0.010 * PCM_SAMPLE_RATE)
+        total_faded_frames = len(faded_pcm) // PCM_BYTES_PER_FRAME
+        faded_samples = array.array("h", faded_pcm)
+
+        h40 = trimmed_dur
+        for f in range(0, min(total_faded_frames, int(2.0 * PCM_SAMPLE_RATE)), win10_frames):
+            chunk_s = faded_samples[f : min(f + win10_frames, total_faded_frames)]
+            if chunk_s:
+                rms = math.sqrt(sum(s * s for s in chunk_s) / float(len(chunk_s)))
+                db = 20.0 * math.log10(rms / 32767.0) if rms > 0 else -100.0
+                if db >= -40.0:
+                    h40 = f / float(PCM_SAMPLE_RATE)
+                    break
+
+        t40_end = 0.0
+        for f in range(total_faded_frames - win10_frames, 0, -win10_frames):
+            chunk_s = faded_samples[f : min(f + win10_frames, total_faded_frames)]
+            if chunk_s:
+                rms = math.sqrt(sum(s * s for s in chunk_s) / float(len(chunk_s)))
+                db = 20.0 * math.log10(rms / 32767.0) if rms > 0 else -100.0
+                if db >= -40.0:
+                    t40_end = (f + len(chunk_s)) / float(PCM_SAMPLE_RATE)
+                    break
+        tail40 = max(0.0, trimmed_dur - t40_end)
 
         chunk_specs.append({
+            "raw_pcm": pcm_bytes,
             "faded_pcm": faded_pcm,
             "words": words,
             "trim_start": trim_start,
             "trim_end": trim_end,
-            "trimmed_dur": len(faded_pcm) / (PCM_SAMPLE_RATE * PCM_BYTES_PER_FRAME),
-            "measured_head": measured_head,
-            "measured_tail": measured_tail,
+            "trimmed_dur": trimmed_dur,
+            "head40": h40,
+            "tail40": tail40,
             "is_paragraph_end": c_res.is_paragraph_end,
         })
 
-    # Pass 2: Assemble trimmed PCM, inject target-gap silence, and shift alignment monotonically
+    # Harvest clean room-tone bed from available chunks (in-memory only, max RMS < -65 dB)
+    raw_pcms = [spec["raw_pcm"] for spec in chunk_specs if "raw_pcm" in spec]
+    room_tone_clip = extract_clean_room_tone_segment(raw_pcms, channels=PCM_CHANNELS, sample_rate=PCM_SAMPLE_RATE)
+
+    # Pass 2: Assemble trimmed PCM, inject target-gap room tone or silence, and shift alignment monotonically
     final_pcm_parts: list[bytes] = []
     final_alignment: list[dict] = []
     running_offset = 0.0
@@ -1250,21 +1438,42 @@ def execute_tts_pipeline_v2(
                 "end": max(0.0, round(shifted_end, 3)),
             })
 
-        # Seam silence (skip after the last chunk)
+        # Seam gap insertion (skip after the last chunk)
         if idx < len(chunk_specs) - 1:
             if spec["is_paragraph_end"]:
-                target_gap = profile.paragraph_break_s
+                target_gap = profile.seam_paragraph_gap_ms / 1000.0
             else:
                 target_gap = profile.seam_gap_ms / 1000.0
 
-            cur_tail = spec["measured_tail"]
-            next_head = chunk_specs[idx + 1]["measured_head"]
+            cur_tail40 = spec["tail40"]
+            next_head40 = chunk_specs[idx + 1]["head40"]
 
-            inserted_s = max(0.0, target_gap - cur_tail - next_head)
-            silence_frames = int(inserted_s * PCM_SAMPLE_RATE)
-            silence_pcm = b'\x00' * (silence_frames * PCM_BYTES_PER_FRAME)
-            final_pcm_parts.append(silence_pcm)
-            actual_pause_dur = len(silence_pcm) / (PCM_SAMPLE_RATE * PCM_BYTES_PER_FRAME)
+            inserted_s = max(0.0, target_gap - cur_tail40 - next_head40)
+            gap_pcm = b""
+            if inserted_s > 0.0:
+                if room_tone_clip:
+                    try:
+                        gap_pcm = generate_room_tone(
+                            room_tone_clip,
+                            inserted_s,
+                            channels=PCM_CHANNELS,
+                            sample_rate=PCM_SAMPLE_RATE,
+                            xfade_ms=15.0,
+                        )
+                    except Exception as rt_exc:
+                        logger.warning(
+                            "Room tone fill failed (%s: %s); falling back to digital silence.",
+                            type(rt_exc).__name__,
+                            rt_exc,
+                        )
+                        gap_frames = int(inserted_s * PCM_SAMPLE_RATE)
+                        gap_pcm = b'\x00' * (gap_frames * PCM_BYTES_PER_FRAME)
+                else:
+                    gap_frames = int(inserted_s * PCM_SAMPLE_RATE)
+                    gap_pcm = b'\x00' * (gap_frames * PCM_BYTES_PER_FRAME)
+
+            final_pcm_parts.append(gap_pcm)
+            actual_pause_dur = len(gap_pcm) / (PCM_SAMPLE_RATE * PCM_BYTES_PER_FRAME)
             running_offset += (trimmed_dur + actual_pause_dur)
         else:
             running_offset += trimmed_dur

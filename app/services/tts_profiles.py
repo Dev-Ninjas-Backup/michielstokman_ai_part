@@ -20,7 +20,8 @@ class TTSProfile:
     speed: float
     pause_ms: int
     paragraph_break_s: float
-    seam_gap_ms: int = 550
+    seam_gap_ms: int = 800
+    seam_paragraph_gap_ms: int = 1200
 
     def __post_init__(self):
         # ElevenLabs accepts speed in [0.7, 1.2]
@@ -32,7 +33,12 @@ class TTSProfile:
             raise ValueError(f"Similarity boost {self.similarity_boost} out of range [0.0, 1.0]")
         if not (0.0 <= self.style <= 1.0):
             raise ValueError(f"Style {self.style} out of range [0.0, 1.0]")
-        if self.paragraph_break_s < 0.0 or self.pause_ms < 0 or self.seam_gap_ms < 0:
+        if (
+            self.paragraph_break_s < 0.0
+            or self.pause_ms < 0
+            or self.seam_gap_ms < 0
+            or self.seam_paragraph_gap_ms < 0
+        ):
             raise ValueError("Pause durations must be non-negative")
 
 
