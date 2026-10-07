@@ -943,4 +943,232 @@ def test_tail_cushion_minimum_guarantee():
     assert len(faded) == len(pcm)
 
 
+def test_b0_seam_target_gap_900ms_tail():
+    """
+    Validates B0 rule 4:
+    A chunk with 900 ms of natural silent tail stitched to the next chunk
+    must produce a total acoustic seam gap equal to the target within 20 ms,
+    and the audible speech must never be cut.
+    """
+    from app.services.tts_pipeline import (
+        get_first_audible_time,
+        get_last_audible_time,
+        apply_pcm_fade,
+        PCM_SAMPLE_RATE,
+        PCM_BYTES_PER_FRAME,
+    )
+    import math
+    import struct
+    import array
+
+    sr = PCM_SAMPLE_RATE
+    target_gap_s = 0.550  # 550 ms mid-paragraph seam
+
+    # Chunk A: 1.0s tone at 440 Hz + 0.900s of natural silence (total 1.9s)
+    tone_samples_a = [int(15000 * math.sin(2 * math.pi * 440 * (i / sr))) for i in range(int(1.0 * sr))]
+    silence_samples_a = [0] * int(0.900 * sr)
+    pcm_a = struct.pack(f"<{len(tone_samples_a + silence_samples_a)}h", *(tone_samples_a + silence_samples_a))
+    dur_a = len(pcm_a) / (sr * PCM_BYTES_PER_FRAME)
+
+    # Chunk B: 0.050s silence + 1.0s tone at 440 Hz
+    silence_samples_b = [0] * int(0.050 * sr)
+    tone_samples_b = [int(15000 * math.sin(2 * math.pi * 440 * (i / sr))) for i in range(int(1.0 * sr))]
+    pcm_b = struct.pack(f"<{len(silence_samples_b + tone_samples_b)}h", *(silence_samples_b + tone_samples_b))
+    dur_b = len(pcm_b) / (sr * PCM_BYTES_PER_FRAME)
+
+    # Chunk A trim
+    first_w_start_a = 0.0
+    t_onset_a = get_first_audible_time(pcm_a, threshold_db=-50.0, window_ms=10.0)
+    trim_start_a = max(0.0, min(first_w_start_a, max(first_w_start_a - 0.030, t_onset_a - 0.050)))
+    t_audible_a = get_last_audible_time(pcm_a, threshold_db=-50.0, window_ms=10.0)
+    trim_end_a = min(dur_a, max(t_audible_a + 0.080, t_audible_a + 0.150))
+    # Audible speech must never be cut
+    assert t_audible_a >= 0.99
+    assert trim_end_a >= t_audible_a + 0.080
+    assert trim_end_a < 1.30  # Excess 750ms of silence was trimmed!
+
+    measured_tail_a = max(0.0, trim_end_a - t_audible_a)
+
+    # Chunk B trim
+    first_w_start_b = 0.050
+    t_onset_b = get_first_audible_time(pcm_b, threshold_db=-50.0, window_ms=10.0)
+    trim_start_b = max(0.0, min(first_w_start_b, max(first_w_start_b - 0.030, t_onset_b - 0.050)))
+    t_audible_b = get_last_audible_time(pcm_b, threshold_db=-50.0, window_ms=10.0)
+    trim_end_b = min(dur_b, max(t_audible_b + 0.080, t_audible_b + 0.150))
+    measured_head_b = max(0.0, t_onset_b - trim_start_b)
+
+    # Inserted silence from target gap formula
+    inserted_s = max(0.0, target_gap_s - measured_tail_a - measured_head_b)
+
+    # Slice and stitch
+    st_a = int(trim_start_a * sr) * PCM_BYTES_PER_FRAME
+    en_a = int(trim_end_a * sr) * PCM_BYTES_PER_FRAME
+    faded_a = apply_pcm_fade(pcm_a[st_a:en_a], fade_ms=10.0, sample_rate=sr)
+
+    st_b = int(trim_start_b * sr) * PCM_BYTES_PER_FRAME
+    en_b = int(trim_end_b * sr) * PCM_BYTES_PER_FRAME
+    faded_b = apply_pcm_fade(pcm_b[st_b:en_b], fade_ms=10.0, sample_rate=sr)
+
+    silence_pcm = b"\x00" * (int(inserted_s * sr) * PCM_BYTES_PER_FRAME)
+    stitched_pcm = faded_a + silence_pcm + faded_b
+
+    # Measure total acoustic silence between Chunk A speech end and Chunk B speech onset
+    stitched_samples = array.array("h", stitched_pcm)
+    win_frames = int(0.010 * sr)
+    seam_mid_frame = len(faded_a) // PCM_BYTES_PER_FRAME + (len(silence_pcm) // (2 * PCM_BYTES_PER_FRAME))
+
+    # Find last audible window before seam mid (-50 dB)
+    last_aud = 0
+    for f in range(0, seam_mid_frame, win_frames):
+        c = stitched_samples[f : f + win_frames]
+        rms = math.sqrt(sum(s * s for s in c) / len(c)) if c else 0
+        db = 20 * math.log10(rms / 32767.0) if rms > 0 else -100
+        if db >= -50.0:
+            last_aud = f + win_frames
+
+    # Find first audible window after seam mid (-50 dB)
+    first_aud = len(stitched_samples)
+    for f in range(seam_mid_frame, len(stitched_samples), win_frames):
+        c = stitched_samples[f : f + win_frames]
+        rms = math.sqrt(sum(s * s for s in c) / len(c)) if c else 0
+        db = 20 * math.log10(rms / 32767.0) if rms > 0 else -100
+        if db >= -50.0:
+            first_aud = f
+            break
+
+    measured_acoustic_gap_s = (first_aud - last_aud) / float(sr)
+    # Target within 20 ms
+    assert abs(measured_acoustic_gap_s - target_gap_s) <= 0.020, (
+        f"Expected {target_gap_s*1000}ms, got {measured_acoustic_gap_s*1000:.1f}ms"
+    )
+
+
+def test_b0_seam_target_gap_40ms_tail():
+    """
+    Validates B0 rule 4:
+    A chunk with a short 40 ms silent tail must get silence added so that
+    total acoustic seam gap equals the target within 20 ms.
+    """
+    from app.services.tts_pipeline import (
+        get_first_audible_time,
+        get_last_audible_time,
+        apply_pcm_fade,
+        PCM_SAMPLE_RATE,
+        PCM_BYTES_PER_FRAME,
+    )
+    import math
+    import struct
+    import array
+
+    sr = PCM_SAMPLE_RATE
+    target_gap_s = 0.550  # 550 ms mid-paragraph seam
+
+    # Chunk A: 1.0s tone at 440 Hz + 0.040s tail silence (short 40ms tail)
+    tone_samples_a = [int(15000 * math.sin(2 * math.pi * 440 * (i / sr))) for i in range(int(1.0 * sr))]
+    silence_samples_a = [0] * int(0.040 * sr)
+    pcm_a = struct.pack(f"<{len(tone_samples_a + silence_samples_a)}h", *(tone_samples_a + silence_samples_a))
+    dur_a = len(pcm_a) / (sr * PCM_BYTES_PER_FRAME)
+
+    # Chunk B: 0.050s silence + 1.0s tone
+    silence_samples_b = [0] * int(0.050 * sr)
+    tone_samples_b = [int(15000 * math.sin(2 * math.pi * 440 * (i / sr))) for i in range(int(1.0 * sr))]
+    pcm_b = struct.pack(f"<{len(silence_samples_b + tone_samples_b)}h", *(silence_samples_b + tone_samples_b))
+    dur_b = len(pcm_b) / (sr * PCM_BYTES_PER_FRAME)
+
+    t_audible_a = get_last_audible_time(pcm_a, threshold_db=-50.0, window_ms=10.0)
+    trim_end_a = min(dur_a, max(t_audible_a + 0.080, t_audible_a + 0.150))
+    measured_tail_a = max(0.0, trim_end_a - t_audible_a)
+
+    first_w_start_b = 0.050
+    t_onset_b = get_first_audible_time(pcm_b, threshold_db=-50.0, window_ms=10.0)
+    trim_start_b = max(0.0, min(first_w_start_b, max(first_w_start_b - 0.030, t_onset_b - 0.050)))
+    measured_head_b = max(0.0, t_onset_b - trim_start_b)
+
+    # Inserted silence must be added
+    inserted_s = max(0.0, target_gap_s - measured_tail_a - measured_head_b)
+    assert inserted_s > 0.400  # Silence is added!
+
+    # Slice and stitch
+    st_a = int(0.0 * sr) * PCM_BYTES_PER_FRAME
+    en_a = int(trim_end_a * sr) * PCM_BYTES_PER_FRAME
+    faded_a = apply_pcm_fade(pcm_a[st_a:en_a], fade_ms=10.0, sample_rate=sr)
+
+    st_b = int(trim_start_b * sr) * PCM_BYTES_PER_FRAME
+    en_b = int(dur_b * sr) * PCM_BYTES_PER_FRAME
+    faded_b = apply_pcm_fade(pcm_b[st_b:en_b], fade_ms=10.0, sample_rate=sr)
+
+    silence_pcm = b"\x00" * (int(inserted_s * sr) * PCM_BYTES_PER_FRAME)
+    stitched_pcm = faded_a + silence_pcm + faded_b
+
+    # Verify total acoustic silence
+    stitched_samples = array.array("h", stitched_pcm)
+    win_frames = int(0.010 * sr)
+    seam_mid_frame = len(faded_a) // PCM_BYTES_PER_FRAME + (len(silence_pcm) // (2 * PCM_BYTES_PER_FRAME))
+
+    last_aud = 0
+    for f in range(0, seam_mid_frame, win_frames):
+        c = stitched_samples[f : f + win_frames]
+        rms = math.sqrt(sum(s * s for s in c) / len(c)) if c else 0
+        db = 20 * math.log10(rms / 32767.0) if rms > 0 else -100
+        if db >= -50.0:
+            last_aud = f + win_frames
+
+    first_aud = len(stitched_samples)
+    for f in range(seam_mid_frame, len(stitched_samples), win_frames):
+        c = stitched_samples[f : f + win_frames]
+        rms = math.sqrt(sum(s * s for s in c) / len(c)) if c else 0
+        db = 20 * math.log10(rms / 32767.0) if rms > 0 else -100
+        if db >= -50.0:
+            first_aud = f
+            break
+
+    measured_acoustic_gap_s = (first_aud - last_aud) / float(sr)
+    assert abs(measured_acoustic_gap_s - target_gap_s) <= 0.020, (
+        f"Expected {target_gap_s*1000}ms, got {measured_acoustic_gap_s*1000:.1f}ms"
+    )
+
+
+def test_b0_soft_ending_decaying_tone():
+    """
+    Validates B0 rule 5:
+    Decaying tone (down to -60 dB, simulating soft endings like 'dark' or 'yourself')
+    is preserved by the 150 ms cushion past the -50 dB drop.
+    """
+    from app.services.tts_pipeline import (
+        get_last_audible_time,
+        PCM_SAMPLE_RATE,
+        PCM_BYTES_PER_FRAME,
+    )
+    import math
+    import struct
+
+    sr = PCM_SAMPLE_RATE
+    dur_tone = 0.500  # 500 ms tone
+    n_frames = int(dur_tone * sr)
+
+    # Exponentially decaying tone from -6 dB down to -60 dB
+    samples = []
+    for i in range(n_frames):
+        vol = 0.5 * math.exp(-6.0 * (i / n_frames))
+        val = int(vol * 32767.0 * math.sin(2.0 * math.pi * 440.0 * i / sr))
+        samples.append(val)
+
+    # Append 900 ms of pure silence
+    silence_samples = [0] * int(0.900 * sr)
+    pcm = struct.pack(f"<{len(samples + silence_samples)}h", *(samples + silence_samples))
+    total_dur = len(pcm) / (sr * PCM_BYTES_PER_FRAME)
+
+    t_audible = get_last_audible_time(pcm, threshold_db=-50.0, window_ms=10.0)
+    # Energy dropped below -50 dB around 0.40 - 0.48 s
+    assert 0.38 <= t_audible <= 0.50
+
+    trim_end = min(total_dur, max(t_audible + 0.080, t_audible + 0.150))
+    # 150 ms cushion is preserved
+    assert trim_end >= t_audible + 0.080
+    assert trim_end <= t_audible + 0.151
+    # Excess silence (0.9s tail) was trimmed away
+    assert trim_end < 0.700
+
+
+
 

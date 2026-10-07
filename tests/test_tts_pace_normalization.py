@@ -344,8 +344,8 @@ def test_band_edge_correction():
 
         assert mock_fetch.call_count == 1
         call_kwargs = mock_fetch.call_args[1]
-        # Target speed = clamp(1.0 * (142.5 / 120.0), 0.85, 1.15) = clamp(1.1875, 0.85, 1.15) = 1.15
-        assert call_kwargs["voice_settings"]["speed"] == 1.15
+        # Damped target speed = clamp(1.0 * ((142.5 / 120.0) ** 0.5), 0.88, 1.12) = clamp(1.0897, 0.88, 1.12) = 1.09
+        assert call_kwargs["voice_settings"]["speed"] == 1.09
         # Verify previous_text and next_text are preserved
         assert call_kwargs["chunk"].previous_text == "prev"
         assert call_kwargs["chunk"].next_text == "next"
@@ -381,3 +381,79 @@ def test_pace_normalize_no_effect_when_pipeline_v2_false(monkeypatch):
         assert not mock_v2.called
         assert not mock_norm.called
         assert len(audio) > 0
+
+
+def test_compute_articulation_rate_from_pcm():
+    """
+    Validates B2: compute_articulation_rate_from_pcm calculates words / phonation time,
+    subtracting internal pauses > 250 ms below -40 dB.
+    """
+    from app.services.tts_pipeline import (
+        compute_articulation_rate_from_pcm,
+        PCM_SAMPLE_RATE,
+    )
+    import math
+    import struct
+
+    sr = PCM_SAMPLE_RATE
+    # Construct 1.0s speech tone + 0.400s pause (silence > 250ms) + 1.0s speech tone
+    # Total speech span = 2.4s. Internal pause = 0.4s. Phonation time = 2.0s.
+    tone1 = [int(15000 * math.sin(2 * math.pi * 440 * (i / sr))) for i in range(int(1.0 * sr))]
+    silence = [0] * int(0.400 * sr)
+    tone2 = [int(15000 * math.sin(2 * math.pi * 440 * (i / sr))) for i in range(int(1.0 * sr))]
+
+    pcm = struct.pack(f"<{len(tone1 + silence + tone2)}h", *(tone1 + silence + tone2))
+
+    # 4 words over 2.0s phonation = (4 / (2.0 / 60)) = 120 WPM
+    rate = compute_articulation_rate_from_pcm(pcm, word_count=4, threshold_db=-40.0, min_pause_ms=250.0)
+    assert abs(rate - 120.0) < 2.0
+
+    # Short pause <= 250ms (e.g. 150ms) is NOT subtracted
+    short_silence = [0] * int(0.150 * sr)
+    pcm_short = struct.pack(f"<{len(tone1 + short_silence + tone2)}h", *(tone1 + short_silence + tone2))
+    # Phonation time = 2.15s -> rate = (4 / (2.15 / 60)) = 111.6 WPM
+    rate_short = compute_articulation_rate_from_pcm(pcm_short, word_count=4, threshold_db=-40.0, min_pause_ms=250.0)
+    assert abs(rate_short - 111.6) < 2.0
+
+
+def test_atempo_dead_zone_no_filter():
+    """
+    Validates B2 dead zone: factors between 0.97 and 1.03 skip atempo entirely.
+    """
+    from app.services.tts_pipeline import apply_chunk_atempo_pcm, apply_chunk_atempo
+
+    mock_pcm = b"\x00" * 88200
+    mock_align = [{"word": "test", "start": 0.0, "end": 0.5}]
+
+    # In dead zone (0.98, 1.02): returned untouched
+    out_pcm, out_align = apply_chunk_atempo_pcm(mock_pcm, mock_align, factor=0.98)
+    assert out_pcm == mock_pcm
+    assert out_align == mock_align
+
+    out_pcm2, out_align2 = apply_chunk_atempo_pcm(mock_pcm, mock_align, factor=1.02)
+    assert out_pcm2 == mock_pcm
+    assert out_align2 == mock_align
+
+    # MP3 wrapper also respects dead zone
+    mock_mp3 = b"fake_mp3"
+    out_mp3, out_al = apply_chunk_atempo(mock_mp3, mock_align, factor=0.99)
+    assert out_mp3 == mock_mp3
+    assert out_al == mock_align
+
+
+def test_merge_final_chunk_under_450_chars():
+    """
+    Validates B2 chunk merge:
+    When split_text_into_chunks produces a trailing chunk < 450 chars,
+    it is merged into the previous chunk if within model limit (<= 1800 chars).
+    """
+    # Create two paragraphs: first is 600 chars, second is 350 chars (< 450)
+    p1 = "Paragraph one has sufficient length to form a complete chunk of its own. " * 8  # ~600 chars
+    p2 = "Paragraph two is short. " * 8  # ~200 chars (< 450 chars)
+    full_text = f"{p1}\n\n{p2}"
+
+    chunks = split_text_into_chunks(full_text, min_chars=500, max_chars=900)
+    # The trailing chunk was merged!
+    assert len(chunks) == 1
+    assert p2.strip().split()[-1] in chunks[0].text
+

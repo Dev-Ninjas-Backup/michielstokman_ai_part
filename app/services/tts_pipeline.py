@@ -102,17 +102,61 @@ def apply_pcm_fade(pcm_bytes: bytes, fade_ms: float = 10.0, sample_rate: int = P
     return samples.tobytes()
 
 
+def get_first_audible_time(
+    pcm_bytes: bytes,
+    channels: int = PCM_CHANNELS,
+    sample_rate: int = PCM_SAMPLE_RATE,
+    threshold_db: float = -50.0,
+    window_ms: float = 10.0,
+    search_s: float = 2.0,
+) -> float:
+    """
+    Finds the timestamp (in seconds from start of pcm_bytes) where audio energy
+    first exceeds threshold_db. Scans in window_ms (10 ms) windows from the start up to search_s.
+    Returns the start time of the first window >= threshold_db, or 0.0 if not found.
+    """
+    bytes_per_sample = 2
+    bytes_per_frame = channels * bytes_per_sample
+    total_frames = len(pcm_bytes) // bytes_per_frame
+    if total_frames == 0:
+        return 0.0
+
+    samples = array.array("h", pcm_bytes)
+    if channels == 2:
+        mono_samples = array.array("h", ((samples[2 * i] + samples[2 * i + 1]) // 2 for i in range(total_frames)))
+    else:
+        mono_samples = samples
+
+    window_frames = int((window_ms / 1000.0) * sample_rate)
+    head_frames = min(total_frames, int(search_s * sample_rate))
+
+    for f_idx in range(0, head_frames, window_frames):
+        chunk = mono_samples[f_idx : min(f_idx + window_frames, total_frames)]
+        if not chunk:
+            continue
+        sum_sq = sum(s * s for s in chunk)
+        rms = math.sqrt(sum_sq / float(len(chunk)))
+        if rms > 0:
+            db = 20.0 * math.log10(rms / 32767.0)
+        else:
+            db = -100.0
+        if db >= threshold_db:
+            return f_idx / float(sample_rate)
+
+    return 0.0
+
+
 def get_last_audible_time(
     pcm_bytes: bytes,
     channels: int = PCM_CHANNELS,
     sample_rate: int = PCM_SAMPLE_RATE,
     threshold_db: float = -50.0,
-    window_ms: float = 20.0,
-    search_s: float = 1.5,
+    window_ms: float = 10.0,
+    search_s: float = 2.0,
 ) -> float:
     """
     Finds the timestamp (in seconds from start of pcm_bytes) where audio energy
-    last drops below threshold_db. Scans in 20 ms windows over the last search_s (1.5 s).
+    last drops below threshold_db. Scans in window_ms (10 ms) windows over the last search_s (2.0 s).
     """
     bytes_per_sample = 2
     bytes_per_frame = channels * bytes_per_sample
@@ -364,6 +408,15 @@ def split_text_into_chunks(
         chunk_str = sep.join(current_units)
         raw_chunks.append((chunk_str, True))
 
+    # Merge final chunk shorter than 450 chars into previous chunk when model limit allows (<= 1800 chars)
+    if len(raw_chunks) > 1 and len(raw_chunks[-1][0]) < 450:
+        prev_text, prev_is_p = raw_chunks[-2]
+        last_text, last_is_p = raw_chunks[-1]
+        if len(prev_text) + len(last_text) + 2 <= max(max_chars, 1800):
+            sep = "\n\n" if prev_is_p else " "
+            raw_chunks[-2] = (prev_text + sep + last_text, last_is_p)
+            raw_chunks.pop()
+
     # 4. Attach previous_text and next_text (up to 500 chars)
     result: list[TextChunk] = []
     for idx, (c_text, is_p_end) in enumerate(raw_chunks):
@@ -593,6 +646,77 @@ def compute_articulation_rate(alignment: list[dict], audio_duration_s: Optional[
     return (len(words) / phonation_time) * 60.0
 
 
+def compute_articulation_rate_from_pcm(
+    pcm_bytes: bytes,
+    word_count: int,
+    channels: int = PCM_CHANNELS,
+    sample_rate: int = PCM_SAMPLE_RATE,
+    threshold_db: float = -40.0,
+    min_pause_ms: float = 250.0,
+    window_ms: float = 10.0,
+) -> float:
+    """
+    Computes articulation rate (words per minute) directly from decoded PCM frames:
+    words / (phonation time in minutes), where pauses > min_pause_ms (250 ms)
+    below threshold_db (-40 dB) between first and last audible sounds are subtracted.
+    """
+    bytes_per_sample = 2
+    bytes_per_frame = channels * bytes_per_sample
+    total_frames = len(pcm_bytes) // bytes_per_frame
+    if total_frames == 0 or word_count <= 0:
+        return 0.0
+
+    samples = array.array("h", pcm_bytes)
+    if channels == 2:
+        mono_samples = array.array("h", ((samples[2 * i] + samples[2 * i + 1]) // 2 for i in range(total_frames)))
+    else:
+        mono_samples = samples
+
+    window_frames = int((window_ms / 1000.0) * sample_rate)
+    num_windows = total_frames // window_frames
+    if num_windows == 0:
+        return 0.0
+
+    dbs = []
+    for w in range(num_windows):
+        chunk = mono_samples[w * window_frames : (w + 1) * window_frames]
+        sum_sq = sum(s * s for s in chunk)
+        rms = math.sqrt(sum_sq / float(len(chunk))) if chunk else 0.0
+        db = 20.0 * math.log10(rms / 32767.0) if rms > 0 else -100.0
+        dbs.append(db)
+
+    # Speech onset and audible end (-50 dB boundary to not clip soft phonation edges)
+    start_win = 0
+    while start_win < num_windows and dbs[start_win] < -50.0:
+        start_win += 1
+
+    end_win = num_windows - 1
+    while end_win >= 0 and dbs[end_win] < -50.0:
+        end_win -= 1
+
+    if start_win > end_win:
+        return 0.0
+
+    total_span_s = (end_win - start_win + 1) * (window_ms / 1000.0)
+    min_pause_wins = int(min_pause_ms / window_ms)
+    pause_wins = 0
+    curr_pause_wins = 0
+
+    for w in range(start_win, end_win + 1):
+        if dbs[w] < threshold_db:
+            curr_pause_wins += 1
+        else:
+            if curr_pause_wins >= min_pause_wins:
+                pause_wins += curr_pause_wins
+            curr_pause_wins = 0
+    if curr_pause_wins >= min_pause_wins:
+        pause_wins += curr_pause_wins
+
+    pause_s = pause_wins * (window_ms / 1000.0)
+    phonation_s = max(0.1, total_span_s - pause_s)
+    return (word_count / phonation_s) * 60.0
+
+
 def select_outlier_chunks(
     chunk_metrics: list[dict],  # list of {"index": int, "rate": float, "word_count": int}
 ) -> tuple[float, list[dict]]:
@@ -627,6 +751,63 @@ def select_outlier_chunks(
     return median_rate, outliers
 
 
+def apply_chunk_atempo_pcm(
+    pcm_bytes: bytes,
+    alignment: list[dict],
+    factor: float,
+    sample_rate: int = PCM_SAMPLE_RATE,
+    channels: int = PCM_CHANNELS,
+) -> tuple[bytes, list[dict]]:
+    """
+    Applies ffmpeg atempo filter directly on raw PCM audio frames.
+    Dead zone: factors between 0.97 and 1.03 skip atempo entirely.
+    Clamps factor to [0.92, 1.08]. Scales alignment word timestamps monotonically.
+    """
+    if abs(factor - 1.0) < 1e-4:
+        return pcm_bytes, alignment
+
+    # Dead zone: 0.97 to 1.03 (no atempo)
+    if 0.97 <= factor <= 1.03:
+        return pcm_bytes, alignment
+
+    clamped_factor = min(1.08, max(0.92, factor))
+    ffmpeg_bin = get_ffmpeg_bin()
+    cmd = [
+        ffmpeg_bin, "-y",
+        "-f", "s16le", "-ar", str(sample_rate), "-ac", str(channels),
+        "-i", "pipe:0",
+        "-filter:a", f"atempo={clamped_factor:.4f}",
+        "-f", "s16le", "pipe:1",
+    ]
+    proc = subprocess.run(cmd, input=pcm_bytes, capture_output=True, check=True)
+    scaled_pcm = proc.stdout
+
+    bytes_per_sample = 2
+    bytes_per_frame = channels * bytes_per_sample
+    new_dur = len(scaled_pcm) / float(sample_rate * bytes_per_frame)
+
+    scaled_alignment = []
+    prev_end = 0.0
+    for w in alignment:
+        s = max(0.0, round(w["start"] / clamped_factor, 3))
+        e = min(new_dur, max(s, round(w["end"] / clamped_factor, 3)))
+        if s < prev_end:
+            s = prev_end
+        if e < s:
+            e = s
+        prev_end = e
+        scaled_alignment.append({
+            "word": w["word"],
+            "start": s,
+            "end": e,
+        })
+
+    if scaled_alignment and scaled_alignment[-1]["end"] > new_dur:
+        scaled_alignment[-1]["end"] = new_dur
+
+    return scaled_pcm, scaled_alignment
+
+
 def apply_chunk_atempo(
     mp3_bytes: bytes,
     alignment: list[dict],
@@ -634,12 +815,12 @@ def apply_chunk_atempo(
 ) -> tuple[bytes, list[dict]]:
     """
     Applies ffmpeg atempo filter to chunk mp3 bytes and scales alignment timestamps.
-    Factor (median / measured) is clamped to [0.92, 1.08].
+    Factor (target / measured) is clamped to [0.92, 1.08] and respects dead zone [0.97, 1.03].
     """
-    clamped_factor = min(1.08, max(0.92, factor))
-    if abs(clamped_factor - 1.0) < 0.001:
+    if abs(factor - 1.0) < 1e-4 or (0.97 <= factor <= 1.03):
         return mp3_bytes, alignment
 
+    clamped_factor = min(1.08, max(0.92, factor))
     ffmpeg_bin = get_ffmpeg_bin()
     cmd = [
         ffmpeg_bin, "-y",
@@ -691,21 +872,40 @@ def apply_pace_normalization(
 ) -> list[ChunkResult]:
     """
     Two-pass relative pace normalization across chunks:
-    1. Computes articulation rate per chunk and story median.
-    2. Identifies outliers (>6% deviation; >8% for chunks < 60 words).
-    3. For outliers >8%: regenerates chunk once with speed = clamp(current_speed * median/measured, 0.85, 1.15),
-       capped at 30% of chunks per story (worst outliers first).
-    4. Applies ffmpeg atempo (factor clamped to [0.92, 1.08]) for remaining or residual deviations.
-    5. Logs per-chunk numbers only (articulation rate, factor, regenerated yes/no). No story text.
+    1. Saves pass-1 chunk audio to untracked scratch/pass1_chunks/ for free auditing.
+    2. Computes articulation rate per chunk directly from decoded audio PCM and finds story median.
+    3. Identifies outliers (>6% deviation; >8% for chunks < 60 words).
+    4. For outliers >8%: regenerates chunk once with damped speed = clamp(current_speed * (factor ** 0.5), 0.88, 1.12)
+       toward nearest band edge (median +/- 5%), capped at 30% of chunks per story (worst outliers first).
+    5. Applies ffmpeg atempo directly on decoded PCM (factor clamped to [0.92, 1.08], dead zone [0.97, 1.03]).
+    6. Logs per-chunk numbers only (articulation rate, factor, regenerated yes/no). No story text.
     """
     if len(ordered_chunks) <= 1:
         return ordered_chunks
 
-    # Measure initial articulation rates
+    # Save pass-1 chunk audio to untracked scratch/ for reproducible verification
+    try:
+        scratch_pass1_dir = os.path.abspath(os.path.join("scratch", "pass1_chunks"))
+        os.makedirs(scratch_pass1_dir, exist_ok=True)
+        for c_res in ordered_chunks:
+            with open(os.path.join(scratch_pass1_dir, f"chunk_{c_res.index}.mp3"), "wb") as f:
+                f.write(c_res.mp3_bytes)
+    except Exception as cache_exc:
+        logger.debug("Failed saving pass1 chunk to scratch: %s", cache_exc)
+
+    # Measure initial articulation rates directly from decoded PCM (with alignment fallback for mock bytes)
     chunk_metrics = []
     for c_res in ordered_chunks:
-        rate = compute_articulation_rate(c_res.alignment)
-        w_count = len([w for w in c_res.alignment if any(ch.isalnum() for ch in w.get("word", ""))])
+        try:
+            pcm_bytes, _ = mp3_to_raw_pcm(c_res.mp3_bytes)
+            w_count = len([w for w in c_res.alignment if any(ch.isalnum() for ch in w.get("word", ""))])
+            rate = compute_articulation_rate_from_pcm(pcm_bytes, word_count=w_count)
+            if rate <= 0.0:
+                rate = compute_articulation_rate(c_res.alignment)
+        except Exception:
+            rate = compute_articulation_rate(c_res.alignment)
+            w_count = len([w for w in c_res.alignment if any(ch.isalnum() for ch in w.get("word", ""))])
+
         chunk_metrics.append({
             "index": c_res.index,
             "rate": rate,
@@ -745,12 +945,12 @@ def apply_pace_normalization(
             target_rate = median_rate * 1.05
 
         factor = target_rate / measured_rate if measured_rate > 0 else 1.0
-
         current_res = c_res
 
-        # Case b: deviation > 8% and within 30% regeneration budget
+        # Regeneration for severe outliers (>8%) within 30% budget
         if c_idx in allowed_regen_indices and api_key and api_key != "your_elevenlabs_api_key_here":
-            target_speed = min(1.15, max(0.85, base_speed * factor))
+            damped_speed = base_speed * (factor ** 0.5)
+            target_speed = min(1.12, max(0.88, damped_speed))
             adjusted_settings = dict(voice_settings)
             adjusted_settings["speed"] = round(target_speed, 3)
 
@@ -765,8 +965,17 @@ def apply_pace_normalization(
                 )
                 current_res = new_chunk_res
                 regenerated = True
-                # Re-measure
-                new_rate = compute_articulation_rate(current_res.alignment)
+
+                # Re-measure using decoded PCM
+                try:
+                    new_pcm, _ = mp3_to_raw_pcm(current_res.mp3_bytes)
+                    new_wc = len([w for w in current_res.alignment if any(ch.isalnum() for ch in w.get("word", ""))])
+                    new_rate = compute_articulation_rate_from_pcm(new_pcm, word_count=new_wc)
+                    if new_rate <= 0.0:
+                        new_rate = compute_articulation_rate(current_res.alignment)
+                except Exception:
+                    new_rate = compute_articulation_rate(current_res.alignment)
+
                 if new_rate > 0:
                     measured_rate = new_rate
                     if measured_rate < median_rate:
@@ -777,23 +986,43 @@ def apply_pace_normalization(
             except Exception as exc:
                 logger.warning("Pace chunk %d regeneration failed (%s: %s). Falling back to atempo.", c_idx, type(exc).__name__, str(exc))
 
-        # Apply atempo for residual or initial deviation (clamped to 0.92-1.08)
+        # Atempo on decoded PCM: clamped to [0.92, 1.08], dead zone [0.97, 1.03]
         atempo_factor = min(1.08, max(0.92, factor))
-        if abs(atempo_factor - 1.0) >= 0.005:
+        if atempo_factor < 0.97 or atempo_factor > 1.03:
+            scaled = False
             try:
-                scaled_mp3, scaled_alignment = apply_chunk_atempo(
-                    mp3_bytes=current_res.mp3_bytes,
+                pcm_bytes, _ = mp3_to_raw_pcm(current_res.mp3_bytes)
+                scaled_pcm, scaled_alignment = apply_chunk_atempo_pcm(
+                    pcm_bytes=pcm_bytes,
                     alignment=current_res.alignment,
                     factor=atempo_factor,
                 )
+                scaled_mp3 = raw_pcm_to_mp3(scaled_pcm, loudnorm=False)
                 current_res = ChunkResult(
                     index=current_res.index,
                     mp3_bytes=scaled_mp3,
                     alignment=scaled_alignment,
                     is_paragraph_end=current_res.is_paragraph_end,
                 )
-            except Exception as exc:
-                logger.warning("Pace chunk %d atempo scaling failed (%s: %s).", c_idx, type(exc).__name__, str(exc))
+                scaled = True
+            except Exception:
+                pass
+
+            if not scaled:
+                try:
+                    scaled_mp3, scaled_alignment = apply_chunk_atempo(
+                        mp3_bytes=current_res.mp3_bytes,
+                        alignment=current_res.alignment,
+                        factor=atempo_factor,
+                    )
+                    current_res = ChunkResult(
+                        index=current_res.index,
+                        mp3_bytes=scaled_mp3,
+                        alignment=scaled_alignment,
+                        is_paragraph_end=current_res.is_paragraph_end,
+                    )
+                except Exception as exc:
+                    logger.warning("Pace chunk %d atempo scaling failed (%s: %s).", c_idx, type(exc).__name__, str(exc))
 
         normalized_chunks[c_idx] = current_res
         logger.info(
@@ -950,42 +1179,69 @@ def execute_tts_pipeline_v2(
             )
 
     # Decode, trim, stitch PCM and shift alignment
-    final_pcm_parts: list[bytes] = []
-    final_alignment: list[dict] = []
-    running_offset = 0.0
-
+    # Pass 1: Decode PCM, determine energy-based boundaries, and measure head/tail silence per chunk
+    chunk_specs = []
     for idx, c_res in enumerate(ordered_chunks):
         pcm_bytes, dur = mp3_to_raw_pcm(c_res.mp3_bytes)
         words = c_res.alignment
         if not words:
             raise ValueError(f"Missing word alignment in chunk {idx}")
 
-        # Alignment-based trimming with audible tail cap
         first_word_start = words[0]["start"]
         last_word_end = words[-1]["end"]
 
-        trim_start = max(0.0, first_word_start - 0.030)
-        default_trim_end = min(dur, last_word_end + 0.130)
+        # Head trimming:
+        # t_onset = first 10 ms window >= -50 dB
+        # trim_start = max(first_word_start - 0.030, t_onset - 0.050); never later than first_word_start
+        t_onset = get_first_audible_time(pcm_bytes, channels=PCM_CHANNELS, sample_rate=PCM_SAMPLE_RATE, threshold_db=-50.0, window_ms=10.0)
+        if t_onset <= 0.0:
+            t_onset = first_word_start
+        candidate_start = max(first_word_start - 0.030, t_onset - 0.050)
+        trim_start = max(0.0, min(candidate_start, first_word_start))
 
-        # Cap tail at ~150 ms after audio energy drops below -50 dB, ensuring at least 80ms cushion
-        t_audible = get_last_audible_time(pcm_bytes, channels=PCM_CHANNELS, sample_rate=PCM_SAMPLE_RATE, threshold_db=-50.0)
-        if t_audible > first_word_start and (t_audible + 0.150) < default_trim_end:
-            trim_end = max(t_audible + 0.150, last_word_end)
-        else:
-            trim_end = default_trim_end
-
-        # Guarantee chunk trim does not cut closer than 80 ms after last audible speech
-        if t_audible > first_word_start and (trim_end - t_audible) < 0.080:
-            trim_end = min(dur, t_audible + 0.080)
+        # Tail trimming:
+        # t_audible = last 10 ms window >= -50 dB
+        # trim_end = min(dur, t_audible + 0.150); never cut earlier than t_audible + 0.080
+        t_audible = get_last_audible_time(pcm_bytes, channels=PCM_CHANNELS, sample_rate=PCM_SAMPLE_RATE, threshold_db=-50.0, window_ms=10.0)
+        if t_audible <= 0.0:
+            t_audible = last_word_end
+        trim_end = min(dur, max(t_audible + 0.080, t_audible + 0.150))
 
         # Slice PCM frames
         start_frame = int(trim_start * PCM_SAMPLE_RATE)
         end_frame = int(trim_end * PCM_SAMPLE_RATE)
         sliced_pcm = pcm_bytes[start_frame * PCM_BYTES_PER_FRAME : end_frame * PCM_BYTES_PER_FRAME]
-        trimmed_dur = len(sliced_pcm) / (PCM_SAMPLE_RATE * PCM_BYTES_PER_FRAME)
+
+        # Apply 10 ms linear micro-fade inside the cushion
+        faded_pcm = apply_pcm_fade(sliced_pcm, fade_ms=10.0, sample_rate=PCM_SAMPLE_RATE)
+
+        measured_head = max(0.0, t_onset - trim_start)
+        measured_tail = max(0.0, trim_end - t_audible)
+
+        chunk_specs.append({
+            "faded_pcm": faded_pcm,
+            "words": words,
+            "trim_start": trim_start,
+            "trim_end": trim_end,
+            "trimmed_dur": len(faded_pcm) / (PCM_SAMPLE_RATE * PCM_BYTES_PER_FRAME),
+            "measured_head": measured_head,
+            "measured_tail": measured_tail,
+            "is_paragraph_end": c_res.is_paragraph_end,
+        })
+
+    # Pass 2: Assemble trimmed PCM, inject target-gap silence, and shift alignment monotonically
+    final_pcm_parts: list[bytes] = []
+    final_alignment: list[dict] = []
+    running_offset = 0.0
+
+    for idx, spec in enumerate(chunk_specs):
+        final_pcm_parts.append(spec["faded_pcm"])
+        trim_start = spec["trim_start"]
+        trim_end = spec["trim_end"]
+        trimmed_dur = spec["trimmed_dur"]
 
         # Shift word alignment
-        for w in words:
+        for w in spec["words"]:
             shifted_start = running_offset + (w["start"] - trim_start)
             shifted_end = running_offset + (min(w["end"], trim_end) - trim_start)
             final_alignment.append({
@@ -994,18 +1250,18 @@ def execute_tts_pipeline_v2(
                 "end": max(0.0, round(shifted_end, 3)),
             })
 
-        # Apply 10 ms linear micro-fade to prevent edge clicks and pops at slice boundaries
-        faded_pcm = apply_pcm_fade(sliced_pcm, fade_ms=10.0, sample_rate=PCM_SAMPLE_RATE)
-        final_pcm_parts.append(faded_pcm)
-
         # Seam silence (skip after the last chunk)
-        if idx < len(ordered_chunks) - 1:
-            if c_res.is_paragraph_end:
-                seam_pause_s = profile.paragraph_break_s
+        if idx < len(chunk_specs) - 1:
+            if spec["is_paragraph_end"]:
+                target_gap = profile.paragraph_break_s
             else:
-                seam_pause_s = profile.pause_ms / 1000.0
+                target_gap = profile.seam_gap_ms / 1000.0
 
-            silence_frames = int(seam_pause_s * PCM_SAMPLE_RATE)
+            cur_tail = spec["measured_tail"]
+            next_head = chunk_specs[idx + 1]["measured_head"]
+
+            inserted_s = max(0.0, target_gap - cur_tail - next_head)
+            silence_frames = int(inserted_s * PCM_SAMPLE_RATE)
             silence_pcm = b'\x00' * (silence_frames * PCM_BYTES_PER_FRAME)
             final_pcm_parts.append(silence_pcm)
             actual_pause_dur = len(silence_pcm) / (PCM_SAMPLE_RATE * PCM_BYTES_PER_FRAME)
