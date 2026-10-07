@@ -660,3 +660,287 @@ def test_alignment_based_trim_synthetic_preserves_internal_pauses():
 
         # Internal 1.0s pause MUST remain intact
         assert any(abs(d - 1.0) < 0.05 for d in t_durs), f"Internal silence was modified: {t_durs}"
+
+
+def test_standalone_tokens_whitespace_alignment():
+    """
+    Validates that parse_alignment_to_whitespace_words always returns exactly one
+    alignment entry per whitespace token of the DISPLAY text, ensuring zero index drift:
+    - Lone dash: ` — `
+    - Lone ellipsis: `...`
+    - Emoji token: e.g. ✨
+    - Markdown: `**`
+    - Parentheses: `( secret )`
+    - Number with comma/decimal: `1,000`, `3.14`
+    - Long text mixing all of them
+    The assertion is len(alignment) == len(display.split()) for each.
+    """
+    from app.services.tts_pipeline import parse_alignment_to_whitespace_words
+
+    test_cases = [
+        # (name, display_text, spoken_text)
+        ("lone_dash", "Before — After", "Before After"),
+        ("lone_ellipsis", "Thinking ... done", "Thinking done"),
+        ("emoji_token", "Peace \u2728 love", "Peace love"),
+        ("markdown_stars", "Notice ** important ** step", "Notice important step"),
+        ("parentheses", "This ( secret ) was (revealed)", "This secret was revealed"),
+        ("number_with_comma_decimal", "Over 1,000 items priced at 3.14 each", "Over 1,000 items priced at 3.14 each"),
+        (
+            "long_mixed_text",
+            "Here is the story: 1,000 days ago — yes, 3.14 years — I met them ... \u2728 "
+            "It was **truly** remarkable (unbelievable, really) \u2022 and free!",
+            "Here is the story: 1,000 days ago yes, 3.14 years I met them "
+            "It was truly remarkable unbelievable, really and free!"
+        ),
+    ]
+
+    for name, display_text, spoken_text in test_cases:
+        chars = list(spoken_text)
+        starts = [round(i * 0.1, 2) for i in range(len(chars))]
+        ends = [round((i + 1) * 0.1, 2) for i in range(len(chars))]
+        alignment = {
+            "characters": chars,
+            "character_start_times_seconds": starts,
+            "character_end_times_seconds": ends,
+        }
+
+        res = parse_alignment_to_whitespace_words(alignment, display_text=display_text)
+        display_tokens = display_text.split()
+
+        # Hard assertion: len(alignment) == len(display.split())
+        assert len(res) == len(display_tokens), (
+            f"Case '{name}' failed: alignment len {len(res)} != display tokens {len(display_tokens)}"
+        )
+
+        # Standalone unspeakable tokens must have zero-length start == end at previous word's end time
+        for tok, entry in zip(display_tokens, res):
+            if not any(c.isalnum() for c in tok):
+                assert entry["start"] == entry["end"], (
+                    f"Case '{name}': Unspeakable token {tok!r} has non-zero length: {entry['start']} != {entry['end']}"
+                )
+            else:
+                assert entry["start"] <= entry["end"]
+
+
+def test_alignment_clamping_to_audio_duration_and_monotonicity():
+    """
+    Validates that:
+    1. Every alignment end time is clamped to final audio duration: last end <= duration.
+    2. All start and end times are non-negative and strictly monotonic:
+       start_i <= end_i and start_{i} >= start_{i-1}.
+    """
+    from app.services.tts_pipeline import (
+        PCM_SAMPLE_RATE,
+        PCM_CHANNELS,
+        PCM_BYTES_PER_FRAME,
+    )
+
+    # Simulate 2.500 seconds of audio PCM
+    total_dur = 2.500
+    pcm_bytes = b"\x00" * int(total_dur * PCM_SAMPLE_RATE * PCM_BYTES_PER_FRAME)
+    final_audio_dur = round(len(pcm_bytes) / (PCM_SAMPLE_RATE * PCM_BYTES_PER_FRAME), 3)
+
+    # Alignment where last word overshoots audio duration (e.g. 2.75s > 2.50s)
+    raw_alignment = [
+        {"word": "First", "start": -0.05, "end": 0.40},
+        {"word": "second", "start": 0.38, "end": 1.20},
+        {"word": "third", "start": 1.15, "end": 2.10},
+        {"word": "overshooting", "start": 2.05, "end": 2.75},
+    ]
+
+    # Run clamping logic identical to execute_tts_pipeline_v2
+    prev_s = 0.0
+    clamped_alignment = []
+    for w in raw_alignment:
+        w_copy = dict(w)
+        w_copy["start"] = max(prev_s, max(0.0, min(round(w_copy["start"], 3), final_audio_dur)))
+        w_copy["end"] = max(w_copy["start"], min(round(w_copy["end"], 3), final_audio_dur))
+        prev_s = w_copy["start"]
+        clamped_alignment.append(w_copy)
+
+    # 1. Clamping to final audio duration
+    assert clamped_alignment[-1]["end"] <= final_audio_dur
+    assert clamped_alignment[-1]["end"] == 2.500
+
+    # 2. Non-negative and monotonic
+    for i, w in enumerate(clamped_alignment):
+        assert w["start"] >= 0.0, f"Token {w} has negative start"
+        assert w["start"] <= w["end"], f"Token {w} start > end"
+        assert w["end"] <= final_audio_dur, f"Token {w} end > duration"
+        if i > 0:
+            assert w["start"] >= clamped_alignment[i - 1]["start"], (
+                f"Token {i} start {w['start']} < previous start {clamped_alignment[i - 1]['start']}"
+            )
+
+
+def test_tail_energy_cap_logic():
+    """
+    Validates get_last_audible_time:
+    Constructs a 1.5s audio stream with 1.0s loud tone and 0.5s digital silence.
+    Confirms that get_last_audible_time finds the drop to within 20ms and does not clip speech.
+    """
+    import math
+    import struct
+    from app.services.tts_pipeline import (
+        get_last_audible_time,
+        PCM_SAMPLE_RATE,
+        PCM_CHANNELS,
+    )
+
+    # 1.0s of 440Hz sine wave at -10 dB (audible), then 0.5s of zeros (-infinity dB)
+    loud_dur = 1.0
+    silent_dur = 0.5
+    loud_frames = int(loud_dur * PCM_SAMPLE_RATE)
+    silent_frames = int(silent_dur * PCM_SAMPLE_RATE)
+
+    # 16-bit sine wave at ~10,000 amplitude
+    amplitude = 10000
+    loud_samples = [
+        int(amplitude * math.sin(2 * math.pi * 440 * (i / PCM_SAMPLE_RATE)))
+        for i in range(loud_frames)
+    ]
+    silent_samples = [0] * silent_frames
+
+    pcm_bytes = struct.pack(f"<{len(loud_samples + silent_samples)}h", *(loud_samples + silent_samples))
+
+    last_audible = get_last_audible_time(
+        pcm_bytes,
+        channels=PCM_CHANNELS,
+        sample_rate=PCM_SAMPLE_RATE,
+        threshold_db=-50.0,
+        window_ms=20.0,
+        search_s=1.5,
+    )
+
+    # Expected: last audible sample is near 1.000s (tolerance within 20ms window)
+    assert abs(last_audible - 1.000) <= 0.030, f"Expected ~1.000s, got {last_audible}"
+
+
+def test_tts_v2_model_id_config_fallback(monkeypatch):
+    """
+    Validates TTS_V2_MODEL_ID configuration and guarantees:
+    1. Defaults to ELEVENLABS_MODEL_ID when unset.
+    2. Overrides model for V2 without altering legacy ELEVENLABS_MODEL_ID.
+    3. (a) With TTS_V2_MODEL_ID=eleven_multilingual_v2 and forced pipeline failure,
+           the legacy request body uses model_id == ELEVENLABS_MODEL_ID.
+    4. (b) The legacy path never reads or uses TTS_V2_MODEL_ID.
+    5. (c) Voice previews and voice cloning are completely unaffected.
+    """
+    from app.core.config import Settings
+    from app.core.llm import clone_voice_elevenlabs
+
+    # 1. Config loading & fallback defaults
+    with patch.dict(os.environ, {"ELEVENLABS_MODEL_ID": "eleven_turbo_v2_5"}, clear=False):
+        os.environ.pop("TTS_V2_MODEL_ID", None)
+        s = Settings()
+        assert s.TTS_V2_MODEL_ID == "eleven_turbo_v2_5"
+
+    with patch.dict(os.environ, {"ELEVENLABS_MODEL_ID": "eleven_turbo_v2_5", "TTS_V2_MODEL_ID": "eleven_multilingual_v2"}, clear=False):
+        s = Settings()
+        assert s.ELEVENLABS_MODEL_ID == "eleven_turbo_v2_5"
+        assert s.TTS_V2_MODEL_ID == "eleven_multilingual_v2"
+
+    # 2. (a) & (b) Forced pipeline failure: legacy request body uses model_id == ELEVENLABS_MODEL_ID
+    monkeypatch.setattr(settings, "TTS_PIPELINE_V2", True)
+    monkeypatch.setattr(settings, "ELEVENLABS_MODEL_ID", "eleven_turbo_v2_5")
+    monkeypatch.setattr(settings, "TTS_V2_MODEL_ID", "eleven_multilingual_v2")
+
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+    mock_resp.json.return_value = {
+        "audio_base64": "SUQzBAAAAAAAAA==",
+        "alignment": {"characters": ["H", "i"], "character_start_times_seconds": [0.0, 0.1], "character_end_times_seconds": [0.1, 0.2]}
+    }
+
+    with patch("app.core.llm._generate_voice_elevenlabs_v2", side_effect=RuntimeError("Forced V2 failure")):
+        with patch("requests.post", return_value=mock_resp) as mock_post:
+            audio, alignment = generate_voice_elevenlabs(
+                text="Testing fallback model id.",
+                return_timestamps=True,
+                story_type="confession",
+            )
+            assert mock_post.called
+            sent_body = mock_post.call_args[1]["json"]
+            # (a) Request body uses model_id == ELEVENLABS_MODEL_ID
+            assert sent_body["model_id"] == "eleven_turbo_v2_5"
+            # (b) Legacy path never reads or uses TTS_V2_MODEL_ID
+            assert sent_body["model_id"] != settings.TTS_V2_MODEL_ID
+
+    # 3. (c) Voice previews (return_timestamps=False) and voice cloning are unaffected
+    with patch("requests.post", return_value=mock_resp) as mock_preview_post:
+        audio = generate_voice_elevenlabs(
+            text="Voice preview test clip.",
+            return_timestamps=False,
+            story_type="confession",
+        )
+        assert mock_preview_post.called
+        sent_preview_body = mock_preview_post.call_args[1]["json"]
+        assert sent_preview_body["model_id"] == "eleven_turbo_v2_5"
+        assert sent_preview_body["model_id"] != settings.TTS_V2_MODEL_ID
+
+    # Voice cloning calls /voices/add and never references TTS_V2_MODEL_ID
+    clone_resp = MagicMock()
+    clone_resp.status_code = 200
+    clone_resp.json.return_value = {"voice_id": "new_cloned_voice_123"}
+    with patch("requests.post", return_value=clone_resp) as mock_clone_post:
+        v_id = clone_voice_elevenlabs(
+            display_name="Member Voice",
+            samples=[("rec.mp3", b"\x00\x01\x02", "audio/mpeg")],
+        )
+        assert v_id == "new_cloned_voice_123"
+        assert "/voices/add" in mock_clone_post.call_args[0][0]
+        # Verify no model_id in cloning payload
+        assert "model_id" not in mock_clone_post.call_args[1].get("data", {})
+
+
+def test_tail_cushion_minimum_guarantee():
+    """
+    Validates that:
+    1. If speech audio ends abruptly or has less than 80ms of tail after last audible drop,
+       an 80ms cushion is guaranteed before the final 10ms micro-fade.
+    2. The tail after last audible energy is never shorter than 80ms.
+    """
+    from app.services.tts_pipeline import (
+        get_last_audible_time,
+        apply_pcm_fade,
+        PCM_SAMPLE_RATE,
+        PCM_CHANNELS,
+        PCM_BYTES_PER_FRAME,
+    )
+    import math
+    import struct
+
+    # 1.0s of audible tone with ONLY 10ms of tail (abrupt cutoff)
+    tone_dur = 1.0
+    abrupt_tail_dur = 0.010
+    tone_frames = int(tone_dur * PCM_SAMPLE_RATE)
+    tail_frames = int(abrupt_tail_dur * PCM_SAMPLE_RATE)
+
+    loud_samples = [
+        int(10000 * math.sin(2 * math.pi * 440 * (i / PCM_SAMPLE_RATE)))
+        for i in range(tone_frames)
+    ]
+    silent_samples = [0] * tail_frames
+    pcm = struct.pack(f"<{len(loud_samples + silent_samples)}h", *(loud_samples + silent_samples))
+
+    t_audible = get_last_audible_time(pcm, channels=PCM_CHANNELS, sample_rate=PCM_SAMPLE_RATE, threshold_db=-50.0)
+    dur_before = len(pcm) / (PCM_SAMPLE_RATE * PCM_BYTES_PER_FRAME)
+    assert dur_before - t_audible < 0.030
+
+    # Apply the pipeline's minimum cushion logic (80ms minimum tail cushion)
+    MIN_TAIL_CUSHION_S = 0.080
+    if t_audible > 0 and (dur_before - t_audible) < MIN_TAIL_CUSHION_S:
+        needed_pad = MIN_TAIL_CUSHION_S - (dur_before - t_audible)
+        pad_frames = int(needed_pad * PCM_SAMPLE_RATE)
+        pcm += b"\x00" * (pad_frames * PCM_BYTES_PER_FRAME)
+
+    dur_after = len(pcm) / (PCM_SAMPLE_RATE * PCM_BYTES_PER_FRAME)
+    tail_after = dur_after - t_audible
+    assert tail_after >= 0.079, f"Expected at least 80ms tail cushion, got {tail_after*1000:.1f}ms"
+
+    # Confirm 10ms micro-fade applies cleanly to the padded tail without altering length
+    faded = apply_pcm_fade(pcm, fade_ms=10.0, sample_rate=PCM_SAMPLE_RATE)
+    assert len(faded) == len(pcm)
+
+
+

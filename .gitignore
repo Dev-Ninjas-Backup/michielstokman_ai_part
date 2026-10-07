@@ -22,3 +22,5 @@ scratch/test_live_stripe_webhook_simulation.py
 scratch/michielstokman_api
 .gitignore
 node_modules
+scratch/ab_test/
+*.mp3
