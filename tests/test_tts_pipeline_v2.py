@@ -1433,3 +1433,276 @@ def test_max_time_s_preserves_soft_word_decay_and_ignores_container_clicks():
         max_time_s=None,
     )
     assert t_audible_unbounded >= 1.750
+
+
+def test_smooth_audio_no_break_tags_in_v2_request_text(monkeypatch):
+    """Verify that when TTS_SMOOTH_AUDIO is True, no <break> tags are generated or sent."""
+    monkeypatch.setattr(settings, "TTS_PIPELINE_V2", True)
+    monkeypatch.setattr(settings, "TTS_SMOOTH_AUDIO", True)
+
+    text = "First paragraph here.\n\nSecond paragraph continues here.\n\nThird paragraph ends."
+    prepared = prepare_text_for_tts(text, "confession")
+    assert "<break" not in prepared
+
+    from app.services.tts_pipeline import split_text_into_chunks
+    chunks = split_text_into_chunks(prepared, smooth_audio=True)
+    assert len(chunks) >= 1
+    for c in chunks:
+        assert "<break" not in c.text
+        assert "<break" not in c.previous_text
+        assert "<break" not in c.next_text
+
+
+def test_digital_silence_runs_and_continuous_bed_mixing():
+    """Verify digital silence detection and zero digital silence runs after room tone bed is mixed."""
+    from app.services.tts_pipeline import (
+        count_digital_silence_runs,
+        mix_pcm_additive,
+        generate_shaped_noise_bed,
+        PCM_SAMPLE_RATE,
+        PCM_CHANNELS,
+        PCM_BYTES_PER_FRAME,
+    )
+
+    # 1 second of total digital zeros
+    silence_pcm = b"\x00" * (PCM_SAMPLE_RATE * PCM_BYTES_PER_FRAME)
+    runs_before = count_digital_silence_runs(silence_pcm, threshold_db=-90.0, min_run_ms=20.0)
+    assert runs_before >= 1
+
+    # Generate shaped noise bed at -80 dB
+    bed_pcm = generate_shaped_noise_bed(
+        duration_s=1.0,
+        channels=PCM_CHANNELS,
+        sample_rate=PCM_SAMPLE_RATE,
+        target_db=-80.0,
+    )
+
+    # Mix additively
+    mixed_pcm = mix_pcm_additive(silence_pcm, bed_pcm)
+    runs_after = count_digital_silence_runs(mixed_pcm, threshold_db=-90.0, min_run_ms=20.0)
+    assert runs_after == 0, f"Expected 0 digital silence runs after bed mix, got {runs_after}"
+
+
+def test_room_tone_bed_level_cap_and_fallback():
+    """Verify room tone pause floor is capped at -72 dB and fallback to -80 dB shaped noise."""
+    import array
+    import math
+    from app.services.tts_pipeline import (
+        level_room_tone,
+        extract_clean_room_tone_segment,
+        generate_shaped_noise_bed,
+        PCM_SAMPLE_RATE,
+        PCM_CHANNELS,
+    )
+
+    # Create synthetic pause clip at -65 dB
+    amp_65 = int(32767.0 * (10.0 ** (-65.0 / 20.0)))
+    raw_clip = array.array("h", [amp_65] * int(0.400 * PCM_SAMPLE_RATE)).tobytes()
+
+    # Leveled to -72 dB target
+    leveled = level_room_tone(raw_clip, target_level_db=-72.0, channels=PCM_CHANNELS)
+    s_leveled = array.array("h", leveled)
+    rms_leveled = math.sqrt(sum(s * s for s in s_leveled) / float(len(s_leveled)))
+    db_leveled = 20.0 * math.log10(rms_leveled / 32767.0)
+    assert abs(db_leveled - (-72.0)) < 1.0
+
+    # Test fallback when audio has no pause below -65 dB
+    loud_speech = array.array("h", [5000] * int(1.0 * PCM_SAMPLE_RATE)).tobytes()
+    clean_seg = extract_clean_room_tone_segment([loud_speech], channels=PCM_CHANNELS, sample_rate=PCM_SAMPLE_RATE)
+    assert clean_seg is None
+
+    # Fallback to shaped noise bed
+    fallback_bed = generate_shaped_noise_bed(1.0, channels=PCM_CHANNELS, sample_rate=PCM_SAMPLE_RATE, target_db=-80.0)
+    s_fb = array.array("h", fallback_bed)
+    rms_fb = math.sqrt(sum(s * s for s in s_fb) / float(len(s_fb)))
+    db_fb = 20.0 * math.log10(rms_fb / 32767.0)
+    assert -83.0 <= db_fb <= -77.0
+
+
+def test_tail_fades_never_touch_speech():
+    """Verify that the 50 ms cushion fade begins strictly after the audible speech decay."""
+    t_audible = 2.500
+    cushion_s = 0.150
+    trim_end = t_audible + cushion_s
+    fade_duration_s = 0.050
+    fade_start = trim_end - fade_duration_s
+
+    assert fade_start > t_audible
+    assert (fade_start - t_audible) == pytest.approx(0.100, abs=0.001)
+
+
+def test_gentle_pace_selection_clamp_dead_zone_and_scaling(monkeypatch):
+    """Verify pace alignment dead zone [0.98, 1.02], +/-4% tolerance, clamp [0.94, 1.06], and >6% outlier skip."""
+    from app.services.tts_pipeline import (
+        ChunkResult,
+        apply_gentle_pace_alignment,
+        PCM_SAMPLE_RATE,
+        PCM_CHANNELS,
+        PCM_BYTES_PER_FRAME,
+    )
+
+    rates = [100.0, 103.0, 105.0, 110.0]
+    call_count = 0
+    def mock_rate(*args, **kwargs):
+        nonlocal call_count
+        r = rates[call_count % len(rates)]
+        call_count += 1
+        return r
+
+    monkeypatch.setattr("app.services.tts_pipeline.compute_articulation_rate_from_pcm", mock_rate)
+
+    applied_factors = {}
+    def mock_atempo_pcm(pcm_bytes, alignment, factor, **kwargs):
+        applied_factors[len(applied_factors)] = factor
+        return pcm_bytes, alignment
+
+    monkeypatch.setattr("app.services.tts_pipeline.apply_chunk_atempo_pcm", mock_atempo_pcm)
+
+    dummy_pcm = b"\x00" * int(1.0 * PCM_SAMPLE_RATE * PCM_BYTES_PER_FRAME)
+    chunks = [
+        ChunkResult(index=i, mp3_bytes=b"dummy", alignment=[{"word": "word", "start": 0.1, "end": 0.5}], is_paragraph_end=False)
+        for i in range(4)
+    ]
+    pcms = [dummy_pcm for _ in range(4)]
+
+    apply_gentle_pace_alignment(chunks, pcms)
+
+    assert len(applied_factors) == 1
+    corr_factor = list(applied_factors.values())[0]
+    assert 0.94 <= corr_factor <= 1.06
+
+
+def test_request_id_chaining_and_fallback(monkeypatch):
+    """Verify request-id chaining from response headers and fallback when unsupported."""
+    from app.services.tts_pipeline import (
+        TextChunk,
+        fetch_chunk_audio_with_retry,
+    )
+
+    sent_payloads = []
+
+    class MockResponse:
+        def __init__(self, status_code, json_data, headers):
+            self.status_code = status_code
+            self._json = json_data
+            self.headers = headers
+
+        def json(self):
+            return self._json
+
+    def mock_post(url, json=None, headers=None, timeout=None):
+        sent_payloads.append(dict(json))
+        import base64
+        return MockResponse(
+            status_code=200,
+            json_data={
+                "audio_base64": base64.b64encode(b"ID3\x04mock").decode("utf-8"),
+                "alignment": {
+                    "characters": ["h", "i"],
+                    "character_start_times_seconds": [0.0, 0.1],
+                    "character_end_times_seconds": [0.1, 0.2],
+                },
+            },
+            headers={"request-id": "req-12345"},
+        )
+
+    monkeypatch.setattr("requests.post", mock_post)
+
+    chunk = TextChunk(index=0, text="hello world", previous_text="", next_text="", is_paragraph_end=True)
+
+    # 1. With turbo model and previous_request_ids: should include previous_request_ids
+    res_turbo = fetch_chunk_audio_with_retry(
+        chunk=chunk,
+        resolved_voice_id="voice-1",
+        resolved_model_id="eleven_turbo_v2_5",
+        voice_settings={},
+        api_key="valid-key",
+        previous_request_ids=["prev-1", "prev-2"],
+    )
+    assert res_turbo.request_id == "req-12345"
+    assert "previous_request_ids" in sent_payloads[-1]
+    assert sent_payloads[-1]["previous_request_ids"] == ["prev-1", "prev-2"]
+
+    # 2. With multilingual model: should omit previous_request_ids (unsupported per official docs)
+    res_multi = fetch_chunk_audio_with_retry(
+        chunk=chunk,
+        resolved_voice_id="voice-1",
+        resolved_model_id="eleven_multilingual_v2",
+        voice_settings={},
+        api_key="valid-key",
+        previous_request_ids=["prev-1", "prev-2"],
+    )
+    assert "previous_request_ids" not in sent_payloads[-1]
+
+
+def test_v2_fallback_visibility_logs_error_type_and_counter(monkeypatch, caplog):
+    """Verify fallback visibility: when V2 raises, logs one line with error type and counter, no story text."""
+    from app.core.llm import generate_voice_elevenlabs, get_tts_v2_fallback_count
+
+    monkeypatch.setattr(settings, "TTS_PIPELINE_V2", True)
+    initial_count = get_tts_v2_fallback_count()
+
+    def mock_failing_v2(*args, **kwargs):
+        raise RuntimeError("Simulated V2 failure")
+
+    monkeypatch.setattr("app.core.llm._generate_voice_elevenlabs_v2", mock_failing_v2)
+
+    secret_story = "TOP_SECRET_STORY_TEXT_NEVER_LOG"
+    with patch("requests.post") as mock_post:
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = {
+            "audio_base64": "SUQzBAAAAA==",
+            "alignment": {"characters": [], "character_start_times_seconds": [], "character_end_times_seconds": []},
+        }
+        mock_post.return_value = mock_resp
+
+        import logging
+        with caplog.at_level(logging.WARNING):
+            generate_voice_elevenlabs(
+                text=secret_story,
+                voice_id="Charlotte",
+                return_timestamps=True,
+            )
+
+    new_count = get_tts_v2_fallback_count()
+    assert new_count == initial_count + 1
+
+    assert any("TTS V2 fallback [count=" in rec.message and "error_type=RuntimeError" in rec.message for rec in caplog.records)
+    for rec in caplog.records:
+        assert secret_story not in rec.message
+
+
+def test_smooth_story_assembly_alignment_shifts_and_edges():
+    """Verify that assemble_smooth_story shifts alignment by the 250 ms lead-in, maintains monotonicity and non-negativity."""
+    import array
+    from app.services.tts_pipeline import (
+        ChunkResult,
+        assemble_smooth_story,
+        raw_pcm_to_mp3,
+        PCM_SAMPLE_RATE,
+    )
+    from app.services.tts_profiles import get_tts_profile
+
+    pcm1 = array.array("h", [2500] * int(1.0 * PCM_SAMPLE_RATE)).tobytes()
+    mp3_1 = raw_pcm_to_mp3(pcm1, loudnorm=False)
+    c1 = ChunkResult(index=0, mp3_bytes=mp3_1, alignment=[{"word": "hello", "start": 0.1, "end": 0.9}], is_paragraph_end=False)
+
+    pcm2 = array.array("h", [2500] * int(1.0 * PCM_SAMPLE_RATE)).tobytes()
+    mp3_2 = raw_pcm_to_mp3(pcm2, loudnorm=False)
+    c2 = ChunkResult(index=1, mp3_bytes=mp3_2, alignment=[{"word": "world", "start": 0.1, "end": 0.9}], is_paragraph_end=True)
+
+    profile = get_tts_profile("confession")
+    final_mp3, final_alignment = assemble_smooth_story([c1, c2], profile, text="hello world")
+
+    assert len(final_mp3) > 0
+    assert len(final_alignment) == 2
+
+    # Lead-in is 250 ms: first word start must be >= 0.250
+    assert final_alignment[0]["start"] >= 0.250
+    # Monotonicity
+    assert final_alignment[0]["start"] <= final_alignment[0]["end"]
+    assert final_alignment[0]["end"] <= final_alignment[1]["start"]
+    assert final_alignment[1]["start"] <= final_alignment[1]["end"]
+
+

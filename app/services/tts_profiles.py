@@ -8,6 +8,7 @@ Provides tunable emotional delivery settings for ElevenLabs and natural text pre
 from dataclasses import dataclass
 import re
 from typing import Optional, Union
+from app.core.config import settings
 from app.schemas.schema_ai import StoryType
 
 
@@ -112,20 +113,28 @@ _EMOJI_PATTERN = re.compile(
 )
 
 
-def prepare_text_for_tts(text: str, story_type: Optional[Union[str, StoryType]] = None) -> str:
+def prepare_text_for_tts(
+    text: str,
+    story_type: Optional[Union[str, StoryType]] = None,
+    smooth_audio: Optional[bool] = None,
+) -> str:
     """
     Prepares story text for ElevenLabs TTS when TTS_PIPELINE_V2 is enabled.
     - Strips markdown, emojis, and parentheses.
     - Removes existing manual pause/break tags to avoid redundant pauses.
     - Normalizes whitespace.
     - Preserves natural punctuation and ellipses without intrusive tags.
-    - Inserts a single profile-tuned <break> tag ONLY at paragraph ends.
+    - When smooth_audio (or TTS_SMOOTH_AUDIO) is enabled, sends NO <break> tags (paragraphs joined with newlines).
+    - Otherwise inserts a single profile-tuned <break> tag ONLY at paragraph ends.
     - The original text in the database is NOT modified; this only formats the TTS payload.
     """
     if not text:
         return ""
 
     profile = get_tts_profile(story_type)
+
+    if smooth_audio is None:
+        smooth_audio = getattr(settings, "TTS_SMOOTH_AUDIO", False) and getattr(settings, "TTS_PIPELINE_V2", False)
 
     # 1. Strip existing break/pause tags (e.g. from prompts or manual insertions)
     cleaned = re.sub(r'<break\s+time="[^"]*"\s*/>', " ", text)
@@ -168,6 +177,12 @@ def prepare_text_for_tts(text: str, story_type: Optional[Union[str, StoryType]] 
     if not processed_paragraphs:
         return ""
 
+    if smooth_audio:
+        # When smooth audio is enabled: send NO <break> tags; use natural punctuation and '...' only
+        final_text = "\n\n".join(processed_paragraphs)
+        final_text = re.sub(r'<break\s+time="[^"]*"\s*/>', '', final_text)
+        return final_text.strip()
+
     # 7. Join paragraphs with double newlines and a single break tag with profile duration
     break_tag = f'<break time="{profile.paragraph_break_s:.1f}s" />'
     final_text = f"\n\n{break_tag}\n\n".join(processed_paragraphs)
@@ -178,3 +193,4 @@ def prepare_text_for_tts(text: str, story_type: Optional[Union[str, StoryType]] 
     final_text = re.sub(r'\s*<break\s+time="[^"]*"\s*/>\s*$', '', final_text)
 
     return final_text.strip()
+

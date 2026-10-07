@@ -2,8 +2,18 @@ import os
 import uuid
 import requests
 from pathlib import Path
+import threading
 from langchain_openai import ChatOpenAI
 from app.core.config import settings
+
+_tts_v2_fallback_count = 0
+_tts_v2_fallback_lock = threading.Lock()
+
+
+def get_tts_v2_fallback_count() -> int:
+    """Returns the total number of times the V2 TTS pipeline has fallen back to legacy."""
+    with _tts_v2_fallback_lock:
+        return _tts_v2_fallback_count
 
 
 # ElevenLabs TTS & LLM Configuration for House of Juliette
@@ -349,11 +359,15 @@ def generate_voice_elevenlabs(
                 story_type=story_type,
             )
         except Exception as exc:
+            global _tts_v2_fallback_count
+            with _tts_v2_fallback_lock:
+                _tts_v2_fallback_count += 1
+                cnt = _tts_v2_fallback_count
             import logging
-            logging.getLogger(__name__).error(
-                "TTS V2 pipeline failed (%s: %s). Falling back to legacy TTS pipeline.",
+            logging.getLogger(__name__).warning(
+                "TTS V2 fallback [count=%d, error_type=%s]: Falling back to legacy TTS pipeline.",
+                cnt,
                 type(exc).__name__,
-                str(exc),
             )
 
     # Preprocess text to add breaks/pauses for a sensual, slow delivery
