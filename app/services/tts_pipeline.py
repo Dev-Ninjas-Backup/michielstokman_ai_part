@@ -216,6 +216,7 @@ def extract_clean_room_tone_segment(
 
         best_segment = None
         best_mean_rms = 0.0
+        best_is_silence = True
 
         for pcm in pcm_bytes_list:
             if not pcm or len(pcm) < min_frames * bytes_per_sample:
@@ -247,9 +248,16 @@ def extract_clean_room_tone_segment(
 
                 if is_clean and seg_rms_list:
                     mean_rms = sum(seg_rms_list) / len(seg_rms_list)
-                    if best_segment is None or mean_rms < best_mean_rms:
+                    # Prioritize natural acoustic room tone in [-82.0, -65.0] dB over synthetic digital zeros
+                    if -82.0 <= mean_rms < max_rms_threshold_db:
+                        if best_segment is None or best_is_silence or mean_rms < best_mean_rms:
+                            best_mean_rms = mean_rms
+                            best_segment = seg.tobytes()
+                            best_is_silence = False
+                    elif mean_rms < -82.0 and best_segment is None:
                         best_mean_rms = mean_rms
                         best_segment = seg.tobytes()
+                        best_is_silence = True
 
         return best_segment
     except Exception as exc:

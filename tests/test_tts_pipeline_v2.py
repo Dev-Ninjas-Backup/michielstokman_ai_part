@@ -1355,7 +1355,81 @@ def test_flag_off_identical_to_legacy():
                 mock_v2.assert_not_called()
 
 
+def test_max_time_s_preserves_soft_word_decay_and_ignores_container_clicks():
+    """
+    Validates that get_last_audible_time with max_time_s = last_word_end + 0.600:
+    1. NEVER cuts a real soft word ending that trails beyond last_word_end
+       (e.g., an unvoiced fricative/whisper decaying down to -50 dB over 350 ms).
+    2. Completely ignores container framing artifacts / spurious clicks
+       occurring > 600 ms after last_word_end (e.g. at 1.0 - 1.5 s).
+    """
+    import math
+    import struct
+    from app.services.tts_pipeline import (
+        get_last_audible_time,
+        PCM_SAMPLE_RATE,
+    )
 
+    sr = PCM_SAMPLE_RATE
+    # Synthesize audio:
+    # 0.0s to 1.0s: Word speech (voiced body ending at 1.000s)
+    # 1.0s to 1.35s: Real soft word decay (e.g. unvoiced /s/ or breath tail, dropping from -35 dB to -49.5 dB at 1.35s)
+    # 1.35s to 1.70s: Natural silence (< -70 dB)
+    # 1.75s to 1.76s: Spurious container framing click at -15 dB (occurs 750 ms after last_word_end)
+    # Total duration = 2.0s
+    total_dur = 2.0
+    total_frames = int(total_dur * sr)
+    samples = [0] * total_frames
 
+    # Voiced word up to 1.000s
+    for i in range(int(1.000 * sr)):
+        samples[i] = int(12000 * math.sin(2 * math.pi * 300 * (i / sr)))
 
+    # Real soft word decay trailing from 1.000s to 1.350s (350 ms trail)
+    decay_start_f = int(1.000 * sr)
+    decay_end_f = int(1.350 * sr)
+    for i in range(decay_start_f, decay_end_f):
+        progress = (i - decay_start_f) / float(decay_end_f - decay_start_f)
+        amp = 1500.0 * (0.10 ** progress)
+        samples[i] = int(amp * math.sin(2 * math.pi * 2500 * (i / sr)))
 
+    # Spurious container click at 1.750s (amp 6000, ~ -15 dB)
+    click_start_f = int(1.750 * sr)
+    click_end_f = int(1.760 * sr)
+    for i in range(click_start_f, click_end_f):
+        samples[i] = int(6000 * math.sin(2 * math.pi * 1000 * (i / sr)))
+
+    pcm_bytes = struct.pack(f"<{len(samples)}h", *samples)
+
+    last_word_end = 1.000
+    max_time_s = last_word_end + 0.600  # 1.600s
+
+    # 1. With max_time_s:
+    # Must capture the entire soft decay up to 1.350s, without truncation
+    t_audible = get_last_audible_time(
+        pcm_bytes,
+        channels=1,
+        sample_rate=sr,
+        threshold_db=-50.0,
+        window_ms=10.0,
+        max_time_s=max_time_s,
+    )
+    assert 1.340 <= t_audible <= 1.360, f"Expected soft decay end ~1.350s, got {t_audible:.3f}s"
+
+    # With 150ms cushion, trim_end is t_audible + 0.150 = ~1.500s
+    trim_end = min(total_dur, max(t_audible + 0.080, t_audible + 0.150))
+    assert 1.490 <= trim_end <= 1.510
+    # Container click at 1.750s was safely excluded!
+    assert trim_end < 1.750
+
+    # 2. Without max_time_s (showing what would happen without the guardrail):
+    # Unbounded scan latches onto spurious click at 1.760s
+    t_audible_unbounded = get_last_audible_time(
+        pcm_bytes,
+        channels=1,
+        sample_rate=sr,
+        threshold_db=-50.0,
+        window_ms=10.0,
+        max_time_s=None,
+    )
+    assert t_audible_unbounded >= 1.750
