@@ -224,26 +224,32 @@ VOICE_OPTIMIZATION = {
     "Sophia": {
         "confession": {"stability": 0.55, "similarity_boost": 0.85, "style": 0.65, "speed": 0.88},
         "meditation": {"stability": 0.62, "similarity_boost": 0.85, "style": 0.50, "speed": 0.88},
+        "transformation": {"stability": 0.55, "similarity_boost": 0.85, "style": 0.60, "speed": 0.90},
     },
     "Chapter1": {
         "confession": {"stability": 0.55, "similarity_boost": 0.85, "style": 0.60, "speed": 0.88},
         "meditation": {"stability": 0.65, "similarity_boost": 0.85, "style": 0.50, "speed": 0.88},
+        "transformation": {"stability": 0.55, "similarity_boost": 0.85, "style": 0.60, "speed": 0.90},
     },
     "Calen": {
-        "confession": {"stability": 0.58, "similarity_boost": 0.85, "style": 0.45, "speed": 0.88},
-        "meditation": {"stability": 0.65, "similarity_boost": 0.85, "style": 0.40, "speed": 0.88},
+        "confession": {"stability": 0.52, "similarity_boost": 0.85, "style": 0.40, "speed": 1.15},
+        "meditation": {"stability": 0.60, "similarity_boost": 0.85, "style": 0.35, "speed": 1.08},
+        "transformation": {"stability": 0.52, "similarity_boost": 0.85, "style": 0.40, "speed": 1.15},
     },
     "Charlotte": {
         "confession": {"stability": 0.55, "similarity_boost": 0.85, "style": 0.65, "speed": 0.88},
         "meditation": {"stability": 0.65, "similarity_boost": 0.85, "style": 0.50, "speed": 0.88},
+        "transformation": {"stability": 0.55, "similarity_boost": 0.85, "style": 0.60, "speed": 0.90},
     },
     "Victoria": {
-        "confession": {"stability": 0.55, "similarity_boost": 0.85, "style": 0.60, "speed": 0.88},
-        "meditation": {"stability": 0.65, "similarity_boost": 0.85, "style": 0.50, "speed": 0.88},
+        "confession": {"stability": 0.52, "similarity_boost": 0.86, "style": 0.42, "speed": 1.02},
+        "meditation": {"stability": 0.58, "similarity_boost": 0.86, "style": 0.35, "speed": 0.92},
+        "transformation": {"stability": 0.52, "similarity_boost": 0.86, "style": 0.42, "speed": 1.02},
     },
     "Anja": {
-        "confession": {"stability": 0.55, "similarity_boost": 0.85, "style": 0.60, "speed": 0.88},
-        "meditation": {"stability": 0.65, "similarity_boost": 0.85, "style": 0.50, "speed": 0.88},
+        "confession": {"stability": 0.52, "similarity_boost": 0.86, "style": 0.42, "speed": 1.02},
+        "meditation": {"stability": 0.58, "similarity_boost": 0.86, "style": 0.35, "speed": 0.92},
+        "transformation": {"stability": 0.52, "similarity_boost": 0.86, "style": 0.42, "speed": 1.02},
     }
 }
 
@@ -310,22 +316,65 @@ def _generate_voice_elevenlabs_v2(
     stability: float | None = None,
     similarity_boost: float | None = None,
     style: float | None = None,
+    speed: float | None = None,
     return_timestamps: bool = True,
     story_type: str | None = None,
 ) -> bytes | tuple[bytes, list[dict]]:
     """
     Phase 2 TTS V2 pipeline: chunking, concurrency, alignment-based trimming,
-    and single-pass loudness normalization.
+    and single-pass loudness normalization. Resolves curated voice calibrations
+    (e.g. Calen pacing, Victoria/Anja stability & emotion) from VOICE_OPTIMIZATION.
     """
     from app.services.tts_pipeline import execute_tts_pipeline_v2
+
+    friendly_name = None
+    if voice_id:
+        v_str = str(voice_id).strip().lower()
+        for name, vid in ELEVENLABS_VOICES.items():
+            if vid.lower() == v_str or name.lower() == v_str:
+                friendly_name = name
+                break
+
+    is_meditation = False
+    is_transformation = False
+    if story_type:
+        st_val = str(story_type.value if hasattr(story_type, "value") else story_type).lower()
+        if "meditation" in st_val:
+            is_meditation = True
+        elif "transformation" in st_val:
+            is_transformation = True
+    else:
+        if '<break time="3.0s"' in text or '<break time="3s"' in text:
+            is_meditation = True
+
+    opt_key = "meditation" if is_meditation else ("transformation" if is_transformation else "confession")
+
+    resolved_stability = stability
+    resolved_similarity_boost = similarity_boost
+    resolved_style = style
+    resolved_speed = speed
+
+    if friendly_name and friendly_name in VOICE_OPTIMIZATION:
+        voice_opts = VOICE_OPTIMIZATION[friendly_name]
+        chosen_opt = voice_opts.get(opt_key) or voice_opts.get("confession", {})
+        if resolved_stability is None:
+            resolved_stability = chosen_opt.get("stability")
+        if resolved_similarity_boost is None:
+            resolved_similarity_boost = chosen_opt.get("similarity_boost")
+        if resolved_style is None:
+            resolved_style = chosen_opt.get("style")
+        if resolved_speed is None:
+            resolved_speed = chosen_opt.get("speed")
+
     audio_bytes, alignment = execute_tts_pipeline_v2(
         text=text,
         story_type=story_type,
         voice_id=voice_id,
         model_id=model_id,
-        stability=stability,
-        similarity_boost=similarity_boost,
-        style=style,
+        stability=resolved_stability,
+        similarity_boost=resolved_similarity_boost,
+        style=resolved_style,
+        speed=resolved_speed,
         return_timestamps=return_timestamps,
     )
     if return_timestamps:
@@ -340,6 +389,7 @@ def generate_voice_elevenlabs(
     stability: float | None = None,
     similarity_boost: float | None = None,
     style: float | None = None,
+    speed: float | None = None,
     return_timestamps: bool = False,
     story_type: str | None = None,
 ) -> bytes | tuple[bytes, list[dict]]:
@@ -363,6 +413,7 @@ def generate_voice_elevenlabs(
                 stability=stability,
                 similarity_boost=similarity_boost,
                 style=style,
+                speed=speed,
                 return_timestamps=return_timestamps,
                 story_type=story_type,
             )
@@ -430,12 +481,15 @@ def generate_voice_elevenlabs(
     resolved_voice_id = ELEVENLABS_VOICES.get(voice_id, voice_id) or settings.ELEVENLABS_VOICE_ID
     resolved_model_id = model_id or settings.ELEVENLABS_MODEL_ID
 
-    # Normalize story type to determine if it is a meditation
+    # Normalize story type to determine story delivery style
     is_meditation = False
+    is_transformation = False
     if story_type:
         st_str = str(story_type).lower()
         if "meditation" in st_str:
             is_meditation = True
+        elif "transformation" in st_str:
+            is_transformation = True
     else:
         # Fallback: Infer meditation based on double newline break duration (3.0s is meditation)
         if '<break time="3.0s"' in text or '<break time="3s"' in text:
@@ -449,7 +503,7 @@ def generate_voice_elevenlabs(
                 friendly_name = name
                 break
 
-    opt_key = "meditation" if is_meditation else "confession"
+    opt_key = "meditation" if is_meditation else ("transformation" if is_transformation else "confession")
 
     # Resolve optimized voice settings
     resolved_stability = stability

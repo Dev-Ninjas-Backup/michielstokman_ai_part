@@ -1323,6 +1323,79 @@ def apply_gentle_pace_alignment(
     return updated_pcms, updated_alignments
 
 
+def balance_chunk_pcm_volumes(
+    chunk_specs: list[dict],
+    channels: int = PCM_CHANNELS,
+    sample_rate: int = PCM_SAMPLE_RATE,
+) -> None:
+    """
+    Balances speech loudness across chunks to eliminate volume spiking at the start
+    and ensure uniform vocal presence throughout the story.
+    Measures active speech RMS (-45 dB threshold) per chunk, computes median,
+    and gently applies gain adjustment (clamped to [-3.0, 3.0] dB with 0.8 dB dead zone).
+    Mutates 'faded_pcm' in place within chunk_specs.
+    """
+    if len(chunk_specs) < 2:
+        return
+
+    win_frames = int(0.020 * sample_rate)  # 20 ms windows
+    speech_dbs = []
+
+    for spec in chunk_specs:
+        pcm = spec.get("faded_pcm", b"")
+        if not pcm:
+            speech_dbs.append(None)
+            continue
+        samples = array.array("h", pcm)
+        total_f = len(samples) // channels
+        audible_rmss = []
+        for f in range(0, total_f - win_frames, win_frames):
+            win_s = samples[f * channels : (f + win_frames) * channels]
+            sum_sq = sum(s * s for s in win_s)
+            r = math.sqrt(sum_sq / float(len(win_s))) if win_s else 0.0
+            if r > 0:
+                d = 20.0 * math.log10(r / 32767.0)
+                if d >= -45.0:  # Active speech threshold
+                    audible_rmss.append(r)
+        if audible_rmss:
+            mean_r = sum(audible_rmss) / len(audible_rmss)
+            chunk_db = 20.0 * math.log10(mean_r / 32767.0)
+        else:
+            sum_sq = sum(s * s for s in samples)
+            r = math.sqrt(sum_sq / float(len(samples))) if samples else 0.0
+            chunk_db = 20.0 * math.log10(r / 32767.0) if r > 0 else -100.0
+        speech_dbs.append(chunk_db)
+
+    valid_dbs = [db for db in speech_dbs if db is not None and db > -70.0]
+    if len(valid_dbs) < 2:
+        return
+
+    valid_dbs_sorted = sorted(valid_dbs)
+    mid = len(valid_dbs_sorted) // 2
+    if len(valid_dbs_sorted) % 2 == 1:
+        median_db = valid_dbs_sorted[mid]
+    else:
+        median_db = (valid_dbs_sorted[mid - 1] + valid_dbs_sorted[mid]) / 2.0
+
+    for idx, (spec, chunk_db) in enumerate(zip(chunk_specs, speech_dbs)):
+        if chunk_db is None or chunk_db <= -70.0:
+            continue
+        delta_db = median_db - chunk_db
+        # Dead zone: +/- 0.8 dB (natural variation is preserved)
+        if abs(delta_db) <= 0.8:
+            continue
+        # Clamp adjustment to +/- 3.0 dB
+        clamped_delta = max(-3.0, min(3.0, delta_db))
+        scale = 10.0 ** (clamped_delta / 20.0)
+        samples = array.array("h", spec["faded_pcm"])
+        scaled_samples = array.array("h", (int(max(-32768, min(32767, s * scale))) for s in samples))
+        spec["faded_pcm"] = scaled_samples.tobytes()
+        logger.info(
+            "Balanced chunk %d loudness: %.1f dB -> target %.1f dB (gain %.2f dB)",
+            idx, chunk_db, median_db, clamped_delta
+        )
+
+
 def assemble_smooth_story(
     ordered_chunks: list[ChunkResult],
     profile: TTSProfile,
@@ -1434,6 +1507,10 @@ def assemble_smooth_story(
             "tail40": tail40,
             "is_paragraph_end": c_res.is_paragraph_end,
         })
+
+    # Inter-chunk speech volume leveling: balances loudness so chunk 0 doesn't spike
+    # and subsequent chunks maintain consistent energy and presence throughout the story.
+    balance_chunk_pcm_volumes(chunk_specs)
 
     # 4. File edges: 250 ms room-tone lead-in, 700 ms tail with 400 ms fade-out
     lead_in_s = 0.250
@@ -1793,6 +1870,7 @@ def execute_tts_pipeline_v2(
     style: Optional[float] = None,
     return_timestamps: bool = True,
     max_retries: int = 3,
+    speed: Optional[float] = None,
 ) -> tuple[bytes, list[dict]]:
     """
     Executes the complete Phase 2 TTS pipeline:
@@ -1816,7 +1894,14 @@ def execute_tts_pipeline_v2(
     resolved_stability = stability if stability is not None else profile.stability
     resolved_similarity_boost = similarity_boost if similarity_boost is not None else profile.similarity_boost
     resolved_style = style if style is not None else profile.style
-    resolved_speed = profile.speed
+    resolved_speed = speed if speed is not None else profile.speed
+
+    # Calen pacing calibration: speed up natural cadence (+21% faster) when not explicitly overridden
+    if speed is None and voice_id:
+        v_str = str(voice_id).strip().lower()
+        if v_str in ("calen", "s44kq3olfckbxgykfold"):
+            is_med = "meditation" in str(story_type).lower() if story_type else False
+            resolved_speed = 1.08 if is_med else 1.15
 
     # Member cloned (IVC) voice detection & guardrails
     is_stock = False
@@ -2035,6 +2120,10 @@ def execute_tts_pipeline_v2(
             "tail40": tail40,
             "is_paragraph_end": c_res.is_paragraph_end,
         })
+
+    # Inter-chunk speech volume leveling: balances loudness so chunk 0 doesn't spike
+    # and subsequent chunks maintain consistent energy and presence throughout the story.
+    balance_chunk_pcm_volumes(chunk_specs)
 
     # Harvest clean room-tone bed from available chunks (in-memory only, max RMS < -65 dB)
     raw_pcms = [spec["raw_pcm"] for spec in chunk_specs if "raw_pcm" in spec]

@@ -85,15 +85,91 @@ DEFAULT_PROFILE = TTSProfile(
 )
 
 
-def get_tts_profile(story_type: Optional[Union[str, StoryType]] = None) -> TTSProfile:
-    """Resolves TTSProfile for a given story_type string or enum."""
-    if not story_type:
-        return DEFAULT_PROFILE
-    key = str(story_type.value if isinstance(story_type, StoryType) else story_type).lower().strip()
-    for profile_key, profile in TTS_PROFILES.items():
-        if profile_key in key:
-            return profile
-    return DEFAULT_PROFILE
+# Voice-specific tuning overrides for calibrated pacing, volume consistency, and emotional delivery
+VOICE_TUNING_OVERRIDES = {
+    "calen": {
+        "speed": 1.15,
+        "speed_meditation": 1.08,
+        "stability": 0.52,
+        "stability_meditation": 0.60,
+        "similarity_boost": 0.85,
+        "style": 0.40,
+        "style_meditation": 0.35,
+    },
+    "victoria": {
+        "speed": 1.02,
+        "speed_meditation": 0.92,
+        "stability": 0.52,
+        "stability_meditation": 0.58,
+        "similarity_boost": 0.86,
+        "style": 0.42,
+        "style_meditation": 0.35,
+    },
+    "anja": {
+        "speed": 1.02,
+        "speed_meditation": 0.92,
+        "stability": 0.52,
+        "stability_meditation": 0.58,
+        "similarity_boost": 0.86,
+        "style": 0.42,
+        "style_meditation": 0.35,
+    },
+}
+
+VOICE_ID_NAME_MAP = {
+    "calen": "calen",
+    "s44kq3olfckbxgykfold": "calen",
+    "victoria": "victoria",
+    "weaawkycs06vmxw086yz": "victoria",
+    "anja": "anja",
+    "ytio1w3m21pipjpr44fo": "anja",
+}
+
+
+def get_tts_profile(
+    story_type: Optional[Union[str, StoryType]] = None,
+    voice_id: Optional[str] = None,
+) -> TTSProfile:
+    """
+    Resolves TTSProfile for a given story_type string or enum.
+    When voice_id is supplied, applies per-voice calibrated overrides for
+    pacing (e.g. Calen speed boost), stability, volume consistency, and emotion (e.g. Victoria, Anja).
+    When voice_id is None, returns the base story profile.
+    """
+    base_profile = DEFAULT_PROFILE
+    if story_type:
+        key = str(story_type.value if isinstance(story_type, StoryType) else story_type).lower().strip()
+        for profile_key, profile in TTS_PROFILES.items():
+            if profile_key in key:
+                base_profile = profile
+                break
+
+    if not voice_id:
+        return base_profile
+
+    v_key = VOICE_ID_NAME_MAP.get(str(voice_id).strip().lower())
+    if not v_key or v_key not in VOICE_TUNING_OVERRIDES:
+        return base_profile
+
+    overrides = VOICE_TUNING_OVERRIDES[v_key]
+    is_meditation = "meditation" in base_profile.story_type.lower()
+
+    tuned_speed = overrides.get("speed_meditation" if is_meditation else "speed", base_profile.speed)
+    tuned_stability = overrides.get("stability_meditation" if is_meditation else "stability", base_profile.stability)
+    tuned_similarity = overrides.get("similarity_boost", base_profile.similarity_boost)
+    tuned_style = overrides.get("style_meditation" if is_meditation else "style", base_profile.style)
+
+    return TTSProfile(
+        story_type=base_profile.story_type,
+        stability=tuned_stability,
+        similarity_boost=tuned_similarity,
+        style=tuned_style,
+        speed=tuned_speed,
+        pause_ms=base_profile.pause_ms,
+        paragraph_break_s=base_profile.paragraph_break_s,
+        seam_gap_ms=base_profile.seam_gap_ms,
+        seam_paragraph_gap_ms=base_profile.seam_paragraph_gap_ms,
+    )
 
 
 # Emoji removal pattern (broad Unicode ranges covering emojis and symbols)
