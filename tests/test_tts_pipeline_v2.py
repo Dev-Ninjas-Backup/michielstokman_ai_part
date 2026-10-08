@@ -1799,3 +1799,127 @@ def test_smooth_story_assembly_alignment_shifts_and_edges():
     assert final_alignment[1]["start"] <= final_alignment[1]["end"]
 
 
+def test_voice_tuning_profile_overrides():
+    """Verify calibrated settings for Calen, Victoria, and Anja in get_tts_profile."""
+    from app.services.tts_profiles import get_tts_profile
+
+    # Calen speed calibration (+21% faster to match desired 1.25x listening experience)
+    calen_confession = get_tts_profile("confession", voice_id="Calen")
+    assert calen_confession.speed == 1.15
+    assert calen_confession.stability == 0.52
+
+    calen_id_prof = get_tts_profile("transformation", voice_id="S44KQ3oLFckbxgyKfold")
+    assert calen_id_prof.speed == 1.15
+
+    calen_meditation = get_tts_profile("meditation", voice_id="Calen")
+    assert calen_meditation.speed == 1.08
+
+    # Victoria volume consistency, stable pitch, and natural delivery
+    vic_prof = get_tts_profile("confession", voice_id="Victoria")
+    assert vic_prof.stability == 0.55
+    assert vic_prof.similarity_boost == 0.85
+    assert vic_prof.style == 0.18
+    assert vic_prof.speed == 1.00
+
+    vic_id_prof = get_tts_profile("confession", voice_id="WeAAwKYcS06VmXw086yZ")
+    assert vic_id_prof.stability == 0.55
+    assert vic_id_prof.style == 0.18
+
+    # Anja volume consistency, stable pitch, and emotional cadence
+    anja_prof = get_tts_profile("confession", voice_id="Anja")
+    assert anja_prof.stability == 0.52
+    assert anja_prof.similarity_boost == 0.86
+    assert anja_prof.style == 0.42
+    assert anja_prof.speed == 1.02
+
+    anja_id_prof = get_tts_profile("transformation", voice_id="ytIo1w3M21piPjpR44FO")
+    assert anja_id_prof.stability == 0.52
+    assert anja_id_prof.style == 0.42
+
+    # Default without voice_id remains base profile
+    base_conf = get_tts_profile("confession")
+    assert base_conf.speed == 0.95
+    assert base_conf.stability == 0.35
+
+
+def test_voice_tuning_in_elevenlabs_v2_generation(monkeypatch):
+    """Verify that generate_voice_elevenlabs dispatches calibrated settings for Calen, Victoria, and Anja."""
+    monkeypatch.setattr(settings, "TTS_PIPELINE_V2", True)
+
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+    mock_resp.json.return_value = {
+        "audio_base64": "SUQzBAAAAAAAAA==",
+        "alignment": {"characters": ["H", "i"], "character_start_times_seconds": [0.0, 0.1], "character_end_times_seconds": [0.1, 0.2]}
+    }
+
+    with patch("requests.post", return_value=mock_resp) as mock_post:
+        with patch("app.services.tts_pipeline.mp3_to_raw_pcm", return_value=(b"\x00" * (44100 * 4 * 2), 2.0)):
+            with patch("app.services.tts_pipeline.raw_pcm_to_mp3", return_value=b"ID3\x04\x00\x00\x00\x00\x00\x00"):
+                # 1. Test Calen speed
+                generate_voice_elevenlabs(
+                    text="Calen narration text.",
+                    voice_id="Calen",
+                    return_timestamps=True,
+                    story_type="confession"
+                )
+                sent_body = mock_post.call_args[1]["json"]
+                assert sent_body["voice_settings"]["speed"] == 1.15
+                assert sent_body["voice_settings"]["stability"] == 0.52
+
+                # 2. Test Victoria volume consistency, pitch stability, and emotional warmth
+                generate_voice_elevenlabs(
+                    text="Victoria narration text.",
+                    voice_id="Victoria",
+                    return_timestamps=True,
+                    story_type="confession"
+                )
+                sent_body = mock_post.call_args[1]["json"]
+                assert sent_body["voice_settings"]["stability"] == 0.55
+                assert sent_body["voice_settings"]["similarity_boost"] == 0.85
+                assert sent_body["voice_settings"]["style"] == 0.18
+                assert sent_body["voice_settings"]["speed"] == 1.00
+
+                # 3. Test Anja
+                generate_voice_elevenlabs(
+                    text="Anja narration text.",
+                    voice_id="Anja",
+                    return_timestamps=True,
+                    story_type="confession"
+                )
+                sent_body = mock_post.call_args[1]["json"]
+                assert sent_body["voice_settings"]["stability"] == 0.52
+                assert sent_body["voice_settings"]["similarity_boost"] == 0.86
+                assert sent_body["voice_settings"]["style"] == 0.42
+                assert sent_body["voice_settings"]["speed"] == 1.02
+
+
+def test_chunk_volume_balancing():
+    """Verify that balance_chunk_pcm_volumes levels a loud onset spike smoothly across chunks."""
+    import array
+    import math
+    from app.services.tts_pipeline import balance_chunk_pcm_volumes, PCM_SAMPLE_RATE, PCM_CHANNELS
+
+    # Create chunk 0 with high volume (approx 8000 amplitude)
+    loud_samples = array.array("h", [8000] * int(1.0 * PCM_SAMPLE_RATE))
+    # Create chunk 1 with moderate volume (approx 3000 amplitude)
+    mod_samples = array.array("h", [3000] * int(1.0 * PCM_SAMPLE_RATE))
+
+    specs = [
+        {"faded_pcm": loud_samples.tobytes()},
+        {"faded_pcm": mod_samples.tobytes()},
+    ]
+
+    balance_chunk_pcm_volumes(specs, channels=PCM_CHANNELS, sample_rate=PCM_SAMPLE_RATE)
+
+    # After balancing, chunk 0 must have been attenuated
+    res_s0 = array.array("h", specs[0]["faded_pcm"])
+    res_s1 = array.array("h", specs[1]["faded_pcm"])
+
+    # Chunk 0 was scaled down (less than 8000)
+    assert abs(res_s0[0]) < 8000
+    # Chunk 1 was brought up (greater than 3000)
+    assert abs(res_s1[0]) > 3000
+
+
+
