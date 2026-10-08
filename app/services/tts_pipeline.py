@@ -830,6 +830,20 @@ def split_text_into_chunks(
     return result
 
 
+def model_supports_request_id_chaining(model_id: str) -> bool:
+    """
+    Returns True if the model officially supports previous_request_ids chaining.
+    Per ElevenLabs documentation, turbo and flash models support request-id chaining;
+    multilingual models (e.g. eleven_multilingual_v2) do not.
+    """
+    m = str(model_id).lower().strip()
+    if "multilingual" in m:
+        return False
+    if "turbo" in m or "flash" in m:
+        return True
+    return False
+
+
 def fetch_chunk_audio_with_retry(
     chunk: TextChunk,
     resolved_voice_id: str,
@@ -1280,14 +1294,14 @@ def apply_gentle_pace_alignment(
         if abs_dev <= 0.04:
             continue
 
-        # More than 6%: leave alone and log (numbers only)
-        if abs_dev > 0.06:
-            logger.info("Chunk %d rate %.1f median %.1f dev %.2f%% > 6%% left alone", i, rate, median_rate, abs_dev * 100)
+        # More than 10%: leave alone and log (numbers only)
+        if abs_dev > 0.10:
+            logger.info("Chunk %d rate %.1f median %.1f dev %.2f%% > 10%% left alone", i, rate, median_rate, abs_dev * 100)
             continue
 
-        # Outside +/-4% and <= 6%: correct!
+        # Outside +/-4% and <= 10%: correct!
         factor = median_rate / rate
-        clamped_factor = min(1.06, max(0.94, factor))
+        clamped_factor = min(1.10, max(0.90, factor))
 
         # Dead zone check: 0.98 - 1.02
         if 0.98 <= clamped_factor <= 1.02:
@@ -1300,7 +1314,7 @@ def apply_gentle_pace_alignment(
             sample_rate=sample_rate,
             channels=channels,
             dead_zone=(0.98, 1.02),
-            clamp_bounds=(0.94, 1.06),
+            clamp_bounds=(0.90, 1.10),
         )
         updated_pcms[i] = pcm_corr
         updated_alignments[i] = align_corr
@@ -1327,10 +1341,13 @@ def assemble_smooth_story(
     # 1. Decode raw PCMs from chunks
     chunk_pcms = [mp3_to_raw_pcm(c.mp3_bytes)[0] for c in ordered_chunks]
 
-    # 2. Gentle pace alignment
-    chunk_pcms, chunk_alignments = apply_gentle_pace_alignment(
-        ordered_chunks, chunk_pcms, sample_rate=PCM_SAMPLE_RATE, channels=PCM_CHANNELS
-    )
+    # 2. Gentle pace alignment (applied only when TTS_PACE_NORMALIZE is enabled)
+    if getattr(settings, "TTS_PACE_NORMALIZE", False):
+        chunk_pcms, chunk_alignments = apply_gentle_pace_alignment(
+            ordered_chunks, chunk_pcms, sample_rate=PCM_SAMPLE_RATE, channels=PCM_CHANNELS
+        )
+    else:
+        chunk_alignments = [list(c.alignment) for c in ordered_chunks]
 
     # 3. Determine energy-based boundaries and measure head/tail silence per chunk
     chunk_specs = []
@@ -1869,8 +1886,9 @@ def execute_tts_pipeline_v2(
                 })
         return mock_audio, mock_alignment
 
-    if smooth_audio:
-        # Part 2: Generate chunks SEQUENTIALLY with previous_request_ids (up to 3) chained from response headers
+    supports_chaining = model_supports_request_id_chaining(resolved_model_id)
+    if smooth_audio and supports_chaining:
+        # Generate chunks SEQUENTIALLY with previous_request_ids (up to 3) chained from response headers
         ordered_chunks: list[ChunkResult] = []
         prev_request_ids: list[str] = []
         for chunk in chunks:
@@ -1887,7 +1905,7 @@ def execute_tts_pipeline_v2(
             if chunk_res.request_id:
                 prev_request_ids.append(chunk_res.request_id)
     else:
-        # Concurrently fetch chunks (max 3 workers)
+        # Concurrently fetch chunks (max 3 workers) with previous_text/next_text context
         chunk_results: dict[int, ChunkResult] = {}
         with ThreadPoolExecutor(max_workers=3) as executor:
             future_map = {

@@ -112,12 +112,17 @@ def test_flag_off_preserves_legacy_payload(monkeypatch):
         )
         assert mock_post.called
         sent_body = mock_post.call_args[1]["json"]
-        sent_text = sent_body["text"]
-        # Legacy pipeline puts 1.0s at sentence endings and 2.0s at paragraph breaks
-        assert '<break time="1.0s" />' in sent_text
-        assert '<break time="2.0s" />' in sent_text
-        # Legacy default confession stability without custom friendly name is 0.55
-        assert sent_body["voice_settings"]["stability"] == 0.55
+        assert sent_body == {
+            "text": 'First sentence. <break time="1.0s" /> Second sentence.\n\n<break time="2.0s" />\n\nParagraph two.',
+            "model_id": settings.ELEVENLABS_MODEL_ID,
+            "voice_settings": {
+                "stability": 0.55,
+                "similarity_boost": 0.85,
+                "style": 0.55,
+                "use_speaker_boost": True,
+                "speed": 0.88,
+            },
+        }
 
 
 def test_flag_on_uses_v2_profile(monkeypatch):
@@ -1228,20 +1233,20 @@ def test_parse_alignment_speakable_char_boundaries_and_highlighting():
 
 
 def test_profile_seam_gap_fields():
-    """Validates that seam_gap_ms=800 and seam_paragraph_gap_ms=1200 are added without changing existing values."""
+    """Validates that seam_gap_ms=800 and seam_paragraph_gap_ms=800 are configured without changing existing break values."""
     confession = get_tts_profile("confession")
     assert confession.seam_gap_ms == 800
-    assert confession.seam_paragraph_gap_ms == 1200
+    assert confession.seam_paragraph_gap_ms == 800
     assert confession.paragraph_break_s == 0.7
 
     meditation = get_tts_profile("meditation")
     assert meditation.seam_gap_ms == 800
-    assert meditation.seam_paragraph_gap_ms == 1200
+    assert meditation.seam_paragraph_gap_ms == 800
     assert meditation.paragraph_break_s == 1.2
 
     transformation = get_tts_profile("transformation")
     assert transformation.seam_gap_ms == 800
-    assert transformation.seam_paragraph_gap_ms == 1200
+    assert transformation.seam_paragraph_gap_ms == 800
     assert transformation.paragraph_break_s == 0.8
 
 
@@ -1532,7 +1537,7 @@ def test_tail_fades_never_touch_speech():
 
 
 def test_gentle_pace_selection_clamp_dead_zone_and_scaling(monkeypatch):
-    """Verify pace alignment dead zone [0.98, 1.02], +/-4% tolerance, clamp [0.94, 1.06], and >6% outlier skip."""
+    """Verify pace alignment dead zone [0.98, 1.02], +/-4% tolerance, clamp [0.90, 1.10], and >10% outlier skip."""
     from app.services.tts_pipeline import (
         ChunkResult,
         apply_gentle_pace_alignment,
@@ -1541,7 +1546,12 @@ def test_gentle_pace_selection_clamp_dead_zone_and_scaling(monkeypatch):
         PCM_BYTES_PER_FRAME,
     )
 
-    rates = [100.0, 103.0, 105.0, 110.0]
+    # Median of [100.0, 102.0, 108.0, 125.0] is 105.0
+    # 100.0: dev = -4.76% (between 4% and 10%) -> corrected! (factor = 105/100 = 1.05)
+    # 102.0: dev = -2.86% (inside +/-4%) -> skipped
+    # 108.0: dev = +2.86% (inside +/-4%) -> skipped
+    # 125.0: dev = +19.05% (> 10%) -> skipped and logged
+    rates = [100.0, 102.0, 108.0, 125.0]
     call_count = 0
     def mock_rate(*args, **kwargs):
         nonlocal call_count
@@ -1569,7 +1579,90 @@ def test_gentle_pace_selection_clamp_dead_zone_and_scaling(monkeypatch):
 
     assert len(applied_factors) == 1
     corr_factor = list(applied_factors.values())[0]
-    assert 0.94 <= corr_factor <= 1.06
+    assert 0.90 <= corr_factor <= 1.10
+    assert corr_factor == pytest.approx(1.05, abs=0.01)
+
+
+def test_model_supports_request_id_chaining():
+    """Verify model_supports_request_id_chaining returns True only for models supporting chaining."""
+    from app.services.tts_pipeline import model_supports_request_id_chaining
+    assert model_supports_request_id_chaining("eleven_multilingual_v2") is False
+    assert model_supports_request_id_chaining("eleven_multilingual_v1") is False
+    assert model_supports_request_id_chaining("eleven_turbo_v2_5") is True
+    assert model_supports_request_id_chaining("eleven_flash_v2_5") is True
+    assert model_supports_request_id_chaining("eleven_flash_v2") is True
+    assert model_supports_request_id_chaining("eleven_monolingual_v1") is False
+
+
+def test_multilingual_uses_concurrent_workers_while_turbo_uses_sequential_chaining(monkeypatch):
+    """
+    Verify execute_tts_pipeline_v2 with smooth_audio=True:
+    - uses 3 concurrent workers and no previous_request_ids for multilingual_v2 (chaining unsupported).
+    - uses sequential chaining with previous_request_ids for turbo_v2_5.
+    """
+    import concurrent.futures
+    from app.services.tts_pipeline import (
+        execute_tts_pipeline_v2,
+        ChunkResult,
+    )
+
+    monkeypatch.setattr(settings, "TTS_PIPELINE_V2", True)
+    monkeypatch.setattr(settings, "TTS_SMOOTH_AUDIO", True)
+    monkeypatch.setattr(settings, "ELEVENLABS_API_KEY", "test-api-key")
+
+    calls = []
+    def mock_fetch(chunk, resolved_voice_id, resolved_model_id, voice_settings, api_key, max_retries=3, previous_request_ids=None):
+        calls.append({
+            "chunk_idx": chunk.index,
+            "model_id": resolved_model_id,
+            "prev_req_ids": previous_request_ids,
+        })
+        return ChunkResult(
+            index=chunk.index,
+            mp3_bytes=b"dummy",
+            alignment=[{"word": "word", "start": 0.1, "end": 0.5}],
+            is_paragraph_end=chunk.is_paragraph_end,
+            request_id=f"req-{chunk.index}",
+        )
+
+    monkeypatch.setattr("app.services.tts_pipeline.fetch_chunk_audio_with_retry", mock_fetch)
+    monkeypatch.setattr("app.services.tts_pipeline.assemble_smooth_story", lambda ordered_chunks, profile, text: (b"assembled", []))
+
+    # 1. multilingual_v2: must NOT pass previous_request_ids, uses 3 workers branch
+    calls.clear()
+    thread_pool_used = []
+    original_tpe = concurrent.futures.ThreadPoolExecutor
+    class TrackedThreadPool(original_tpe):
+        def __init__(self, *args, **kwargs):
+            thread_pool_used.append(kwargs.get("max_workers", args[0] if args else None))
+            super().__init__(*args, **kwargs)
+
+    monkeypatch.setattr("app.services.tts_pipeline.ThreadPoolExecutor", TrackedThreadPool)
+
+    execute_tts_pipeline_v2(
+        text="Paragraph one with multiple words here.\n\nParagraph two with more words here.",
+        voice_id="voice-1",
+        model_id="eleven_multilingual_v2",
+        story_type="confession",
+    )
+    assert len(thread_pool_used) == 1
+    assert thread_pool_used[0] == 3  # 3 concurrent workers used
+    for call in calls:
+        assert call["prev_req_ids"] is None
+
+    # 2. turbo_v2_5: must use sequential chaining with previous_request_ids, no ThreadPool
+    calls.clear()
+    thread_pool_used.clear()
+    execute_tts_pipeline_v2(
+        text="Paragraph one with multiple words here.\n\nParagraph two with more words here.",
+        voice_id="voice-1",
+        model_id="eleven_turbo_v2_5",
+        story_type="confession",
+    )
+    assert len(thread_pool_used) == 0  # Sequential chaining: no ThreadPool used
+    assert len(calls) >= 2
+    # Second chunk received request_id of first chunk
+    assert calls[1]["prev_req_ids"] == ["req-0"]
 
 
 def test_request_id_chaining_and_fallback(monkeypatch):

@@ -22,7 +22,7 @@ class TTSProfile:
     pause_ms: int
     paragraph_break_s: float
     seam_gap_ms: int = 800
-    seam_paragraph_gap_ms: int = 1200
+    seam_paragraph_gap_ms: int = 800
 
     def __post_init__(self):
         # ElevenLabs accepts speed in [0.7, 1.2]
