@@ -1,0 +1,2266 @@
+"""
+app/services/tts_pipeline.py
+
+Phase 2 TTS Pipeline for Transform to Liberation:
+- Intelligent paragraph and sentence chunking with neighbor context (~500 chars).
+- Concurrency bounded to 3 in-flight requests via ThreadPoolExecutor.
+- Exponential backoff retry on HTTP 429 and 5xx.
+- Alignment-based edge trimming:
+    trim_start = max(0, first_word_start - 0.030)
+    trim_end = min(duration, last_word_end + 0.130)
+- Natural seam pauses (profile paragraph break at paragraph ends, profile pause_ms at sentence splits).
+- Single-pass Loudnorm normalization (I=-16, TP=-1.5, LRA=11) to prevent volume pumping.
+- Monotonic, non-negative, sample-accurate alignment timestamp shifting.
+- Zero external Python audio dependencies (uses standard library + system ffmpeg via subprocess).
+"""
+
+import array
+import base64
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from dataclasses import dataclass
+import json
+import logging
+import math
+import os
+import re
+import shutil
+import statistics
+import subprocess
+import tempfile
+import time
+from typing import Optional, Union
+
+import requests
+
+from app.core.config import settings
+from app.core.llm import ELEVENLABS_VOICES
+from app.schemas.schema_ai import StoryType
+from app.services.tts_profiles import TTSProfile, get_tts_profile, prepare_text_for_tts
+
+logger = logging.getLogger(__name__)
+
+# Sample rate and format for raw PCM handling (matches legacy format: 44.1 kHz, mono, 16-bit)
+PCM_SAMPLE_RATE = 44100
+PCM_CHANNELS = 1
+PCM_BYTES_PER_SAMPLE = 2  # 16-bit
+PCM_BYTES_PER_FRAME = PCM_CHANNELS * PCM_BYTES_PER_SAMPLE  # 2 bytes
+
+
+@dataclass
+class TextChunk:
+    index: int
+    text: str
+    previous_text: str
+    next_text: str
+    is_paragraph_end: bool
+
+
+@dataclass
+class ChunkResult:
+    index: int
+    mp3_bytes: bytes
+    alignment: list[dict]
+    is_paragraph_end: bool
+    request_id: Optional[str] = None
+
+
+def get_ffmpeg_bin() -> str:
+    """Locates the ffmpeg executable from PATH or scratch/bin."""
+    bin_path = shutil.which("ffmpeg")
+    if bin_path:
+        return bin_path
+    scratch_bin = os.path.abspath(os.path.join("scratch", "bin", "ffmpeg.exe"))
+    if os.path.isfile(scratch_bin):
+        return scratch_bin
+    raise RuntimeError("ffmpeg executable not found in PATH or scratch/bin")
+
+
+def apply_pcm_fade(pcm_bytes: bytes, fade_ms: float = 10.0, sample_rate: int = PCM_SAMPLE_RATE) -> bytes:
+    """
+    Applies a 5-10 ms linear fade-in and fade-out to 16-bit PCM frames.
+    Ramps amplitudes to 0 at slice boundaries so that seam transitions are click-free.
+    """
+    fade_frames = int((fade_ms / 1000.0) * sample_rate)
+    if fade_frames <= 0 or len(pcm_bytes) < fade_frames * PCM_BYTES_PER_FRAME:
+        return pcm_bytes
+
+    samples = array.array("h", pcm_bytes)
+    total_frames = len(samples) // PCM_CHANNELS
+
+    # Linear fade-in
+    for i in range(min(fade_frames, total_frames)):
+        factor = i / float(fade_frames)
+        for ch in range(PCM_CHANNELS):
+            samples[PCM_CHANNELS * i + ch] = int(samples[PCM_CHANNELS * i + ch] * factor)
+
+    # Linear fade-out
+    for i in range(min(fade_frames, total_frames)):
+        factor = (fade_frames - 1 - i) / float(fade_frames)
+        idx = total_frames - fade_frames + i
+        if idx >= 0:
+            for ch in range(PCM_CHANNELS):
+                samples[PCM_CHANNELS * idx + ch] = int(samples[PCM_CHANNELS * idx + ch] * factor)
+
+    return samples.tobytes()
+
+
+def get_first_audible_time(
+    pcm_bytes: bytes,
+    channels: int = PCM_CHANNELS,
+    sample_rate: int = PCM_SAMPLE_RATE,
+    threshold_db: float = -50.0,
+    window_ms: float = 10.0,
+    search_s: float = 2.0,
+) -> float:
+    """
+    Finds the timestamp (in seconds from start of pcm_bytes) where audio energy
+    first exceeds threshold_db. Scans in window_ms (10 ms) windows from the start up to search_s.
+    Returns the start time of the first window >= threshold_db, or 0.0 if not found.
+    """
+    bytes_per_sample = 2
+    bytes_per_frame = channels * bytes_per_sample
+    total_frames = len(pcm_bytes) // bytes_per_frame
+    if total_frames == 0:
+        return 0.0
+
+    samples = array.array("h", pcm_bytes)
+    if channels == 2:
+        mono_samples = array.array("h", ((samples[2 * i] + samples[2 * i + 1]) // 2 for i in range(total_frames)))
+    else:
+        mono_samples = samples
+
+    window_frames = int((window_ms / 1000.0) * sample_rate)
+    head_frames = min(total_frames, int(search_s * sample_rate))
+
+    for f_idx in range(0, head_frames, window_frames):
+        chunk = mono_samples[f_idx : min(f_idx + window_frames, total_frames)]
+        if not chunk:
+            continue
+        sum_sq = sum(s * s for s in chunk)
+        rms = math.sqrt(sum_sq / float(len(chunk)))
+        if rms > 0:
+            db = 20.0 * math.log10(rms / 32767.0)
+        else:
+            db = -100.0
+        if db >= threshold_db:
+            return f_idx / float(sample_rate)
+
+    return 0.0
+
+
+def get_last_audible_time(
+    pcm_bytes: bytes,
+    channels: int = PCM_CHANNELS,
+    sample_rate: int = PCM_SAMPLE_RATE,
+    threshold_db: float = -50.0,
+    window_ms: float = 10.0,
+    search_s: float = 2.0,
+    max_time_s: Optional[float] = None,
+) -> float:
+    """
+    Finds the timestamp (in seconds from start of pcm_bytes) where audio energy
+    last drops below threshold_db. Scans in window_ms (10 ms) windows over the last search_s (2.0 s).
+    If max_time_s is provided, bounds search to that timestamp to avoid end-of-file container framing artifacts.
+    """
+    bytes_per_sample = 2
+    bytes_per_frame = channels * bytes_per_sample
+    total_frames = len(pcm_bytes) // bytes_per_frame
+    if total_frames == 0:
+        return 0.0
+
+    samples = array.array("h", pcm_bytes)
+    if channels == 2:
+        mono_samples = array.array("h", ((samples[2 * i] + samples[2 * i + 1]) // 2 for i in range(total_frames)))
+    else:
+        mono_samples = samples
+
+    window_frames = int((window_ms / 1000.0) * sample_rate)
+    tail_frames = int(search_s * sample_rate)
+    start_frame = max(0, total_frames - tail_frames)
+    end_frame = min(total_frames, int(max_time_s * sample_rate)) if max_time_s is not None else total_frames
+
+    last_audible_frame = start_frame
+    for f_idx in range(start_frame, end_frame, window_frames):
+        chunk = mono_samples[f_idx : min(f_idx + window_frames, end_frame)]
+        if not chunk:
+            continue
+        sum_sq = sum(s * s for s in chunk)
+        rms = math.sqrt(sum_sq / float(len(chunk)))
+        if rms > 0:
+            db = 20.0 * math.log10(rms / 32767.0)
+        else:
+            db = -100.0
+        if db >= threshold_db:
+            last_audible_frame = f_idx + len(chunk)
+
+    return last_audible_frame / float(sample_rate)
+
+
+def extract_clean_room_tone_segment(
+    pcm_bytes_list: list[bytes],
+    channels: int = PCM_CHANNELS,
+    sample_rate: int = PCM_SAMPLE_RATE,
+    target_dur_s: float = 0.400,
+    max_rms_threshold_db: float = -65.0,
+    min_dur_s: float = 0.300,
+) -> Optional[bytes]:
+    """
+    Scans in-memory pcm_bytes_list for the quietest pause segment (target 300-500 ms)
+    where maximum RMS across 20 ms windows is strictly below max_rms_threshold_db (-65 dB).
+    Returns raw PCM bytes of the best segment, or None if no clean segment exists.
+    In memory only. Never raises.
+    """
+    try:
+        bytes_per_sample = 2 * channels
+        win20_frames = int(0.020 * sample_rate)
+        target_frames = int(target_dur_s * sample_rate)
+        min_frames = int(min_dur_s * sample_rate)
+
+        best_segment = None
+        best_mean_rms = 0.0
+        best_is_silence = True
+
+        for pcm in pcm_bytes_list:
+            if not pcm or len(pcm) < min_frames * bytes_per_sample:
+                continue
+            samples = array.array("h", pcm)
+            total_frames = len(samples) // channels
+            if total_frames < min_frames:
+                continue
+
+            cur_dur_frames = target_frames if total_frames >= target_frames else min_frames
+            step_frames = win20_frames
+
+            for start_f in range(0, total_frames - cur_dur_frames + 1, step_frames):
+                seg = samples[start_f * channels : (start_f + cur_dur_frames) * channels]
+                is_clean = True
+                seg_rms_list = []
+
+                for w_idx in range(0, cur_dur_frames, win20_frames):
+                    w_samples = seg[w_idx * channels : min(w_idx + win20_frames, cur_dur_frames) * channels]
+                    if not w_samples:
+                        continue
+                    sum_sq = sum(s * s for s in w_samples)
+                    rms = math.sqrt(sum_sq / float(len(w_samples)))
+                    db = 20.0 * math.log10(rms / 32767.0) if rms > 0 else -100.0
+                    if db >= max_rms_threshold_db:
+                        is_clean = False
+                        break
+                    seg_rms_list.append(db)
+
+                if is_clean and seg_rms_list:
+                    mean_rms = sum(seg_rms_list) / len(seg_rms_list)
+                    # Prioritize natural acoustic room tone in [-82.0, -65.0] dB over synthetic digital zeros
+                    if -82.0 <= mean_rms < max_rms_threshold_db:
+                        if best_segment is None or best_is_silence or mean_rms < best_mean_rms:
+                            best_mean_rms = mean_rms
+                            best_segment = seg.tobytes()
+                            best_is_silence = False
+                    elif mean_rms < -82.0 and best_segment is None:
+                        best_mean_rms = mean_rms
+                        best_segment = seg.tobytes()
+                        best_is_silence = True
+
+        return best_segment
+    except Exception as exc:
+        logger.warning("Room tone extraction encountered exception (%s: %s).", type(exc).__name__, exc)
+        return None
+
+
+def generate_room_tone(
+    base_pcm: bytes,
+    target_dur_s: float,
+    channels: int = PCM_CHANNELS,
+    sample_rate: int = PCM_SAMPLE_RATE,
+    xfade_ms: float = 15.0,
+    equal_power: bool = True,
+) -> bytes:
+    """
+    Generates seamless room tone of target_dur_s from base_pcm in memory.
+    - If target_dur_s <= 0, returns b"".
+    - 15 ms crossfades (equal-power when equal_power=True) at transitions and boundary fades.
+    - For fills longer than clip duration, alternates standard and reversed copies
+      with varied loop offsets to eliminate mechanical periodicity.
+    - In memory only.
+    """
+    if not base_pcm or target_dur_s <= 0.0:
+        return b""
+
+    n_target = int(target_dur_s * sample_rate)
+    if n_target <= 0:
+        return b""
+
+    xfade = int((xfade_ms / 1000.0) * sample_rate)
+    base = array.array("h", base_pcm)
+    n_base = len(base) // channels
+    if n_base == 0:
+        return b""
+
+    base_rev = array.array("h")
+    if channels == 1:
+        base_rev.extend(reversed(base))
+    else:
+        for f in range(n_base - 1, -1, -1):
+            for c in range(channels):
+                base_rev.append(base[f * channels + c])
+
+    if n_target <= n_base:
+        out = array.array("h", base[: n_target * channels])
+    else:
+        out = array.array("h", base)
+        copy_cycle = 0
+        while len(out) // channels < n_target:
+            copy_cycle += 1
+            source = base_rev if (copy_cycle % 2 == 1) else base
+            offset = ((copy_cycle * 7) % max(1, (n_base // 4))) * channels
+
+            cur_frames = len(out) // channels
+            eff_xfade = min(xfade, cur_frames, n_base)
+            overlap_start = (cur_frames - eff_xfade) * channels
+
+            for j in range(eff_xfade):
+                if equal_power:
+                    w_curr = math.cos((math.pi / 2.0) * (j / float(eff_xfade)))
+                    w_next = math.sin((math.pi / 2.0) * (j / float(eff_xfade)))
+                else:
+                    w_curr = 1.0 - (j / float(eff_xfade))
+                    w_next = j / float(eff_xfade)
+                for c in range(channels):
+                    idx_out = overlap_start + j * channels + c
+                    idx_src = (offset + j * channels + c) % len(source)
+                    blended = int(out[idx_out] * w_curr + source[idx_src] * w_next)
+                    out[idx_out] = max(-32768, min(32767, blended))
+
+            append_start = (offset + eff_xfade * channels) % len(source)
+            if append_start < len(source):
+                out.extend(source[append_start:])
+            else:
+                out.extend(source)
+        out = out[: n_target * channels]
+
+    fade_frames = min(len(out) // (2 * channels), xfade)
+    if fade_frames > 0:
+        for i in range(fade_frames):
+            w = i / float(fade_frames)
+            for c in range(channels):
+                idx_head = i * channels + c
+                idx_tail = len(out) - (i + 1) * channels + c
+                out[idx_head] = int(out[idx_head] * w)
+                out[idx_tail] = int(out[idx_tail] * w)
+
+    return out.tobytes()
+
+
+def level_room_tone(
+    pcm_bytes: bytes,
+    target_level_db: float = -72.0,
+    channels: int = PCM_CHANNELS,
+) -> bytes:
+    """
+    Levels PCM audio, capping maximum RMS at target_level_db (e.g. -72 dB).
+    If current level is already below target_level_db, returns pcm_bytes untouched.
+    """
+    if not pcm_bytes:
+        return b""
+    samples = array.array("h", pcm_bytes)
+    if not samples:
+        return b""
+    sum_sq = sum(s * s for s in samples)
+    rms = math.sqrt(sum_sq / float(len(samples)))
+    if rms <= 0:
+        return pcm_bytes
+    current_db = 20.0 * math.log10(rms / 32767.0)
+    if current_db <= target_level_db:
+        return pcm_bytes
+    scale = 10.0 ** ((target_level_db - current_db) / 20.0)
+    out = array.array("h", (int(max(-32768, min(32767, s * scale))) for s in samples))
+    return out.tobytes()
+
+
+def generate_shaped_noise_bed(
+    duration_s: float,
+    channels: int = PCM_CHANNELS,
+    sample_rate: int = PCM_SAMPLE_RATE,
+    target_db: float = -80.0,
+) -> bytes:
+    """
+    Generates in-memory continuous shaped ambient noise bed at target_db (-80 dB RMS).
+    Uses low-pass filtered pseudo-random noise to mimic quiet room acoustics without harsh hiss.
+    """
+    total_frames = int(duration_s * sample_rate)
+    if total_frames <= 0:
+        return b""
+    import random
+    rng = random.Random(42)
+    alpha = 0.125
+    y = 0.0
+    raw_samples = []
+    for _ in range(total_frames):
+        x = rng.uniform(-1.0, 1.0)
+        y += alpha * (x - y)
+        raw_samples.append(y)
+    sum_sq = sum(s * s for s in raw_samples)
+    rms = math.sqrt(sum_sq / float(total_frames)) if total_frames > 0 else 1.0
+    if rms <= 0:
+        rms = 1.0
+    target_rms = 32767.0 * (10.0 ** (target_db / 20.0))
+    scale = target_rms / rms
+    out = array.array("h")
+    for s in raw_samples:
+        val = int(max(-32768, min(32767, s * scale)))
+        for _ in range(channels):
+            out.append(val)
+    return out.tobytes()
+
+
+def mix_pcm_additive(pcm_a: bytes, pcm_b: bytes) -> bytes:
+    """
+    Additively mixes two 16-bit PCM buffers in memory.
+    Clamps samples to [-32768, 32767]. If lengths differ, pads the shorter buffer with zeros.
+    """
+    len_a = len(pcm_a)
+    len_b = len(pcm_b)
+    max_len = max(len_a, len_b)
+    if max_len == 0:
+        return b""
+    samples_a = array.array("h", pcm_a)
+    samples_b = array.array("h", pcm_b)
+    n_a = len(samples_a)
+    n_b = len(samples_b)
+    n_max = max(n_a, n_b)
+    out = array.array("h")
+    for i in range(n_max):
+        va = samples_a[i] if i < n_a else 0
+        vb = samples_b[i] if i < n_b else 0
+        out.append(max(-32768, min(32767, va + vb)))
+    return out.tobytes()
+
+
+def count_digital_silence_runs(
+    pcm_bytes: bytes,
+    channels: int = PCM_CHANNELS,
+    sample_rate: int = PCM_SAMPLE_RATE,
+    threshold_db: float = -90.0,
+    min_run_ms: float = 20.0,
+    window_ms: float = 10.0,
+) -> int:
+    """
+    Counts continuous runs where audio RMS across window_ms is strictly below threshold_db (-90 dB)
+    for longer than min_run_ms (20 ms).
+    """
+    bytes_per_sample = 2
+    bytes_per_frame = channels * bytes_per_sample
+    total_frames = len(pcm_bytes) // bytes_per_frame
+    if total_frames == 0:
+        return 0
+    samples = array.array("h", pcm_bytes)
+    win_frames = int((window_ms / 1000.0) * sample_rate)
+    num_windows = total_frames // win_frames
+    if num_windows == 0:
+        return 0
+    runs = 0
+    cur_run_ms = 0.0
+    for w in range(num_windows):
+        start_idx = w * win_frames * channels
+        end_idx = (w + 1) * win_frames * channels
+        w_samples = samples[start_idx:end_idx]
+        if not w_samples:
+            continue
+        sum_sq = sum(s * s for s in w_samples)
+        rms = math.sqrt(sum_sq / float(len(w_samples)))
+        db = 20.0 * math.log10(rms / 32767.0) if rms > 0 else -100.0
+        if db < threshold_db:
+            cur_run_ms += window_ms
+        else:
+            if cur_run_ms > min_run_ms:
+                runs += 1
+            cur_run_ms = 0.0
+    if cur_run_ms > min_run_ms:
+        runs += 1
+    return runs
+
+
+
+def parse_alignment_to_whitespace_words(alignment: dict, display_text: Optional[str] = None) -> list[dict]:
+    """
+    Parses character-level alignments into exactly one word per whitespace-delimited
+    token of the DISPLAY text, matching the frontend's display text tokenization 1-to-1.
+    XML <break> tags are stripped from character stream before assembly.
+    For display tokens with no speakable characters (a lone dash, a lone ellipsis,
+    an emoji, a bullet, markdown tokens like '**', standalone parentheses),
+    emits a zero-length entry at the previous word's end time so index-based
+    highlighting never drifts.
+    Numbers with decimals/commas, contractions, and words with punctuation have
+    outer boundary punctuation stripped for display while preserving exact timestamps.
+    """
+    if not alignment:
+        return []
+
+    characters = alignment.get("characters", [])
+    start_times = alignment.get("character_start_times_seconds", [])
+    end_times = alignment.get("character_end_times_seconds", [])
+
+    if not characters or not start_times or not end_times:
+        return []
+
+    # 1. Filter out XML tags (such as <break time="...s" />)
+    filt_chars, filt_starts, filt_ends = [], [], []
+    i = 0
+    n = len(characters)
+    while i < n:
+        if characters[i] == "<" and "".join(characters[i:i+6]).lower() == "<break":
+            while i < n and characters[i] != ">":
+                i += 1
+            if i < n:
+                i += 1
+            continue
+        filt_chars.append(characters[i])
+        filt_starts.append(start_times[i])
+        filt_ends.append(end_times[i])
+        i += 1
+
+    # If display_text is provided, strip XML tags (such as <break time="...s" />) before tokenizing
+    if display_text:
+        display_text = re.sub(r'<[^>]+>', ' ', display_text)
+    else:
+        display_text = "".join(filt_chars)
+
+    display_tokens = display_text.split()
+    if not display_tokens:
+        return []
+
+    # 2. Extract spoken word units from filt_chars (grouped by whitespace in character stream)
+    # Word start = start of first speakable character; word end = end of last speakable character
+    raw_spoken_units = []
+    curr_c, curr_s, curr_e = [], None, None
+    curr_spk_s, curr_spk_e = None, None
+    for c, s, e in zip(filt_chars, filt_starts, filt_ends):
+        if c in (" ", "\t", "\n", "\r"):
+            if curr_c:
+                raw_spoken_units.append({
+                    "text": "".join(curr_c),
+                    "start": curr_spk_s if curr_spk_s is not None else curr_s,
+                    "end": curr_spk_e if curr_spk_e is not None else curr_e,
+                })
+                curr_c, curr_s, curr_e = [], None, None
+                curr_spk_s, curr_spk_e = None, None
+        else:
+            if curr_s is None:
+                curr_s = s
+            curr_c.append(c)
+            curr_e = e
+            if c.isalnum():
+                if curr_spk_s is None:
+                    curr_spk_s = s
+                curr_spk_e = e
+    if curr_c:
+        raw_spoken_units.append({
+            "text": "".join(curr_c),
+            "start": curr_spk_s if curr_spk_s is not None else curr_s,
+            "end": curr_spk_e if curr_spk_e is not None else curr_e,
+        })
+
+    # Filter to speakable units (containing at least one alphanumeric char)
+    speakable_units = [u for u in raw_spoken_units if any(ch.isalnum() for ch in u["text"])]
+
+    # 3. Match display_tokens to speakable_units 1-to-1
+    words = []
+    spk_idx = 0
+    num_spk = len(speakable_units)
+    prev_end = 0.0
+
+    for token in display_tokens:
+        has_speakable = any(ch.isalnum() for ch in token)
+        if not has_speakable:
+            # Standalone unspeakable token: emit zero-length entry at previous word's end time
+            words.append({
+                "word": token,
+                "start": round(prev_end, 3),
+                "end": round(prev_end, 3),
+            })
+            continue
+
+        clean_w = token.strip('.,!?;:"“”‘’()[]{}*`_~')
+        if not clean_w:
+            clean_w = token
+
+        if spk_idx < num_spk:
+            spk = speakable_units[spk_idx]
+            tok_start = spk["start"]
+            tok_end = spk["end"]
+            spk_idx += 1
+            prev_end = tok_end
+            words.append({
+                "word": clean_w,
+                "start": round(tok_start, 3),
+                "end": round(tok_end, 3),
+            })
+        else:
+            words.append({
+                "word": clean_w,
+                "start": round(prev_end, 3),
+                "end": round(prev_end, 3),
+            })
+
+    return words
+
+
+def split_text_into_chunks(
+    text: str,
+    min_chars: int = 800,
+    max_chars: int = 1500,
+    smooth_audio: Optional[bool] = None,
+) -> list[TextChunk]:
+    """
+    Splits text into chunks respecting paragraph and sentence boundaries.
+    When smooth_audio is True:
+      - Bounds: 500-900 chars.
+      - Splits chunks at paragraph boundaries first (so a paragraph pause is always a seam),
+        then at sentence boundaries (500-900 chars).
+    When smooth_audio is False:
+      - Uses existing 800-1500 char chunking logic.
+    """
+    if not text or not text.strip():
+        return []
+
+    if smooth_audio is None:
+        smooth_audio = getattr(settings, "TTS_SMOOTH_AUDIO", False) and getattr(settings, "TTS_PIPELINE_V2", False)
+
+    stripped = text.strip()
+
+    if smooth_audio:
+        eff_min = 500
+        eff_max = 900
+        # Split text into paragraphs first (double newline)
+        paragraphs = re.split(r'\n\s*\n+', stripped)
+        units: list[tuple[str, bool]] = []  # (text, is_paragraph_end)
+        for p in paragraphs:
+            p_clean = re.sub(r'^\s*<break\s+time="[^"]*"\s*/>\s*$', '', p).strip()
+            p_clean = re.sub(r'<break\s+time="[^"]*"\s*/>', '', p_clean).strip()
+            if not p_clean:
+                continue
+            if len(p_clean) <= eff_max:
+                units.append((p_clean, True))
+            else:
+                # Split oversize paragraph at sentence boundaries
+                sentence_splits = re.split(r'((?<=[.!?…])\s+)', p_clean)
+                sentences = []
+                curr_s = ""
+                for part in sentence_splits:
+                    curr_s += part
+                    if re.search(r'[.!?…]\s*$', curr_s.strip()):
+                        sentences.append(curr_s.strip())
+                        curr_s = ""
+                if curr_s.strip():
+                    sentences.append(curr_s.strip())
+
+                sub_chunks: list[str] = []
+                curr_sub: list[str] = []
+                curr_sub_len = 0
+                for s in sentences:
+                    s_len = len(s)
+                    if curr_sub and (curr_sub_len + s_len + 1 > eff_max):
+                        sub_chunks.append(" ".join(curr_sub))
+                        curr_sub = [s]
+                        curr_sub_len = s_len
+                    else:
+                        curr_sub.append(s)
+                        curr_sub_len += s_len + 1
+                if curr_sub:
+                    sub_chunks.append(" ".join(curr_sub))
+
+                for s_idx, s_text in enumerate(sub_chunks):
+                    is_p_end = (s_idx == len(sub_chunks) - 1)
+                    units.append((s_text, is_p_end))
+
+        result: list[TextChunk] = []
+        for idx, (c_text, is_p_end) in enumerate(units):
+            clean_text = re.sub(r'^\s*<break\s+time="[^"]*"\s*/>\s*', '', c_text.strip()).strip()
+            clean_text = re.sub(r'\s*<break\s+time="[^"]*"\s*/>\s*$', '', clean_text).strip()
+
+            prev_parts = []
+            for p_idx in range(idx - 1, -1, -1):
+                prev_parts.insert(0, units[p_idx][0])
+                if sum(len(x) for x in prev_parts) >= 500:
+                    break
+            prev_text = " ".join(prev_parts)[-500:] if prev_parts else ""
+
+            next_parts = []
+            for n_idx in range(idx + 1, len(units)):
+                next_parts.append(units[n_idx][0])
+                if sum(len(x) for x in next_parts) >= 500:
+                    break
+            next_text = " ".join(next_parts)[:500] if next_parts else ""
+
+            result.append(TextChunk(
+                index=idx,
+                text=clean_text,
+                previous_text=prev_text,
+                next_text=next_text,
+                is_paragraph_end=is_p_end,
+            ))
+        return result
+
+    if len(stripped) <= max_chars:
+        clean_one = re.sub(r'\s*<break\s+time="[^"]*"\s*/>\s*$', '', stripped).strip()
+        return [TextChunk(
+            index=0,
+            text=clean_one,
+            previous_text="",
+            next_text="",
+            is_paragraph_end=True,
+        )]
+
+    # 1. Split text into paragraphs (double newline)
+    paragraphs = re.split(r'\n\s*\n+', stripped)
+
+    # 2. Break any oversize paragraphs into sentences
+    units: list[tuple[str, bool]] = []  # (text, is_paragraph_end)
+    for p in paragraphs:
+        # Strip standalone break tags between paragraphs
+        p_strip_breaks = re.sub(r'^\s*<break\s+time="[^"]*"\s*/>\s*$', '', p).strip()
+        if not p_strip_breaks:
+            continue
+        p_clean = p_strip_breaks
+        if len(p_clean) <= max_chars:
+            units.append((p_clean, True))
+        else:
+            # Split sentences ending in [.!?…] followed by space or newline
+            sentence_splits = re.split(r'((?<=[.!?…])\s+)', p_clean)
+            sentences = []
+            curr_s = ""
+            for part in sentence_splits:
+                curr_s += part
+                if re.search(r'[.!?…]\s*$', curr_s.strip()):
+                    sentences.append(curr_s.strip())
+                    curr_s = ""
+            if curr_s.strip():
+                sentences.append(curr_s.strip())
+
+            # If any individual sentence exceeds max_chars, split on whitespace
+            sub_sentences = []
+            for s in sentences:
+                if len(s) <= max_chars:
+                    sub_sentences.append(s)
+                else:
+                    words = s.split()
+                    chunk_words = []
+                    chunk_len = 0
+                    for w in words:
+                        if chunk_words and (chunk_len + len(w) + 1 > max_chars):
+                            sub_sentences.append(" ".join(chunk_words))
+                            chunk_words = [w]
+                            chunk_len = len(w)
+                        else:
+                            chunk_words.append(w)
+                            chunk_len += len(w) + 1
+                    if chunk_words:
+                        sub_sentences.append(" ".join(chunk_words))
+
+            for s_idx, s in enumerate(sub_sentences):
+                is_p_end = (s_idx == len(sub_sentences) - 1)
+                units.append((s, is_p_end))
+
+    # 3. Assemble units into chunks of target size
+    raw_chunks: list[tuple[str, bool]] = []
+    current_units: list[str] = []
+    current_len = 0
+    current_is_p_end = False
+
+    for unit_text, is_p_end in units:
+        unit_len = len(unit_text)
+        # Flush if adding unit exceeds max_chars and we have accumulated content
+        if current_units and (current_len + unit_len + 2 > max_chars):
+            sep = "\n\n" if current_is_p_end else " "
+            chunk_str = sep.join(current_units)
+            raw_chunks.append((chunk_str, current_is_p_end))
+            current_units = [unit_text]
+            current_len = unit_len
+            current_is_p_end = is_p_end
+        else:
+            current_units.append(unit_text)
+            current_len += unit_len + 2
+            current_is_p_end = is_p_end
+
+    if current_units:
+        sep = "\n\n" if current_is_p_end else " "
+        chunk_str = sep.join(current_units)
+        raw_chunks.append((chunk_str, True))
+
+    # Merge final chunk shorter than 450 chars into previous chunk when model limit allows (<= 1800 chars)
+    if len(raw_chunks) > 1 and len(raw_chunks[-1][0]) < 450:
+        prev_text, prev_is_p = raw_chunks[-2]
+        last_text, last_is_p = raw_chunks[-1]
+        if len(prev_text) + len(last_text) + 2 <= max(max_chars, 1800):
+            sep = "\n\n" if prev_is_p else " "
+            raw_chunks[-2] = (prev_text + sep + last_text, last_is_p)
+            raw_chunks.pop()
+
+    # 4. Attach previous_text and next_text (up to 500 chars)
+    result: list[TextChunk] = []
+    for idx, (c_text, is_p_end) in enumerate(raw_chunks):
+        # Strip leading and trailing break tags to prevent double pauses at seams
+        clean_text = re.sub(r'^\s*<break\s+time="[^"]*"\s*/>\s*', '', c_text.strip()).strip()
+        clean_text = re.sub(r'\s*<break\s+time="[^"]*"\s*/>\s*$', '', clean_text).strip()
+
+        # Previous 500 chars
+        prev_parts = []
+        for p_idx in range(idx - 1, -1, -1):
+            prev_parts.insert(0, raw_chunks[p_idx][0])
+            if sum(len(x) for x in prev_parts) >= 500:
+                break
+        prev_text = " ".join(prev_parts)[-500:] if prev_parts else ""
+
+        # Next 500 chars
+        next_parts = []
+        for n_idx in range(idx + 1, len(raw_chunks)):
+            next_parts.append(raw_chunks[n_idx][0])
+            if sum(len(x) for x in next_parts) >= 500:
+                break
+        next_text = " ".join(next_parts)[:500] if next_parts else ""
+
+        result.append(TextChunk(
+            index=idx,
+            text=clean_text,
+            previous_text=prev_text,
+            next_text=next_text,
+            is_paragraph_end=is_p_end,
+        ))
+
+    return result
+
+
+def model_supports_request_id_chaining(model_id: str) -> bool:
+    """
+    Returns True if the model officially supports previous_request_ids chaining.
+    Per ElevenLabs documentation, turbo and flash models support request-id chaining;
+    multilingual models (e.g. eleven_multilingual_v2) do not.
+    """
+    m = str(model_id).lower().strip()
+    if "multilingual" in m:
+        return False
+    if "turbo" in m or "flash" in m:
+        return True
+    return False
+
+
+def fetch_chunk_audio_with_retry(
+    chunk: TextChunk,
+    resolved_voice_id: str,
+    resolved_model_id: str,
+    voice_settings: dict,
+    api_key: str,
+    max_retries: int = 3,
+    previous_request_ids: Optional[list[str]] = None,
+) -> ChunkResult:
+    """
+    Calls ElevenLabs /with-timestamps for one chunk with exponential backoff on 429/5xx.
+    Passes previous_request_ids (up to 3) if supported by model, plus previous_text and next_text.
+    Extracts request-id from response header. Falls back to text context if previous_request_ids is rejected.
+    Raises RuntimeError on repeated failure.
+    """
+    url = f"https://api.elevenlabs.io/v1/text-to-speech/{resolved_voice_id}/with-timestamps"
+    headers = {
+        "Accept": "application/json",
+        "Content-Type": "application/json",
+        "xi-api-key": api_key,
+    }
+
+    data = {
+        "text": chunk.text,
+        "model_id": resolved_model_id,
+        "voice_settings": voice_settings,
+    }
+    if chunk.previous_text:
+        data["previous_text"] = chunk.previous_text
+    if chunk.next_text:
+        data["next_text"] = chunk.next_text
+
+    # multilingual_v2 does not support previous_request_ids per ElevenLabs official docs
+    is_multilingual = "multilingual" in str(resolved_model_id).lower()
+    if previous_request_ids and not is_multilingual:
+        data["previous_request_ids"] = list(previous_request_ids[-3:])
+
+    backoff = 0.5
+    last_err: Optional[Exception] = None
+
+    for attempt in range(1, max_retries + 1):
+        try:
+            resp = requests.post(url, json=data, headers=headers, timeout=60)
+            if resp.status_code == 200:
+                res_json = resp.json()
+                audio_bytes = base64.b64decode(res_json["audio_base64"])
+                raw_alignment = res_json.get("alignment", {})
+
+                # Capture request-id header for chaining
+                req_id = resp.headers.get("request-id") or resp.headers.get("x-request-id")
+
+                # Filter XML break tags from character stream
+                chars = raw_alignment.get("characters", [])
+                starts = raw_alignment.get("character_start_times_seconds", [])
+                ends = raw_alignment.get("character_end_times_seconds", [])
+
+                filt_chars, filt_starts, filt_ends = [], [], []
+                i = 0
+                n = len(chars)
+                while i < n:
+                    if chars[i] == "<" and "".join(chars[i:i+6]).lower() == "<break":
+                        while i < n and chars[i] != ">":
+                            i += 1
+                        if i < n:
+                            i += 1
+                        continue
+                    filt_chars.append(chars[i])
+                    filt_starts.append(starts[i])
+                    filt_ends.append(ends[i])
+                    i += 1
+
+                clean_alignment = {
+                    "characters": filt_chars,
+                    "character_start_times_seconds": filt_starts,
+                    "character_end_times_seconds": filt_ends,
+                }
+                words = parse_alignment_to_whitespace_words(clean_alignment, display_text=chunk.text)
+                if not words:
+                    raise ValueError(f"Chunk {chunk.index} returned empty word alignment")
+
+                return ChunkResult(
+                    index=chunk.index,
+                    mp3_bytes=audio_bytes,
+                    alignment=words,
+                    is_paragraph_end=chunk.is_paragraph_end,
+                    request_id=req_id,
+                )
+
+            elif resp.status_code in (400, 422) and "previous_request_ids" in data:
+                # If model/API rejects previous_request_ids, fall back immediately to text context only
+                logger.warning(
+                    "ElevenLabs rejected previous_request_ids (HTTP %d). Falling back to text context only.",
+                    resp.status_code,
+                )
+                data.pop("previous_request_ids", None)
+                continue
+
+            elif resp.status_code in (429, 500, 502, 503, 504):
+                time.sleep(backoff)
+                backoff *= 2.0
+                last_err = RuntimeError(f"HTTP {resp.status_code}: {resp.text[:120]}")
+            else:
+                resp.raise_for_status()
+
+        except Exception as exc:
+            last_err = exc
+            if attempt < max_retries:
+                time.sleep(backoff)
+                backoff *= 2.0
+
+    raise RuntimeError(f"Chunk {chunk.index} failed after {max_retries} attempts: {last_err}")
+
+
+
+def mp3_to_raw_pcm(mp3_bytes: bytes) -> tuple[bytes, float]:
+    """Decodes MP3 bytes to raw 16-bit 44.1kHz mono PCM frames via ffmpeg."""
+    ffmpeg_bin = get_ffmpeg_bin()
+    with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as tmp_f:
+        tmp_f.write(mp3_bytes)
+        tmp_mp3_path = tmp_f.name
+    try:
+        cmd = [
+            ffmpeg_bin, "-y", "-i", tmp_mp3_path,
+            "-f", "s16le", "-acodec", "pcm_s16le", "-ar", str(PCM_SAMPLE_RATE), "-ac", str(PCM_CHANNELS),
+            "pipe:1"
+        ]
+        proc = subprocess.run(cmd, capture_output=True, check=True)
+        pcm = proc.stdout
+        dur = len(pcm) / (PCM_SAMPLE_RATE * PCM_BYTES_PER_FRAME)
+        return pcm, dur
+    finally:
+        if os.path.exists(tmp_mp3_path):
+            try:
+                os.remove(tmp_mp3_path)
+            except Exception:
+                pass
+
+
+def raw_pcm_to_mp3(pcm_bytes: bytes, loudnorm: bool = True) -> bytes:
+    """
+    Normalizes loudness and exports MP3 matching legacy format (44100 Hz, mono, 128k).
+    Uses two-pass loudnorm with linear=true so quiet meditation audio is never pumped.
+    """
+    ffmpeg_bin = get_ffmpeg_bin()
+    if not loudnorm:
+        cmd = [
+            ffmpeg_bin, "-y",
+            "-f", "s16le", "-ar", str(PCM_SAMPLE_RATE), "-ac", str(PCM_CHANNELS), "-i", "pipe:0",
+            "-ar", str(PCM_SAMPLE_RATE), "-ac", str(PCM_CHANNELS),
+            "-c:a", "libmp3lame", "-b:a", "128k",
+            "-f", "mp3", "pipe:1"
+        ]
+        proc = subprocess.run(cmd, input=pcm_bytes, capture_output=True, check=True)
+        return proc.stdout
+
+    # Pass 1: Measure loudness statistics
+    pass1_cmd = [
+        ffmpeg_bin, "-y",
+        "-f", "s16le", "-ar", str(PCM_SAMPLE_RATE), "-ac", str(PCM_CHANNELS), "-i", "pipe:0",
+        "-af", "loudnorm=I=-16:TP=-1.5:LRA=11:print_format=json",
+        "-f", "null", "-"
+    ]
+    p1 = subprocess.run(pass1_cmd, input=pcm_bytes, capture_output=True)
+    stderr1 = p1.stderr.decode("utf-8", errors="ignore")
+
+    json_match = re.search(r"\{[\s\S]*\"input_i\"[\s\S]*\}", stderr1)
+    if json_match:
+        try:
+            stats = json.loads(json_match.group(0))
+            measured_i = stats.get("input_i", "-16")
+            measured_tp = stats.get("input_tp", "-1.5")
+            measured_lra = stats.get("input_lra", "11")
+            measured_thresh = stats.get("input_thresh", "-26")
+            target_offset = stats.get("target_offset", "0")
+
+            filter_str = (
+                f"loudnorm=I=-16:TP=-1.5:LRA=11:linear=true"
+                f":measured_I={measured_i}:measured_TP={measured_tp}"
+                f":measured_LRA={measured_lra}:measured_thresh={measured_thresh}"
+                f":offset={target_offset}"
+            )
+        except Exception:
+            filter_str = "loudnorm=I=-16:TP=-1.5:LRA=11:linear=true"
+    else:
+        filter_str = "loudnorm=I=-16:TP=-1.5:LRA=11:linear=true"
+
+    # Pass 2: Apply linear normalization and encode to MP3 matching legacy format (44100 Hz, mono, 128k)
+    # Output to a seekable temporary file so LAME writes the Xing/Info header tag with delay/padding metadata
+    with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as tmp_f:
+        tmp_mp3_path = tmp_f.name
+    try:
+        pass2_cmd = [
+            ffmpeg_bin, "-y",
+            "-f", "s16le", "-ar", str(PCM_SAMPLE_RATE), "-ac", str(PCM_CHANNELS), "-i", "pipe:0",
+            "-af", filter_str,
+            "-ar", str(PCM_SAMPLE_RATE), "-ac", str(PCM_CHANNELS),
+            "-c:a", "libmp3lame", "-b:a", "128k",
+            tmp_mp3_path,
+        ]
+        subprocess.run(pass2_cmd, input=pcm_bytes, capture_output=True, check=True)
+        with open(tmp_mp3_path, "rb") as f_out:
+            mp3_out = f_out.read()
+    finally:
+        if os.path.exists(tmp_mp3_path):
+            try:
+                os.remove(tmp_mp3_path)
+            except Exception:
+                pass
+    return mp3_out
+
+
+def compute_articulation_rate(alignment: list[dict], audio_duration_s: Optional[float] = None) -> float:
+    """
+    Computes articulation rate (words per minute) based on spoken words and
+    phonation time (speech duration excluding internal silence gaps > 250 ms).
+    """
+    if not alignment:
+        return 0.0
+
+    words = [w for w in alignment if any(c.isalnum() for c in w.get("word", ""))]
+    if not words:
+        return 0.0
+
+    first_start = words[0]["start"]
+    last_end = words[-1]["end"]
+    speech_time = max(0.001, last_end - first_start)
+
+    # Calculate internal pauses > 250 ms (0.250 s)
+    total_internal_gaps = 0.0
+    for i in range(len(words) - 1):
+        gap = words[i + 1]["start"] - words[i]["end"]
+        if gap > 0.250:
+            total_internal_gaps += gap
+
+    phonation_time = max(0.001, speech_time - total_internal_gaps)
+    return (len(words) / phonation_time) * 60.0
+
+
+def compute_articulation_rate_from_pcm(
+    pcm_bytes: bytes,
+    word_count: int,
+    channels: int = PCM_CHANNELS,
+    sample_rate: int = PCM_SAMPLE_RATE,
+    threshold_db: float = -40.0,
+    min_pause_ms: float = 250.0,
+    window_ms: float = 10.0,
+) -> float:
+    """
+    Computes articulation rate (words per minute) directly from decoded PCM frames:
+    words / (phonation time in minutes), where pauses > min_pause_ms (250 ms)
+    below threshold_db (-40 dB) between first and last audible sounds are subtracted.
+    """
+    bytes_per_sample = 2
+    bytes_per_frame = channels * bytes_per_sample
+    total_frames = len(pcm_bytes) // bytes_per_frame
+    if total_frames == 0 or word_count <= 0:
+        return 0.0
+
+    samples = array.array("h", pcm_bytes)
+    if channels == 2:
+        mono_samples = array.array("h", ((samples[2 * i] + samples[2 * i + 1]) // 2 for i in range(total_frames)))
+    else:
+        mono_samples = samples
+
+    window_frames = int((window_ms / 1000.0) * sample_rate)
+    num_windows = total_frames // window_frames
+    if num_windows == 0:
+        return 0.0
+
+    dbs = []
+    for w in range(num_windows):
+        chunk = mono_samples[w * window_frames : (w + 1) * window_frames]
+        sum_sq = sum(s * s for s in chunk)
+        rms = math.sqrt(sum_sq / float(len(chunk))) if chunk else 0.0
+        db = 20.0 * math.log10(rms / 32767.0) if rms > 0 else -100.0
+        dbs.append(db)
+
+    # Speech onset and audible end (-50 dB boundary to not clip soft phonation edges)
+    start_win = 0
+    while start_win < num_windows and dbs[start_win] < -50.0:
+        start_win += 1
+
+    end_win = num_windows - 1
+    while end_win >= 0 and dbs[end_win] < -50.0:
+        end_win -= 1
+
+    if start_win > end_win:
+        return 0.0
+
+    total_span_s = (end_win - start_win + 1) * (window_ms / 1000.0)
+    min_pause_wins = int(min_pause_ms / window_ms)
+    pause_wins = 0
+    curr_pause_wins = 0
+
+    for w in range(start_win, end_win + 1):
+        if dbs[w] < threshold_db:
+            curr_pause_wins += 1
+        else:
+            if curr_pause_wins >= min_pause_wins:
+                pause_wins += curr_pause_wins
+            curr_pause_wins = 0
+    if curr_pause_wins >= min_pause_wins:
+        pause_wins += curr_pause_wins
+
+    pause_s = pause_wins * (window_ms / 1000.0)
+    phonation_s = max(0.1, total_span_s - pause_s)
+    return (word_count / phonation_s) * 60.0
+
+
+def select_outlier_chunks(
+    chunk_metrics: list[dict],  # list of {"index": int, "rate": float, "word_count": int}
+) -> tuple[float, list[dict]]:
+    """
+    Computes median articulation rate across chunks and selects outliers outside
+    the acceptable tolerance band (6% default; 8% for short chunks < 60 words).
+    """
+    valid_rates = [c["rate"] for c in chunk_metrics if c.get("rate", 0) > 0]
+    if not valid_rates:
+        return 0.0, []
+
+    median_rate = statistics.median(valid_rates)
+    if median_rate <= 0:
+        return 0.0, []
+
+    outliers = []
+    for c in chunk_metrics:
+        rate = c.get("rate", 0.0)
+        word_count = c.get("word_count", 0)
+        if rate <= 0:
+            continue
+        threshold = 0.08 if word_count < 60 else 0.06
+        deviation = abs(rate - median_rate) / median_rate
+        if deviation > threshold:
+            outliers.append({
+                "chunk_index": c["index"],
+                "rate": rate,
+                "word_count": word_count,
+                "deviation": deviation,
+                "threshold": threshold,
+            })
+    return median_rate, outliers
+
+
+def apply_chunk_atempo_pcm(
+    pcm_bytes: bytes,
+    alignment: list[dict],
+    factor: float,
+    sample_rate: int = PCM_SAMPLE_RATE,
+    channels: int = PCM_CHANNELS,
+    dead_zone: tuple[float, float] = (0.97, 1.03),
+    clamp_bounds: tuple[float, float] = (0.92, 1.08),
+) -> tuple[bytes, list[dict]]:
+    """
+    Applies ffmpeg atempo filter directly on raw PCM audio frames.
+    Dead zone: factors between dead_zone[0] and dead_zone[1] skip atempo entirely.
+    Clamps factor to clamp_bounds. Scales alignment word timestamps monotonically by 1/factor.
+    """
+    if abs(factor - 1.0) < 1e-4:
+        return pcm_bytes, alignment
+
+    # Dead zone check (e.g. 0.98 to 1.02)
+    if dead_zone[0] <= factor <= dead_zone[1]:
+        return pcm_bytes, alignment
+
+    clamped_factor = min(clamp_bounds[1], max(clamp_bounds[0], factor))
+    ffmpeg_bin = get_ffmpeg_bin()
+    cmd = [
+        ffmpeg_bin, "-y",
+        "-f", "s16le", "-ar", str(sample_rate), "-ac", str(channels),
+        "-i", "pipe:0",
+        "-filter:a", f"atempo={clamped_factor:.4f}",
+        "-f", "s16le", "pipe:1",
+    ]
+    proc = subprocess.run(cmd, input=pcm_bytes, capture_output=True, check=True)
+    scaled_pcm = proc.stdout
+
+    bytes_per_sample = 2
+    bytes_per_frame = channels * bytes_per_sample
+    new_dur = len(scaled_pcm) / float(sample_rate * bytes_per_frame)
+
+    scaled_alignment = []
+    prev_end = 0.0
+    for w in alignment:
+        s = max(0.0, round(w["start"] / clamped_factor, 3))
+        e = min(new_dur, max(s, round(w["end"] / clamped_factor, 3)))
+        if s < prev_end:
+            s = prev_end
+        if e < s:
+            e = s
+        prev_end = e
+        scaled_alignment.append({
+            "word": w["word"],
+            "start": s,
+            "end": e,
+        })
+
+    if scaled_alignment and scaled_alignment[-1]["end"] > new_dur:
+        scaled_alignment[-1]["end"] = new_dur
+
+    return scaled_pcm, scaled_alignment
+
+
+def apply_gentle_pace_alignment(
+    ordered_chunks: list[ChunkResult],
+    chunk_pcms: list[bytes],
+    sample_rate: int = PCM_SAMPLE_RATE,
+    channels: int = PCM_CHANNELS,
+) -> tuple[list[bytes], list[list[dict]]]:
+    """
+    Measures each chunk's rate from decoded audio:
+      words / phonation time, pauses > 250 ms below -40 dB removed.
+    Target = story median.
+    Corrects only chunks outside +/-4%, with ffmpeg atempo on decoded PCM only:
+      factor clamped 0.94-1.06, dead zone 0.98-1.02, alignment scaled by 1/factor.
+    Chunks needing more than 6% are left alone and logged (numbers only).
+    Never touches seams or silence.
+    """
+    rates = []
+    for i, c_res in enumerate(ordered_chunks):
+        pcm = chunk_pcms[i]
+        words = c_res.alignment
+        rate = compute_articulation_rate_from_pcm(
+            pcm,
+            len(words),
+            channels=channels,
+            sample_rate=sample_rate,
+            threshold_db=-40.0,
+            min_pause_ms=250.0,
+            window_ms=10.0,
+        )
+        rates.append(rate)
+
+    valid_rates = [r for r in rates if r > 0]
+    if not valid_rates:
+        return chunk_pcms, [c.alignment for c in ordered_chunks]
+
+    median_rate = statistics.median(valid_rates)
+    updated_pcms = list(chunk_pcms)
+    updated_alignments = [list(c.alignment) for c in ordered_chunks]
+
+    for i, rate in enumerate(rates):
+        if rate <= 0 or median_rate <= 0:
+            continue
+        dev = (rate - median_rate) / median_rate
+        abs_dev = abs(dev)
+
+        # Inside +/-4%: leave alone
+        if abs_dev <= 0.04:
+            continue
+
+        # More than 10%: leave alone and log (numbers only)
+        if abs_dev > 0.10:
+            logger.info("Chunk %d rate %.1f median %.1f dev %.2f%% > 10%% left alone", i, rate, median_rate, abs_dev * 100)
+            continue
+
+        # Outside +/-4% and <= 10%: correct!
+        factor = median_rate / rate
+        clamped_factor = min(1.10, max(0.90, factor))
+
+        # Dead zone check: 0.98 - 1.02
+        if 0.98 <= clamped_factor <= 1.02:
+            continue
+
+        pcm_corr, align_corr = apply_chunk_atempo_pcm(
+            updated_pcms[i],
+            updated_alignments[i],
+            factor=clamped_factor,
+            sample_rate=sample_rate,
+            channels=channels,
+            dead_zone=(0.98, 1.02),
+            clamp_bounds=(0.90, 1.10),
+        )
+        updated_pcms[i] = pcm_corr
+        updated_alignments[i] = align_corr
+        logger.info("Chunk %d pace corrected: rate %.1f -> target %.1f, factor %.4f", i, rate, median_rate, clamped_factor)
+
+    return updated_pcms, updated_alignments
+
+
+def balance_chunk_pcm_volumes(
+    chunk_specs: list[dict],
+    channels: int = PCM_CHANNELS,
+    sample_rate: int = PCM_SAMPLE_RATE,
+) -> None:
+    """
+    Balances speech loudness across chunks to eliminate volume spiking at the start
+    and ensure uniform vocal presence throughout the story.
+    Measures active speech RMS (-45 dB threshold) per chunk, computes median,
+    and gently applies gain adjustment (clamped to [-3.0, 3.0] dB with 0.8 dB dead zone).
+    Mutates 'faded_pcm' in place within chunk_specs.
+    """
+    if len(chunk_specs) < 2:
+        return
+
+    win_frames = int(0.020 * sample_rate)  # 20 ms windows
+    speech_dbs = []
+
+    for spec in chunk_specs:
+        pcm = spec.get("faded_pcm", b"")
+        if not pcm:
+            speech_dbs.append(None)
+            continue
+        samples = array.array("h", pcm)
+        total_f = len(samples) // channels
+        audible_rmss = []
+        for f in range(0, total_f - win_frames, win_frames):
+            win_s = samples[f * channels : (f + win_frames) * channels]
+            sum_sq = sum(s * s for s in win_s)
+            r = math.sqrt(sum_sq / float(len(win_s))) if win_s else 0.0
+            if r > 0:
+                d = 20.0 * math.log10(r / 32767.0)
+                if d >= -45.0:  # Active speech threshold
+                    audible_rmss.append(r)
+        if audible_rmss:
+            mean_r = sum(audible_rmss) / len(audible_rmss)
+            chunk_db = 20.0 * math.log10(mean_r / 32767.0)
+        else:
+            sum_sq = sum(s * s for s in samples)
+            r = math.sqrt(sum_sq / float(len(samples))) if samples else 0.0
+            chunk_db = 20.0 * math.log10(r / 32767.0) if r > 0 else -100.0
+        speech_dbs.append(chunk_db)
+
+    valid_dbs = [db for db in speech_dbs if db is not None and db > -70.0]
+    if len(valid_dbs) < 2:
+        return
+
+    valid_dbs_sorted = sorted(valid_dbs)
+    mid = len(valid_dbs_sorted) // 2
+    if len(valid_dbs_sorted) % 2 == 1:
+        median_db = valid_dbs_sorted[mid]
+    else:
+        median_db = (valid_dbs_sorted[mid - 1] + valid_dbs_sorted[mid]) / 2.0
+
+    for idx, (spec, chunk_db) in enumerate(zip(chunk_specs, speech_dbs)):
+        if chunk_db is None or chunk_db <= -70.0:
+            continue
+        delta_db = median_db - chunk_db
+        # Dead zone: +/- 0.8 dB (natural variation is preserved)
+        if abs(delta_db) <= 0.8:
+            continue
+        # Clamp adjustment to +/- 3.0 dB
+        clamped_delta = max(-3.0, min(3.0, delta_db))
+        scale = 10.0 ** (clamped_delta / 20.0)
+        samples = array.array("h", spec["faded_pcm"])
+        scaled_samples = array.array("h", (int(max(-32768, min(32767, s * scale))) for s in samples))
+        spec["faded_pcm"] = scaled_samples.tobytes()
+        logger.info(
+            "Balanced chunk %d loudness: %.1f dB -> target %.1f dB (gain %.2f dB)",
+            idx, chunk_db, median_db, clamped_delta
+        )
+
+
+def assemble_smooth_story(
+    ordered_chunks: list[ChunkResult],
+    profile: TTSProfile,
+    text: str = "",
+) -> tuple[bytes, list[dict]]:
+    """
+    Assembles story chunks under TTS_SMOOTH_AUDIO:
+    1. Measures rate from decoded audio and applies gentle pace alignment (+/-4% tolerance, clamped [0.94, 1.06], dead zone [0.98, 1.02]).
+    2. Energy-based tail trim (-50 dB + 150 ms cushion) with 50 ms fade-out inside the cushion.
+    3. File edges: 250 ms room-tone lead-in, 700 ms tail with 400 ms fade-out.
+    4. Target seam gaps: 800 ms mid-paragraph, 1200 ms paragraph (-40 dB method).
+    5. Continuous room-tone bed: harvested pause (max RMS < -65 dB) leveled to pause floor capped at -72 dB,
+       extended with 15 ms equal-power crossfades. Fallback to -80 dB shaped noise. Mixed additively under entire file.
+    6. Monotonic, non-negative alignment shifted by lead-in. Loudnorm MP3 encoding.
+    """
+    # 1. Decode raw PCMs from chunks
+    chunk_pcms = [mp3_to_raw_pcm(c.mp3_bytes)[0] for c in ordered_chunks]
+
+    # 2. Gentle pace alignment (applied only when TTS_PACE_NORMALIZE is enabled)
+    if getattr(settings, "TTS_PACE_NORMALIZE", False):
+        chunk_pcms, chunk_alignments = apply_gentle_pace_alignment(
+            ordered_chunks, chunk_pcms, sample_rate=PCM_SAMPLE_RATE, channels=PCM_CHANNELS
+        )
+    else:
+        chunk_alignments = [list(c.alignment) for c in ordered_chunks]
+
+    # 3. Determine energy-based boundaries and measure head/tail silence per chunk
+    chunk_specs = []
+    for idx, (pcm_bytes, words, c_res) in enumerate(zip(chunk_pcms, chunk_alignments, ordered_chunks)):
+        dur = len(pcm_bytes) / (PCM_SAMPLE_RATE * PCM_BYTES_PER_FRAME)
+        if not words:
+            raise ValueError(f"Missing word alignment in chunk {idx}")
+
+        first_word_start = words[0]["start"]
+        last_word_end = words[-1]["end"]
+
+        t_onset = get_first_audible_time(pcm_bytes, channels=PCM_CHANNELS, sample_rate=PCM_SAMPLE_RATE, threshold_db=-50.0, window_ms=10.0)
+        if t_onset <= 0.0:
+            t_onset = first_word_start
+        candidate_start = max(first_word_start - 0.030, t_onset - 0.050)
+        trim_start = max(0.0, min(candidate_start, first_word_start))
+
+        # Tail trimming: -50 dB + 150 ms cushion
+        t_audible = get_last_audible_time(
+            pcm_bytes,
+            channels=PCM_CHANNELS,
+            sample_rate=PCM_SAMPLE_RATE,
+            threshold_db=-50.0,
+            window_ms=10.0,
+            max_time_s=(last_word_end + 0.600) if (last_word_end and last_word_end > 0.0) else None,
+        )
+        if t_audible <= 0.0:
+            t_audible = last_word_end
+        trim_end = min(dur, t_audible + 0.150)
+
+        start_frame = int(trim_start * PCM_SAMPLE_RATE)
+        end_frame = int(trim_end * PCM_SAMPLE_RATE)
+        sliced_pcm = pcm_bytes[start_frame * PCM_BYTES_PER_FRAME : end_frame * PCM_BYTES_PER_FRAME]
+
+        # Apply 10 ms head fade-in, 50 ms cushion fade-out
+        faded_pcm = apply_pcm_fade(sliced_pcm, fade_ms=10.0, sample_rate=PCM_SAMPLE_RATE)
+        tail_fade_frames = int(0.050 * PCM_SAMPLE_RATE)
+        sliced_samples = array.array("h", faded_pcm)
+        n_frames = len(sliced_samples) // PCM_CHANNELS
+        if tail_fade_frames > 0 and n_frames >= tail_fade_frames:
+            for fi in range(tail_fade_frames):
+                factor = (tail_fade_frames - 1 - fi) / float(tail_fade_frames)
+                target_idx = n_frames - tail_fade_frames + fi
+                for ch in range(PCM_CHANNELS):
+                    sliced_samples[target_idx * PCM_CHANNELS + ch] = int(sliced_samples[target_idx * PCM_CHANNELS + ch] * factor)
+            faded_pcm = sliced_samples.tobytes()
+
+        trimmed_dur = len(faded_pcm) / (PCM_SAMPLE_RATE * PCM_BYTES_PER_FRAME)
+
+        # Measure head40 and tail40 on trimmed faded PCM for -40 dB target seam gap
+        win10_frames = int(0.010 * PCM_SAMPLE_RATE)
+        total_faded_frames = len(faded_pcm) // PCM_BYTES_PER_FRAME
+        faded_samples = array.array("h", faded_pcm)
+
+        h40 = trimmed_dur
+        for f in range(0, min(total_faded_frames, int(2.0 * PCM_SAMPLE_RATE)), win10_frames):
+            chunk_s = faded_samples[f : min(f + win10_frames, total_faded_frames)]
+            if chunk_s:
+                rms = math.sqrt(sum(s * s for s in chunk_s) / float(len(chunk_s)))
+                db = 20.0 * math.log10(rms / 32767.0) if rms > 0 else -100.0
+                if db >= -40.0:
+                    h40 = f / float(PCM_SAMPLE_RATE)
+                    break
+
+        t40_end = 0.0
+        for f in range(total_faded_frames - win10_frames, 0, -win10_frames):
+            chunk_s = faded_samples[f : min(f + win10_frames, total_faded_frames)]
+            if chunk_s:
+                rms = math.sqrt(sum(s * s for s in chunk_s) / float(len(chunk_s)))
+                db = 20.0 * math.log10(rms / 32767.0) if rms > 0 else -100.0
+                if db >= -40.0:
+                    t40_end = (f + len(chunk_s)) / float(PCM_SAMPLE_RATE)
+                    break
+        tail40 = max(0.0, trimmed_dur - t40_end)
+
+        chunk_specs.append({
+            "raw_pcm": pcm_bytes,
+            "faded_pcm": faded_pcm,
+            "words": words,
+            "trim_start": trim_start,
+            "trim_end": trim_end,
+            "trimmed_dur": trimmed_dur,
+            "head40": h40,
+            "tail40": tail40,
+            "is_paragraph_end": c_res.is_paragraph_end,
+        })
+
+    # Inter-chunk speech volume leveling: balances loudness so chunk 0 doesn't spike
+    # and subsequent chunks maintain consistent energy and presence throughout the story.
+    balance_chunk_pcm_volumes(chunk_specs)
+
+    # 4. File edges: 250 ms room-tone lead-in, 700 ms tail with 400 ms fade-out
+    lead_in_s = 0.250
+    lead_in_frames = int(lead_in_s * PCM_SAMPLE_RATE)
+    speech_pcm_parts = [b'\x00' * (lead_in_frames * PCM_BYTES_PER_FRAME)]
+    final_alignment = []
+    running_offset = lead_in_s
+
+    for idx, spec in enumerate(chunk_specs):
+        speech_pcm_parts.append(spec["faded_pcm"])
+        trim_start = spec["trim_start"]
+        trim_end = spec["trim_end"]
+        trimmed_dur = spec["trimmed_dur"]
+
+        for w in spec["words"]:
+            shifted_start = running_offset + (w["start"] - trim_start)
+            shifted_end = running_offset + (min(w["end"], trim_end) - trim_start)
+            final_alignment.append({
+                "word": w["word"],
+                "start": max(0.0, round(shifted_start, 3)),
+                "end": max(0.0, round(shifted_end, 3)),
+            })
+
+        if idx < len(chunk_specs) - 1:
+            target_gap = (profile.seam_paragraph_gap_ms / 1000.0) if spec["is_paragraph_end"] else (profile.seam_gap_ms / 1000.0)
+            cur_tail40 = spec["tail40"]
+            next_head40 = chunk_specs[idx + 1]["head40"]
+            inserted_s = max(0.0, target_gap - cur_tail40 - next_head40)
+            gap_frames = int(inserted_s * PCM_SAMPLE_RATE)
+            speech_pcm_parts.append(b'\x00' * (gap_frames * PCM_BYTES_PER_FRAME))
+            running_offset += (trimmed_dur + inserted_s)
+        else:
+            running_offset += trimmed_dur
+
+    file_tail_s = 0.700
+    tail_frames = int(file_tail_s * PCM_SAMPLE_RATE)
+    speech_pcm_parts.append(b'\x00' * (tail_frames * PCM_BYTES_PER_FRAME))
+    speech_track_pcm = b"".join(speech_pcm_parts)
+    total_assembled_dur = len(speech_track_pcm) / (PCM_SAMPLE_RATE * PCM_BYTES_PER_FRAME)
+
+    # 5. Mix ONE continuous room-tone bed under the entire file
+    raw_pcms = [spec["raw_pcm"] for spec in chunk_specs]
+    room_tone_clip = extract_clean_room_tone_segment(raw_pcms, channels=PCM_CHANNELS, sample_rate=PCM_SAMPLE_RATE)
+    if room_tone_clip:
+        clip_samples = array.array("h", room_tone_clip)
+        rms = math.sqrt(sum(s * s for s in clip_samples) / float(len(clip_samples)))
+        pause_floor = 20.0 * math.log10(rms / 32767.0) if rms > 0 else -100.0
+        target_bed_level = min(pause_floor, -72.0)
+        leveled_clip = level_room_tone(room_tone_clip, target_level_db=target_bed_level, channels=PCM_CHANNELS)
+        bed_pcm = generate_room_tone(
+            leveled_clip,
+            total_assembled_dur,
+            channels=PCM_CHANNELS,
+            sample_rate=PCM_SAMPLE_RATE,
+            xfade_ms=15.0,
+            equal_power=True,
+        )
+    else:
+        bed_pcm = generate_shaped_noise_bed(
+            total_assembled_dur,
+            channels=PCM_CHANNELS,
+            sample_rate=PCM_SAMPLE_RATE,
+            target_db=-80.0,
+        )
+
+    # 400 ms fade-out at the end of speech track into the tail
+    fade_out_frames = int(0.400 * PCM_SAMPLE_RATE)
+    speech_samples = array.array("h", speech_track_pcm)
+    total_f = len(speech_samples) // PCM_CHANNELS
+    if fade_out_frames > 0 and total_f >= fade_out_frames:
+        for fi in range(fade_out_frames):
+            factor = (fade_out_frames - 1 - fi) / float(fade_out_frames)
+            idx_frame = total_f - fade_out_frames + fi
+            for ch in range(PCM_CHANNELS):
+                speech_samples[idx_frame * PCM_CHANNELS + ch] = int(speech_samples[idx_frame * PCM_CHANNELS + ch] * factor)
+        speech_track_pcm = speech_samples.tobytes()
+
+    assembled_pcm = mix_pcm_additive(speech_track_pcm, bed_pcm)
+
+    # 6. Ensure final alignment matches display text whitespace tokens 1-to-1
+    if text and text.strip():
+        tokens = text.split()
+        if len(final_alignment) != len(tokens):
+            combined_chars, combined_starts, combined_ends = [], [], []
+            for w in final_alignment:
+                w_chars = list(w["word"])
+                dur_per_char = (w["end"] - w["start"]) / max(1, len(w_chars))
+                for ci, c in enumerate(w_chars):
+                    combined_chars.append(c)
+                    combined_starts.append(round(w["start"] + ci * dur_per_char, 3))
+                    combined_ends.append(round(w["start"] + (ci + 1) * dur_per_char, 3))
+                combined_chars.append(" ")
+                combined_starts.append(round(w["end"], 3))
+                combined_ends.append(round(w["end"], 3))
+            remapped = parse_alignment_to_whitespace_words(
+                {
+                    "characters": combined_chars,
+                    "character_start_times_seconds": combined_starts,
+                    "character_end_times_seconds": combined_ends,
+                },
+                display_text=text,
+            )
+            if len(remapped) == len(tokens):
+                final_alignment = remapped
+
+    # 7. Two-pass Loudnorm normalization and MP3 encoding
+    final_mp3 = raw_pcm_to_mp3(assembled_pcm, loudnorm=True)
+    final_audio_dur = round(len(assembled_pcm) / (PCM_SAMPLE_RATE * PCM_BYTES_PER_FRAME), 3)
+
+    # 8. Clamp every alignment time to [0.0, final_audio_dur]
+    prev_s = 0.0
+    for w in final_alignment:
+        w["start"] = max(prev_s, max(0.0, min(round(w["start"], 3), final_audio_dur)))
+        w["end"] = max(w["start"], min(round(w["end"], 3), final_audio_dur))
+        prev_s = w["start"]
+
+    return final_mp3, final_alignment
+
+
+def apply_chunk_atempo(
+
+    mp3_bytes: bytes,
+    alignment: list[dict],
+    factor: float,
+) -> tuple[bytes, list[dict]]:
+    """
+    Applies ffmpeg atempo filter to chunk mp3 bytes and scales alignment timestamps.
+    Factor (target / measured) is clamped to [0.92, 1.08] and respects dead zone [0.97, 1.03].
+    """
+    if abs(factor - 1.0) < 1e-4 or (0.97 <= factor <= 1.03):
+        return mp3_bytes, alignment
+
+    clamped_factor = min(1.08, max(0.92, factor))
+    ffmpeg_bin = get_ffmpeg_bin()
+    cmd = [
+        ffmpeg_bin, "-y",
+        "-f", "mp3", "-i", "pipe:0",
+        "-filter:a", f"atempo={clamped_factor:.4f}",
+        "-ar", str(PCM_SAMPLE_RATE),
+        "-ac", str(PCM_CHANNELS),
+        "-b:a", "128k",
+        "-f", "mp3", "pipe:1",
+    ]
+    proc = subprocess.run(cmd, input=mp3_bytes, capture_output=True, check=True)
+    scaled_mp3 = proc.stdout
+
+    # Get new audio duration
+    _, new_dur = mp3_to_raw_pcm(scaled_mp3)
+
+    # Scale alignment timestamps: as tempo increases (clamped_factor > 1), duration shrinks
+    scaled_alignment = []
+    prev_end = 0.0
+    for w in alignment:
+        s = max(0.0, round(w["start"] / clamped_factor, 3))
+        e = min(new_dur, max(s, round(w["end"] / clamped_factor, 3)))
+        if s < prev_end:
+            s = prev_end
+        if e < s:
+            e = s
+        prev_end = e
+        scaled_alignment.append({
+            "word": w["word"],
+            "start": s,
+            "end": e,
+        })
+
+    # Final clamp check: ensure last end <= new_dur
+    if scaled_alignment and scaled_alignment[-1]["end"] > new_dur:
+        scaled_alignment[-1]["end"] = new_dur
+
+    return scaled_mp3, scaled_alignment
+
+
+def apply_pace_normalization(
+    ordered_chunks: list[ChunkResult],
+    chunks: list[TextChunk],
+    resolved_voice_id: str,
+    resolved_model_id: str,
+    voice_settings: dict,
+    api_key: str,
+    max_retries: int = 3,
+) -> list[ChunkResult]:
+    """
+    Two-pass relative pace normalization across chunks:
+    1. Saves pass-1 chunk audio to untracked scratch/pass1_chunks/ for free auditing.
+    2. Computes articulation rate per chunk directly from decoded audio PCM and finds story median.
+    3. Identifies outliers (>6% deviation; >8% for chunks < 60 words).
+    4. For outliers >8%: regenerates chunk once with damped speed = clamp(current_speed * (factor ** 0.5), 0.88, 1.12)
+       toward nearest band edge (median +/- 5%), capped at 30% of chunks per story (worst outliers first).
+    5. Applies ffmpeg atempo directly on decoded PCM (factor clamped to [0.92, 1.08], dead zone [0.97, 1.03]).
+    6. Logs per-chunk numbers only (articulation rate, factor, regenerated yes/no). No story text.
+    """
+    if len(ordered_chunks) <= 1:
+        return ordered_chunks
+
+    # Save pass-1 chunk audio to untracked scratch/ for reproducible verification
+    try:
+        scratch_pass1_dir = os.path.abspath(os.path.join("scratch", "pass1_chunks"))
+        os.makedirs(scratch_pass1_dir, exist_ok=True)
+        for c_res in ordered_chunks:
+            with open(os.path.join(scratch_pass1_dir, f"chunk_{c_res.index}.mp3"), "wb") as f:
+                f.write(c_res.mp3_bytes)
+    except Exception as cache_exc:
+        logger.debug("Failed saving pass1 chunk to scratch: %s", cache_exc)
+
+    # Measure initial articulation rates directly from decoded PCM (with alignment fallback for mock bytes)
+    chunk_metrics = []
+    for c_res in ordered_chunks:
+        try:
+            pcm_bytes, _ = mp3_to_raw_pcm(c_res.mp3_bytes)
+            w_count = len([w for w in c_res.alignment if any(ch.isalnum() for ch in w.get("word", ""))])
+            rate = compute_articulation_rate_from_pcm(pcm_bytes, word_count=w_count)
+            if rate <= 0.0:
+                rate = compute_articulation_rate(c_res.alignment)
+        except Exception:
+            rate = compute_articulation_rate(c_res.alignment)
+            w_count = len([w for w in c_res.alignment if any(ch.isalnum() for ch in w.get("word", ""))])
+
+        chunk_metrics.append({
+            "index": c_res.index,
+            "rate": rate,
+            "word_count": w_count,
+        })
+
+    median_rate, outliers = select_outlier_chunks(chunk_metrics)
+    if not outliers or median_rate <= 0:
+        for m in chunk_metrics:
+            logger.info("Pace chunk %d: rate=%.1f WPM, median=%.1f, factor=1.000, regenerated=False", m["index"], m["rate"], median_rate)
+        return ordered_chunks
+
+    # Cap regeneration at 30% of chunks per story
+    max_regenerations = math.floor(len(ordered_chunks) * 0.30)
+
+    # Sort candidates for regeneration: deviation > 0.08, descending deviation
+    regen_candidates = [o for o in outliers if o["deviation"] > 0.08]
+    regen_candidates.sort(key=lambda x: x["deviation"], reverse=True)
+    allowed_regen_indices = {o["chunk_index"] for o in regen_candidates[:max_regenerations]}
+
+    normalized_chunks = list(ordered_chunks)
+    base_speed = voice_settings.get("speed", 1.0)
+
+    for c_idx, c_res in enumerate(ordered_chunks):
+        outlier_info = next((o for o in outliers if o["chunk_index"] == c_idx), None)
+        if not outlier_info:
+            logger.info("Pace chunk %d: rate=%.1f WPM, median=%.1f, factor=1.000, regenerated=False", c_idx, chunk_metrics[c_idx]["rate"], median_rate)
+            continue
+
+        measured_rate = outlier_info["rate"]
+        regenerated = False
+
+        # Band-edge correction: correct toward nearest edge of median +/- 5% (not median itself)
+        if measured_rate < median_rate:
+            target_rate = median_rate * 0.95
+        else:
+            target_rate = median_rate * 1.05
+
+        factor = target_rate / measured_rate if measured_rate > 0 else 1.0
+        current_res = c_res
+
+        # Regeneration for severe outliers (>8%) within 30% budget
+        if c_idx in allowed_regen_indices and api_key and api_key != "your_elevenlabs_api_key_here":
+            damped_speed = base_speed * (factor ** 0.5)
+            target_speed = min(1.12, max(0.88, damped_speed))
+            adjusted_settings = dict(voice_settings)
+            adjusted_settings["speed"] = round(target_speed, 3)
+
+            try:
+                new_chunk_res = fetch_chunk_audio_with_retry(
+                    chunk=chunks[c_idx],
+                    resolved_voice_id=resolved_voice_id,
+                    resolved_model_id=resolved_model_id,
+                    voice_settings=adjusted_settings,
+                    api_key=api_key,
+                    max_retries=max_retries,
+                )
+                current_res = new_chunk_res
+                regenerated = True
+
+                # Re-measure using decoded PCM
+                try:
+                    new_pcm, _ = mp3_to_raw_pcm(current_res.mp3_bytes)
+                    new_wc = len([w for w in current_res.alignment if any(ch.isalnum() for ch in w.get("word", ""))])
+                    new_rate = compute_articulation_rate_from_pcm(new_pcm, word_count=new_wc)
+                    if new_rate <= 0.0:
+                        new_rate = compute_articulation_rate(current_res.alignment)
+                except Exception:
+                    new_rate = compute_articulation_rate(current_res.alignment)
+
+                if new_rate > 0:
+                    measured_rate = new_rate
+                    if measured_rate < median_rate:
+                        target_rate = median_rate * 0.95
+                    else:
+                        target_rate = median_rate * 1.05
+                    factor = target_rate / measured_rate
+            except Exception as exc:
+                logger.warning("Pace chunk %d regeneration failed (%s: %s). Falling back to atempo.", c_idx, type(exc).__name__, str(exc))
+
+        # Atempo on decoded PCM: clamped to [0.92, 1.08], dead zone [0.97, 1.03]
+        atempo_factor = min(1.08, max(0.92, factor))
+        if atempo_factor < 0.97 or atempo_factor > 1.03:
+            scaled = False
+            try:
+                pcm_bytes, _ = mp3_to_raw_pcm(current_res.mp3_bytes)
+                scaled_pcm, scaled_alignment = apply_chunk_atempo_pcm(
+                    pcm_bytes=pcm_bytes,
+                    alignment=current_res.alignment,
+                    factor=atempo_factor,
+                )
+                scaled_mp3 = raw_pcm_to_mp3(scaled_pcm, loudnorm=False)
+                current_res = ChunkResult(
+                    index=current_res.index,
+                    mp3_bytes=scaled_mp3,
+                    alignment=scaled_alignment,
+                    is_paragraph_end=current_res.is_paragraph_end,
+                )
+                scaled = True
+            except Exception:
+                pass
+
+            if not scaled:
+                try:
+                    scaled_mp3, scaled_alignment = apply_chunk_atempo(
+                        mp3_bytes=current_res.mp3_bytes,
+                        alignment=current_res.alignment,
+                        factor=atempo_factor,
+                    )
+                    current_res = ChunkResult(
+                        index=current_res.index,
+                        mp3_bytes=scaled_mp3,
+                        alignment=scaled_alignment,
+                        is_paragraph_end=current_res.is_paragraph_end,
+                    )
+                except Exception as exc:
+                    logger.warning("Pace chunk %d atempo scaling failed (%s: %s).", c_idx, type(exc).__name__, str(exc))
+
+        normalized_chunks[c_idx] = current_res
+        logger.info(
+            "Pace chunk %d: rate=%.1f WPM, median=%.1f, factor=%.3f, regenerated=%s",
+            c_idx,
+            measured_rate,
+            median_rate,
+            round(atempo_factor, 3),
+            regenerated,
+        )
+
+    return normalized_chunks
+
+
+def execute_tts_pipeline_v2(
+    text: str,
+    story_type: Optional[Union[str, StoryType]] = None,
+    voice_id: Optional[str] = None,
+    model_id: Optional[str] = None,
+    stability: Optional[float] = None,
+    similarity_boost: Optional[float] = None,
+    style: Optional[float] = None,
+    return_timestamps: bool = True,
+    max_retries: int = 3,
+    speed: Optional[float] = None,
+) -> tuple[bytes, list[dict]]:
+    """
+    Executes the complete Phase 2 TTS pipeline:
+    1. Prepares text with profile paragraph breaks.
+    2. Chunks text (800-1500 chars) with context neighbors.
+    3. Concurrently synthesizes chunks (max 3 workers) with retry backoff.
+    4. Trims edge silence per chunk using word alignment:
+         trim_start = max(0, first_word_start - 0.030)
+         trim_end = min(duration, last_word_end + 0.130)
+    5. Injects profile seam pauses (paragraph break at paragraph ends, pause_ms at sentence splits).
+    6. Stitches PCM frames and shifts alignment words monotonically.
+    7. Applies single-pass loudness normalization (I=-16, TP=-1.5, LRA=11) and exports one MP3.
+    """
+    profile: TTSProfile = get_tts_profile(story_type)
+    prepared_text = prepare_text_for_tts(text, story_type)
+
+    # Resolve voice and settings
+    resolved_voice_id = ELEVENLABS_VOICES.get(voice_id, voice_id) or settings.ELEVENLABS_VOICE_ID
+    resolved_model_id = model_id or getattr(settings, "TTS_V2_MODEL_ID", None) or settings.ELEVENLABS_MODEL_ID
+
+    resolved_stability = stability if stability is not None else profile.stability
+    resolved_similarity_boost = similarity_boost if similarity_boost is not None else profile.similarity_boost
+    resolved_style = style if style is not None else profile.style
+    resolved_speed = speed if speed is not None else profile.speed
+
+    # Calen pacing calibration: speed up natural cadence (+21% faster) when not explicitly overridden
+    if speed is None and voice_id:
+        v_str = str(voice_id).strip().lower()
+        if v_str in ("calen", "s44kq3olfckbxgykfold"):
+            is_med = "meditation" in str(story_type).lower() if story_type else False
+            resolved_speed = 1.08 if is_med else 1.15
+
+    # Member cloned (IVC) voice detection & guardrails
+    is_stock = False
+    if voice_id:
+        v_str = str(voice_id).strip().lower()
+        is_stock = (
+            any(k.lower() == v_str for k in ELEVENLABS_VOICES.keys())
+            or any(v.lower() == v_str for v in ELEVENLABS_VOICES.values())
+            or (settings.ELEVENLABS_VOICE_ID and settings.ELEVENLABS_VOICE_ID.strip().lower() == v_str)
+        )
+    else:
+        is_stock = True
+
+    if voice_id and not is_stock:
+        resolved_stability = max(0.50, resolved_stability)
+        resolved_style = min(0.25, resolved_style)
+
+    voice_settings = {
+        "stability": resolved_stability,
+        "similarity_boost": resolved_similarity_boost,
+        "style": resolved_style,
+        "use_speaker_boost": True,
+        "speed": resolved_speed,
+    }
+
+    smooth_audio = getattr(settings, "TTS_SMOOTH_AUDIO", False) and getattr(settings, "TTS_PIPELINE_V2", False)
+    pace_norm_enabled = getattr(settings, "TTS_PACE_NORMALIZE", False)
+
+    # Derive max chunk size from model limit (10k for multilingual v2, 40k for turbo v2.5; cap at 1500)
+    # When smooth_audio or TTS_PACE_NORMALIZE is enabled, use smaller 500-900 char chunks
+    if smooth_audio or pace_norm_enabled:
+        chunk_min_chars = 500
+        chunk_max_chars = 900
+    else:
+        model_char_limit = 10000 if "multilingual" in str(resolved_model_id).lower() else 40000
+        chunk_min_chars = 800
+        chunk_max_chars = min(1500, model_char_limit)
+
+    # Split text into chunks
+    chunks = split_text_into_chunks(prepared_text, min_chars=chunk_min_chars, max_chars=chunk_max_chars, smooth_audio=smooth_audio)
+    if not chunks:
+        raise ValueError("Prepared text resulted in 0 chunks")
+
+    # Mock TTS path when API key is missing
+    if not settings.ELEVENLABS_API_KEY or settings.ELEVENLABS_API_KEY == "your_elevenlabs_api_key_here":
+        mock_audio = b"ID3\x04\x00\x00\x00\x00\x00\x00"
+        words_list = text.split() if text else prepared_text.split()
+        mock_alignment = []
+        lead_in_offset = 0.250 if smooth_audio else 0.0
+        prev_end = lead_in_offset
+        for i, w in enumerate(words_list):
+            if not any(c.isalnum() for c in w):
+                mock_alignment.append({
+                    "word": w,
+                    "start": round(prev_end, 3),
+                    "end": round(prev_end, 3),
+                })
+            else:
+                clean = w.strip('.,!?;:"“”‘’()[]{}*`_~') or w
+                start = round(prev_end + 0.1, 3)
+                end = round(start + 0.3, 3)
+                prev_end = end
+                mock_alignment.append({
+                    "word": clean,
+                    "start": start,
+                    "end": end,
+                })
+        return mock_audio, mock_alignment
+
+    supports_chaining = model_supports_request_id_chaining(resolved_model_id)
+    if smooth_audio and supports_chaining:
+        # Generate chunks SEQUENTIALLY with previous_request_ids (up to 3) chained from response headers
+        ordered_chunks: list[ChunkResult] = []
+        prev_request_ids: list[str] = []
+        for chunk in chunks:
+            chunk_res = fetch_chunk_audio_with_retry(
+                chunk=chunk,
+                resolved_voice_id=resolved_voice_id,
+                resolved_model_id=resolved_model_id,
+                voice_settings=voice_settings,
+                api_key=settings.ELEVENLABS_API_KEY,
+                max_retries=max_retries,
+                previous_request_ids=prev_request_ids[-3:] if prev_request_ids else None,
+            )
+            ordered_chunks.append(chunk_res)
+            if chunk_res.request_id:
+                prev_request_ids.append(chunk_res.request_id)
+    else:
+        # Concurrently fetch chunks (max 3 workers) with previous_text/next_text context
+        chunk_results: dict[int, ChunkResult] = {}
+        with ThreadPoolExecutor(max_workers=3) as executor:
+            future_map = {
+                executor.submit(
+                    fetch_chunk_audio_with_retry,
+                    chunk=chunk,
+                    resolved_voice_id=resolved_voice_id,
+                    resolved_model_id=resolved_model_id,
+                    voice_settings=voice_settings,
+                    api_key=settings.ELEVENLABS_API_KEY,
+                    max_retries=max_retries,
+                ): chunk.index
+                for chunk in chunks
+            }
+            for future in as_completed(future_map):
+                chunk_res = future.result()  # Raises if any chunk failed
+                chunk_results[chunk_res.index] = chunk_res
+
+        # Order chunks sequentially
+        ordered_chunks = [chunk_results[i] for i in range(len(chunks))]
+
+    if smooth_audio:
+        return assemble_smooth_story(
+            ordered_chunks=ordered_chunks,
+            profile=profile,
+            text=text,
+        )
+
+    # Phase 2 Pass 2: Pace normalization (only when TTS_PACE_NORMALIZE is enabled)
+    if getattr(settings, "TTS_PACE_NORMALIZE", False):
+        try:
+            ordered_chunks = apply_pace_normalization(
+                ordered_chunks=ordered_chunks,
+                chunks=chunks,
+                resolved_voice_id=resolved_voice_id,
+                resolved_model_id=resolved_model_id,
+                voice_settings=voice_settings,
+                api_key=settings.ELEVENLABS_API_KEY,
+                max_retries=max_retries,
+            )
+        except Exception as norm_exc:
+            logger.warning(
+                "TTS pace normalization failed (%s: %s). Continuing with un-normalized chunks.",
+                type(norm_exc).__name__,
+                str(norm_exc),
+            )
+
+    # Decode, trim, stitch PCM and shift alignment
+    # Pass 1: Decode PCM, determine energy-based boundaries, and measure head/tail silence per chunk
+    chunk_specs = []
+    for idx, c_res in enumerate(ordered_chunks):
+        pcm_bytes, dur = mp3_to_raw_pcm(c_res.mp3_bytes)
+        words = c_res.alignment
+        if not words:
+            raise ValueError(f"Missing word alignment in chunk {idx}")
+
+        first_word_start = words[0]["start"]
+        last_word_end = words[-1]["end"]
+
+        # Head trimming:
+        # t_onset = first 10 ms window >= -50 dB
+        # trim_start = max(first_word_start - 0.030, t_onset - 0.050); never later than first_word_start
+        t_onset = get_first_audible_time(pcm_bytes, channels=PCM_CHANNELS, sample_rate=PCM_SAMPLE_RATE, threshold_db=-50.0, window_ms=10.0)
+        if t_onset <= 0.0:
+            t_onset = first_word_start
+        candidate_start = max(first_word_start - 0.030, t_onset - 0.050)
+        trim_start = max(0.0, min(candidate_start, first_word_start))
+
+        # Tail trimming:
+        # t_audible = last 10 ms window >= -50 dB
+        # trim_end = min(dur, t_audible + 0.150); never cut earlier than t_audible + 0.080
+        t_audible = get_last_audible_time(
+            pcm_bytes,
+            channels=PCM_CHANNELS,
+            sample_rate=PCM_SAMPLE_RATE,
+            threshold_db=-50.0,
+            window_ms=10.0,
+            max_time_s=(last_word_end + 0.600) if (last_word_end and last_word_end > 0.0) else None,
+        )
+        if t_audible <= 0.0:
+            t_audible = last_word_end
+        trim_end = min(dur, max(t_audible + 0.080, t_audible + 0.150))
+
+        # Slice PCM frames
+        start_frame = int(trim_start * PCM_SAMPLE_RATE)
+        end_frame = int(trim_end * PCM_SAMPLE_RATE)
+        sliced_pcm = pcm_bytes[start_frame * PCM_BYTES_PER_FRAME : end_frame * PCM_BYTES_PER_FRAME]
+
+        # Apply 10 ms linear micro-fade inside the cushion
+        faded_pcm = apply_pcm_fade(sliced_pcm, fade_ms=10.0, sample_rate=PCM_SAMPLE_RATE)
+        trimmed_dur = len(faded_pcm) / (PCM_SAMPLE_RATE * PCM_BYTES_PER_FRAME)
+
+        # Measure head40 and tail40 on trimmed faded PCM for -40 dB target seam gap
+        win10_frames = int(0.010 * PCM_SAMPLE_RATE)
+        total_faded_frames = len(faded_pcm) // PCM_BYTES_PER_FRAME
+        faded_samples = array.array("h", faded_pcm)
+
+        h40 = trimmed_dur
+        for f in range(0, min(total_faded_frames, int(2.0 * PCM_SAMPLE_RATE)), win10_frames):
+            chunk_s = faded_samples[f : min(f + win10_frames, total_faded_frames)]
+            if chunk_s:
+                rms = math.sqrt(sum(s * s for s in chunk_s) / float(len(chunk_s)))
+                db = 20.0 * math.log10(rms / 32767.0) if rms > 0 else -100.0
+                if db >= -40.0:
+                    h40 = f / float(PCM_SAMPLE_RATE)
+                    break
+
+        t40_end = 0.0
+        for f in range(total_faded_frames - win10_frames, 0, -win10_frames):
+            chunk_s = faded_samples[f : min(f + win10_frames, total_faded_frames)]
+            if chunk_s:
+                rms = math.sqrt(sum(s * s for s in chunk_s) / float(len(chunk_s)))
+                db = 20.0 * math.log10(rms / 32767.0) if rms > 0 else -100.0
+                if db >= -40.0:
+                    t40_end = (f + len(chunk_s)) / float(PCM_SAMPLE_RATE)
+                    break
+        tail40 = max(0.0, trimmed_dur - t40_end)
+
+        chunk_specs.append({
+            "raw_pcm": pcm_bytes,
+            "faded_pcm": faded_pcm,
+            "words": words,
+            "trim_start": trim_start,
+            "trim_end": trim_end,
+            "trimmed_dur": trimmed_dur,
+            "head40": h40,
+            "tail40": tail40,
+            "is_paragraph_end": c_res.is_paragraph_end,
+        })
+
+    # Inter-chunk speech volume leveling: balances loudness so chunk 0 doesn't spike
+    # and subsequent chunks maintain consistent energy and presence throughout the story.
+    balance_chunk_pcm_volumes(chunk_specs)
+
+    # Harvest clean room-tone bed from available chunks (in-memory only, max RMS < -65 dB)
+    raw_pcms = [spec["raw_pcm"] for spec in chunk_specs if "raw_pcm" in spec]
+    room_tone_clip = extract_clean_room_tone_segment(raw_pcms, channels=PCM_CHANNELS, sample_rate=PCM_SAMPLE_RATE)
+
+    # Pass 2: Assemble trimmed PCM, inject target-gap room tone or silence, and shift alignment monotonically
+    final_pcm_parts: list[bytes] = []
+    final_alignment: list[dict] = []
+    running_offset = 0.0
+
+    for idx, spec in enumerate(chunk_specs):
+        final_pcm_parts.append(spec["faded_pcm"])
+        trim_start = spec["trim_start"]
+        trim_end = spec["trim_end"]
+        trimmed_dur = spec["trimmed_dur"]
+
+        # Shift word alignment
+        for w in spec["words"]:
+            shifted_start = running_offset + (w["start"] - trim_start)
+            shifted_end = running_offset + (min(w["end"], trim_end) - trim_start)
+            final_alignment.append({
+                "word": w["word"],
+                "start": max(0.0, round(shifted_start, 3)),
+                "end": max(0.0, round(shifted_end, 3)),
+            })
+
+        # Seam gap insertion (skip after the last chunk)
+        if idx < len(chunk_specs) - 1:
+            if spec["is_paragraph_end"]:
+                target_gap = profile.seam_paragraph_gap_ms / 1000.0
+            else:
+                target_gap = profile.seam_gap_ms / 1000.0
+
+            cur_tail40 = spec["tail40"]
+            next_head40 = chunk_specs[idx + 1]["head40"]
+
+            inserted_s = max(0.0, target_gap - cur_tail40 - next_head40)
+            gap_pcm = b""
+            if inserted_s > 0.0:
+                if room_tone_clip:
+                    try:
+                        gap_pcm = generate_room_tone(
+                            room_tone_clip,
+                            inserted_s,
+                            channels=PCM_CHANNELS,
+                            sample_rate=PCM_SAMPLE_RATE,
+                            xfade_ms=15.0,
+                        )
+                    except Exception as rt_exc:
+                        logger.warning(
+                            "Room tone fill failed (%s: %s); falling back to digital silence.",
+                            type(rt_exc).__name__,
+                            rt_exc,
+                        )
+                        gap_frames = int(inserted_s * PCM_SAMPLE_RATE)
+                        gap_pcm = b'\x00' * (gap_frames * PCM_BYTES_PER_FRAME)
+                else:
+                    gap_frames = int(inserted_s * PCM_SAMPLE_RATE)
+                    gap_pcm = b'\x00' * (gap_frames * PCM_BYTES_PER_FRAME)
+
+            final_pcm_parts.append(gap_pcm)
+            actual_pause_dur = len(gap_pcm) / (PCM_SAMPLE_RATE * PCM_BYTES_PER_FRAME)
+            running_offset += (trimmed_dur + actual_pause_dur)
+        else:
+            running_offset += trimmed_dur
+
+    # Assemble complete raw PCM
+    assembled_pcm = b"".join(final_pcm_parts)
+
+    # Edge trim on final audio: ensure start has <= 30ms lead padding
+    if final_alignment:
+        final_head_start = max(0.0, final_alignment[0]["start"] - 0.030)
+        if final_head_start > 0.01:
+            head_frame = int(final_head_start * PCM_SAMPLE_RATE)
+            assembled_pcm = assembled_pcm[head_frame * PCM_BYTES_PER_FRAME :]
+            for w in final_alignment:
+                w["start"] = max(0.0, round(w["start"] - final_head_start, 3))
+                w["end"] = max(0.0, round(w["end"] - final_head_start, 3))
+
+    # Cap final-file tail at about 150 ms after energy drops below -50 dB
+    t_audible_final = get_last_audible_time(assembled_pcm, channels=PCM_CHANNELS, sample_rate=PCM_SAMPLE_RATE, threshold_db=-50.0)
+    total_assembled_dur = len(assembled_pcm) / (PCM_SAMPLE_RATE * PCM_BYTES_PER_FRAME)
+    if t_audible_final > 0 and (total_assembled_dur - t_audible_final) > 0.150:
+        target_tail_dur = t_audible_final + 0.150
+        cut_frame = int(target_tail_dur * PCM_SAMPLE_RATE)
+        assembled_pcm = assembled_pcm[: cut_frame * PCM_BYTES_PER_FRAME]
+        total_assembled_dur = len(assembled_pcm) / (PCM_SAMPLE_RATE * PCM_BYTES_PER_FRAME)
+        if final_alignment:
+            final_alignment[-1]["end"] = min(final_alignment[-1]["end"], round(target_tail_dur, 3))
+
+    # Guarantee tail cushion after last audible energy is never shorter than 80-100 ms (cushion for 10ms boundary fade)
+    MIN_TAIL_CUSHION_S = 0.080  # 80 ms minimum cushion
+    if t_audible_final > 0 and (total_assembled_dur - t_audible_final) < MIN_TAIL_CUSHION_S:
+        needed_pad_s = MIN_TAIL_CUSHION_S - (total_assembled_dur - t_audible_final)
+        pad_frames = int(needed_pad_s * PCM_SAMPLE_RATE)
+        assembled_pcm += b'\x00' * (pad_frames * PCM_BYTES_PER_FRAME)
+
+    # Ensure final alignment matches display text whitespace tokens 1-to-1
+    if text and text.strip():
+        tokens = text.split()
+        if len(final_alignment) != len(tokens):
+            combined_chars, combined_starts, combined_ends = [], [], []
+            for w in final_alignment:
+                w_chars = list(w["word"])
+                dur_per_char = (w["end"] - w["start"]) / max(1, len(w_chars))
+                for ci, c in enumerate(w_chars):
+                    combined_chars.append(c)
+                    combined_starts.append(round(w["start"] + ci * dur_per_char, 3))
+                    combined_ends.append(round(w["start"] + (ci + 1) * dur_per_char, 3))
+                combined_chars.append(" ")
+                combined_starts.append(round(w["end"], 3))
+                combined_ends.append(round(w["end"], 3))
+            remapped_alignment = parse_alignment_to_whitespace_words(
+                {
+                    "characters": combined_chars,
+                    "character_start_times_seconds": combined_starts,
+                    "character_end_times_seconds": combined_ends,
+                },
+                display_text=text,
+            )
+            if len(remapped_alignment) == len(tokens):
+                final_alignment = remapped_alignment
+
+    # Apply final 10ms micro-fade to file boundaries
+    assembled_pcm = apply_pcm_fade(assembled_pcm, fade_ms=10.0, sample_rate=PCM_SAMPLE_RATE)
+
+    # Two-pass Loudnorm normalization and MP3 encoding
+    final_mp3 = raw_pcm_to_mp3(assembled_pcm, loudnorm=True)
+
+    # Final audio duration in seconds
+    final_audio_dur = round(len(assembled_pcm) / (PCM_SAMPLE_RATE * PCM_BYTES_PER_FRAME), 3)
+
+    # Clamp every alignment time to [0.0, final_audio_dur], guaranteeing monotonicity and non-negativity
+    prev_s = 0.0
+    for w in final_alignment:
+        w["start"] = max(prev_s, max(0.0, min(round(w["start"], 3), final_audio_dur)))
+        w["end"] = max(w["start"], min(round(w["end"], 3), final_audio_dur))
+        prev_s = w["start"]
+
+    return final_mp3, final_alignment

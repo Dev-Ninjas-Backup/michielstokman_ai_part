@@ -20,3 +20,7 @@ venv/
 
 # Media/Uploads (we don't want local test audio in the production image)
 media/
+
+# Scratch & ephemeral testing scripts
+scratch/
+
