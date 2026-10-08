@@ -46,6 +46,14 @@ class Settings:
         self.ELEVENLABS_SIMILARITY_BOOST: float = float(os.getenv("ELEVENLABS_SIMILARITY_BOOST", "0.80"))
         # Style (0.0-1.0): subtle stylistic variation
         self.ELEVENLABS_STYLE: float = float(os.getenv("ELEVENLABS_STYLE", "0.30"))
+        # TTS Pipeline V2 model ID (defaults to eleven_turbo_v2_5 for native request-id chaining and voice stability)
+        self.TTS_V2_MODEL_ID: str = os.getenv("TTS_V2_MODEL_ID", "eleven_turbo_v2_5")
+        # TTS Pipeline V2 feature flag (default False for backward-compatibility)
+        self.TTS_PIPELINE_V2: bool = os.getenv("TTS_PIPELINE_V2", "false").strip().lower() in ("true", "1", "yes", "on")
+        # TTS Smooth Audio feature flag (default False, active only inside V2 pipeline)
+        self.TTS_SMOOTH_AUDIO: bool = os.getenv("TTS_SMOOTH_AUDIO", "false").strip().lower() in ("true", "1", "yes", "on")
+        # TTS Pace Normalization feature flag (default False for backward-compatibility, used inside V2 pipeline only)
+        self.TTS_PACE_NORMALIZE: bool = os.getenv("TTS_PACE_NORMALIZE", "false").strip().lower() in ("true", "1", "yes", "on")
 
         # Vector DB Settings
         self.PINECONE_API_KEY: str | None = os.getenv("PINECONE_API_KEY")

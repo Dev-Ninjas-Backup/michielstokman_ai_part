@@ -2,8 +2,18 @@ import os
 import uuid
 import requests
 from pathlib import Path
+import threading
 from langchain_openai import ChatOpenAI
 from app.core.config import settings
+
+_tts_v2_fallback_count = 0
+_tts_v2_fallback_lock = threading.Lock()
+
+
+def get_tts_v2_fallback_count() -> int:
+    """Returns the total number of times the V2 TTS pipeline has fallen back to legacy."""
+    with _tts_v2_fallback_lock:
+        return _tts_v2_fallback_count
 
 
 # ElevenLabs TTS & LLM Configuration for House of Juliette
@@ -293,6 +303,36 @@ def parse_alignment_to_words(alignment: dict) -> list[dict]:
     return words
 
 
+def _generate_voice_elevenlabs_v2(
+    text: str,
+    voice_id: str | None = None,
+    model_id: str | None = None,
+    stability: float | None = None,
+    similarity_boost: float | None = None,
+    style: float | None = None,
+    return_timestamps: bool = True,
+    story_type: str | None = None,
+) -> bytes | tuple[bytes, list[dict]]:
+    """
+    Phase 2 TTS V2 pipeline: chunking, concurrency, alignment-based trimming,
+    and single-pass loudness normalization.
+    """
+    from app.services.tts_pipeline import execute_tts_pipeline_v2
+    audio_bytes, alignment = execute_tts_pipeline_v2(
+        text=text,
+        story_type=story_type,
+        voice_id=voice_id,
+        model_id=model_id,
+        stability=stability,
+        similarity_boost=similarity_boost,
+        style=style,
+        return_timestamps=return_timestamps,
+    )
+    if return_timestamps:
+        return audio_bytes, alignment
+    return audio_bytes
+
+
 def generate_voice_elevenlabs(
     text: str,
     voice_id: str | None = None,
@@ -312,6 +352,32 @@ def generate_voice_elevenlabs(
 
     Requires ELEVENLABS_API_KEY in .env.
     """
+    # Safety mechanism: Run V2 pipeline only when TTS_PIPELINE_V2 is enabled for story narrations.
+    # On any exception, log error without story text and fall back cleanly to legacy path.
+    if getattr(settings, "TTS_PIPELINE_V2", False) and return_timestamps:
+        try:
+            return _generate_voice_elevenlabs_v2(
+                text=text,
+                voice_id=voice_id,
+                model_id=model_id,
+                stability=stability,
+                similarity_boost=similarity_boost,
+                style=style,
+                return_timestamps=return_timestamps,
+                story_type=story_type,
+            )
+        except Exception as exc:
+            global _tts_v2_fallback_count
+            with _tts_v2_fallback_lock:
+                _tts_v2_fallback_count += 1
+                cnt = _tts_v2_fallback_count
+            import logging
+            logging.getLogger(__name__).warning(
+                "TTS V2 fallback [count=%d, error_type=%s]: Falling back to legacy TTS pipeline.",
+                cnt,
+                type(exc).__name__,
+            )
+
     # Preprocess text to add breaks/pauses for a sensual, slow delivery
     import re
     # Strip markdown bold/italic tags so the TTS engine doesn't read them or glitch

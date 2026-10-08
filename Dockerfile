@@ -1,10 +1,12 @@
 # Use Python 3.13 slim as the base image
 FROM python:3.13-slim
 
-# Install system dependencies needed for compiling psycopg2 and other packages
+# Install system dependencies (including ffmpeg for audio processing).
+# Note for non-Docker hosts: ensure ffmpeg is installed and available on system PATH.
 RUN apt-get update && apt-get install -y \
     libpq-dev \
     gcc \
+    ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
 # Install uv entirely correctly from the official Docker image

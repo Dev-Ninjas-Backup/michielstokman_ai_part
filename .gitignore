@@ -12,8 +12,7 @@ transform-ec2-key.pem
 __pycache__/
 .venv/
 media/
-temp_auto_push.bat
-temp_interactive_push.bat
+
 
 # Ignore scratch files containing secrets
 scratch/update_remote_env.py
@@ -22,4 +21,8 @@ scratch/test_live_stripe_webhook_simulation.py
 scratch/michielstokman_api
 .gitignore
 node_modules
-branch_structure.json
+scratch/ab_test/
+scratch/bin/
+scratch/pass1_chunks/
+*.mp3
+
