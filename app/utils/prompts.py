@@ -538,19 +538,20 @@ RESONANCE_HUMAN_TEMPLATE = "Generate the journaling question."
 
 STORY_TYPE_INSTRUCTIONS: dict[StoryType, str] = {
     StoryType.confession: (
-        "Write a CONFESSION.\n"
-        "Length for Confession:\n"
-        "  - Medium: 1000–1500 words (default unless otherwise requested)\n"
-        "Full story structure that every confession must follow:\n"
-        "1. Hook & Starting Point (1-2 min)\n"
-        "2. Context & Build-up (2-4 min)\n"
-        "3. Core Moment / Conflict → 3a. False relief / Apparent movement (1-2 min) → 3b. The real blow / Deeper confrontation (2-3 min)\n"
-        "4. Process & Reflection (1-3 min)\n"
-        "5. Open ending (0.5-1 min)\n"
-        "PACING & SILENCE: To make the audio recording feel calm, natural, and spacious, you MUST insert silent pauses. "
-        "Insert `<break time=\"2.5s\" />` at the end of every paragraph and `<break time=\"1.5s\" />` at the end of major transitions or reflections. "
-        "Ensure there are natural moments of silence throughout.\n"
-        "EMOTIONAL DELIVERY & SENSATION: Focus heavily on raw somatic sensations—sensory descriptions of skin, warmth, breath, tension, and slowly building pleasure. Describe your state of arousal and emotional vulnerability in a way that sounds intimate, authentic, and slow, as if you are experiencing the sensations in real-time."
+        "CONFESSION PROCESSING & REFINEMENT INSTRUCTIONS (STRICT FIDELITY & PRESERVATION):\n"
+        "The user has provided a complete original confession story (frontend word limit: 1,000–1,800 words).\n"
+        "Your task is to carefully read, understand, and polish this confession for narration while strictly preserving the author's original story in full.\n\n"
+        "MANDATORY PRESERVATION RULES (TAKE ABSOLUTE PRECEDENCE OVER ANY GENERAL GENERATION RULES):\n"
+        "1. CAREFUL READING: Read and understand the complete original story carefully from beginning to end before processing.\n"
+        "2. DO NOT SUMMARIZE OR SHORTEN: You MUST NOT summarize, shorten, compress, condense, or unnecessarily remove any part, section, scene, reflection, dialogue, or detail of the story.\n"
+        "3. PRESERVE ORIGINAL LENGTH: The output story MUST remain approximately the SAME LENGTH as the user's original input (1,000–1,800 words). Under NO circumstances should you truncate, compress, or shorten the story to approximately 1,000 words or any arbitrary target length.\n"
+        "4. PRESERVE STORY & CONTEXT: The user's main story, context, meaning, sequence of events, emotional arc, reflections, and important details must remain completely unchanged.\n"
+        "5. NO INVENTED INFORMATION: You MUST NOT invent new information, events, emotions, characters, facts, or details that were not provided by the user. Do not introduce new characters, do not alter existing character names, and do not change settings or locations.\n"
+        "6. DO NOT ALTER MAIN CONTEXT: You must not change the central context, perspective, or core truth of the user's original story.\n"
+        "7. MINIMAL IMPROVEMENTS ONLY: If there are minor grammar, spelling, punctuation, sentence-structure, or wording issues, make small improvements to make the story clearer, smoother, and more natural while strictly maintaining the author's voice.\n"
+        "8. IMPROVE UNCLEAR PORTIONS ONLY TO PRESERVE MEANING: If a small portion of the story is unclear, awkward, or poorly expressed, you may improve that portion ONLY when necessary to preserve and express the intended meaning — never to change what happened.\n"
+        "9. PACING & SILENCE: To make the audio recording feel calm, natural, and spacious, insert silent pauses: `<break time=\"2.5s\" />` at the end of every paragraph and `<break time=\"1.5s\" />` at the end of major transitions or reflections. Do not let these pause markers displace, truncate, or shorten the story text itself.\n"
+        "10. EMOTIONAL DELIVERY: Preserve the authentic vulnerability, tension, and emotional truth of the original confession."
     ),
     StoryType.meditation: (
         "Write a MEDITATION.\n"
@@ -594,9 +595,29 @@ Here is everything you know about the person you are writing for:
 Use this profile to make the story feel unmistakably personal. Do not mention these facts explicitly as bullet points — weave them invisibly into the emotional truth of the story.
 """
 
+CONFESSION_USER_CONTEXT_INJECTION = """
+EXTRA MATCHING RULE (Highly Important):
+Growth Areas + Markers + Intensity level together determine recommendation engine fit. A story is matched on emotional rhythm, degree of confrontation, softness vs rawness, inner developmental movement.
+
+Here is the person's profile and their complete submitted confession story:
+{user_context}
+
+CRITICAL CONFESSION PROCESSING REQUIREMENTS (STRICT FIDELITY):
+1. Complete Original Story: The user has provided their complete confession story above (within 1,000–1,800 words). Read and understand the complete original story carefully from beginning to end.
+2. DO NOT Summarize or Shorten: You MUST NOT summarize, shorten, compress, condense, or unnecessarily remove any part, scene, thought, reflection, or detail of the original story.
+3. Preserve Context & Meaning: The user's main story, context, meaning, events, emotions, and important details must remain unchanged.
+4. Minimal Improvements Only: If there are minor grammar, spelling, sentence-structure, or wording issues, make small improvements to make the story clearer, smoother, and more natural while strictly preserving the author's voice.
+5. Clarify Unclear Portions Only: If a small portion of the story is unclear or poorly expressed, improve that portion ONLY when necessary to preserve the intended meaning.
+6. NO Invented Information: You must NOT invent new information, events, emotions, characters, facts, or details that were not provided by the user. Do NOT change character names, places, facts, or plot points.
+7. DO NOT Alter Main Story: Grok must not change the main context or alter the user's original story.
+8. Length Preservation: The output story MUST remain approximately the SAME LENGTH as the user's original input (1,000–1,800 words). Do NOT cut it down or shorten it to ~1,000 words.
+9. Core Objective: Preserve the user's original confession while making only minimal grammar, clarity, and readability improvements. Do not summarize, compress, rewrite, or change the main context of the story.
+"""
+
 STORY_HUMAN_TEMPLATE = (
-    "Write the {story_type} now using all the rules above.\n"
-    "Make it so personal, raw and true that the reader thinks: “This could have been written by me.”\n\n"
+    "Process the {story_type} now using all the rules above.\n"
+    "FOR CONFESSIONS: Carefully read the complete original story and preserve it in full — do NOT summarize, shorten, compress, or rewrite. Keep the user's main story, context, meaning, events, characters, and emotions unchanged. The output must remain approximately the same length as the original input (1,000–1,800 words), making only minimal grammar, clarity, and readability improvements without inventing new information.\n"
+    "FOR OTHER STORY TYPES: Make it so personal, raw and true that the reader thinks: “This could have been written by me.”\n\n"
     "IMPORTANT: You MUST write the final story, title, and image prompt entirely in English, regardless of the input language. Under no circumstances should any part of the output contain non-English words.\n\n"
     "IMPORTANT: You MUST format your response exactly like this:\n"
     "TITLE: [Your beautiful title here]\n"
@@ -695,11 +716,17 @@ def build_story_system_template(story_type: StoryType, gender: Optional[str] = N
             "gender unspecified and avoid gendered defaults."
         )
 
+    context_injection = (
+        CONFESSION_USER_CONTEXT_INJECTION
+        if story_type == StoryType.confession
+        else USER_CONTEXT_INJECTION
+    )
+
     return (
         f"{perspective}\n\n"
         f"{base_persona}\n\n"
         f"{instruction}\n\n"
-        f"{USER_CONTEXT_INJECTION}"
+        f"{context_injection}"
     )
 
 
@@ -759,6 +786,14 @@ def build_user_context(request: StoryGenerateRequest) -> str:
             f"{request.title.strip()}\n"
         )
 
+    if request.story_type == StoryType.confession:
+        input_section = (
+            f"- User's complete original confession story (MUST BE PRESERVED IN FULL — DO NOT SUMMARIZE, CONDENSE, OR SHORTEN):\n"
+            f'"""\n{user_story_input}\n"""'
+        )
+    else:
+        input_section = f"- User's raw story/meditation input: {user_story_input}"
+
     context_str = f"""
 User Profile Block (mandatory — always fill this in):
 {title_line}- Name: {name}
@@ -771,7 +806,7 @@ User Profile Block (mandatory — always fill this in):
 - Personality: {personality}
 - Lifestyle: {lifestyle}
 - Situation: {situation}
-- User's raw story/meditation input: {user_story_input}
+{input_section}
 - Desired High Intensity Toggle: {intensity_toggle}
 """
     return context_str.strip()

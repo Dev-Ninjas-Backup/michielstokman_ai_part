@@ -26,6 +26,7 @@ from app.schemas.schema_ai import (
     ResonanceRequest,
     ResonanceResponse,
     StoryGenerateRequest,
+    StoryType,
 )
 from app.core.llm import (
     get_story_llm,
@@ -174,9 +175,16 @@ class AIService:
         """
         Generates a personalised Confession, Meditation, or Transformation
         using SuperGrok. Prompt templates live in app/utils/prompts.py.
-        Temperature is loaded from LLM_TEMPERATURE_STORY in settings.
+        For confessions, uses LLM_TEMPERATURE_CONFESSION to preserve the original
+        story fidelity and prevent summarization or hallucination.
         """
-        llm = get_story_llm()
+        if request.story_type == StoryType.confession:
+            llm = get_story_llm(
+                temperature=settings.LLM_TEMPERATURE_CONFESSION,
+                max_tokens=settings.LLM_MAX_TOKENS,
+            )
+        else:
+            llm = get_story_llm(max_tokens=settings.LLM_MAX_TOKENS)
 
         system_template = build_story_system_template(request.story_type, gender=gender)
         user_context = build_user_context(request)
@@ -196,6 +204,11 @@ class AIService:
 
         response = llm.invoke(formatted_messages)
         content = response.content.strip()
+
+        # Clean up any potential markdown code block wrappers
+        if content.startswith("```"):
+            content = re.sub(r"^```(?:\w+)?\s*", "", content)
+            content = re.sub(r"\s*```$", "", content).strip()
         
         title = None
         image_prompt = None
@@ -215,6 +228,9 @@ class AIService:
                 parts = content.split("STORY:", 1)
                 title = parts[0].replace("TITLE:", "").strip()
                 story_text = parts[1].strip()
+
+        if request.title and request.title.strip() and (not title or title == "Untitled"):
+            title = request.title.strip()
             
         return title, story_text, image_prompt
 

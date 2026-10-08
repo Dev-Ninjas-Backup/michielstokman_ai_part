@@ -24,6 +24,7 @@ def get_tts_v2_fallback_count() -> int:
 def get_story_llm(
     temperature: float | None = None,
     model_name: str | None = None,
+    max_tokens: int | None = None,
 ):
     """
     Returns a SuperGrok LangChain-compatible LLM instance.
@@ -32,16 +33,23 @@ def get_story_llm(
     Override via .env:
         LLM_MODEL=grok-3-mini          # cheaper/faster
         LLM_TEMPERATURE_STORY=0.9      # more creative
+        LLM_TEMPERATURE_CONFESSION=0.35 # fidelity for confessions
+        LLM_MAX_TOKENS=8192            # output token budget
     """
     if not settings.XAI_API_KEY:
         raise ValueError("XAI_API_KEY is missing. Add it to your .env file.")
 
-    return ChatOpenAI(
-        api_key=settings.XAI_API_KEY,
-        base_url=settings.LLM_BASE_URL,
-        model=model_name or settings.LLM_MODEL,
-        temperature=temperature if temperature is not None else settings.LLM_TEMPERATURE_STORY,
-    )
+    kwargs = {
+        "api_key": settings.XAI_API_KEY,
+        "base_url": settings.LLM_BASE_URL,
+        "model": model_name or settings.LLM_MODEL,
+        "temperature": temperature if temperature is not None else settings.LLM_TEMPERATURE_STORY,
+    }
+    resolved_max_tokens = max_tokens if max_tokens is not None else getattr(settings, "LLM_MAX_TOKENS", None)
+    if resolved_max_tokens is not None:
+        kwargs["max_tokens"] = resolved_max_tokens
+
+    return ChatOpenAI(**kwargs)
 
 
 # Curated list of high-quality premium pre-made ElevenLabs voices
