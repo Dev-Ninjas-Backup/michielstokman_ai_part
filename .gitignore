@@ -23,4 +23,7 @@ scratch/michielstokman_api
 .gitignore
 node_modules
 scratch/ab_test/
+scratch/bin/
+scratch/pass1_chunks/
 *.mp3
+
