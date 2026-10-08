@@ -1814,16 +1814,16 @@ def test_voice_tuning_profile_overrides():
     calen_meditation = get_tts_profile("meditation", voice_id="Calen")
     assert calen_meditation.speed == 1.08
 
-    # Victoria volume consistency, stable pitch, and emotional expression
+    # Victoria volume consistency, stable pitch, and natural delivery
     vic_prof = get_tts_profile("confession", voice_id="Victoria")
-    assert vic_prof.stability == 0.52
-    assert vic_prof.similarity_boost == 0.86
-    assert vic_prof.style == 0.42
-    assert vic_prof.speed == 1.02
+    assert vic_prof.stability == 0.55
+    assert vic_prof.similarity_boost == 0.85
+    assert vic_prof.style == 0.18
+    assert vic_prof.speed == 1.00
 
     vic_id_prof = get_tts_profile("confession", voice_id="WeAAwKYcS06VmXw086yZ")
-    assert vic_id_prof.stability == 0.52
-    assert vic_id_prof.style == 0.42
+    assert vic_id_prof.stability == 0.55
+    assert vic_id_prof.style == 0.18
 
     # Anja volume consistency, stable pitch, and emotional cadence
     anja_prof = get_tts_profile("confession", voice_id="Anja")
@@ -1875,10 +1875,10 @@ def test_voice_tuning_in_elevenlabs_v2_generation(monkeypatch):
                     story_type="confession"
                 )
                 sent_body = mock_post.call_args[1]["json"]
-                assert sent_body["voice_settings"]["stability"] == 0.52
-                assert sent_body["voice_settings"]["similarity_boost"] == 0.86
-                assert sent_body["voice_settings"]["style"] == 0.42
-                assert sent_body["voice_settings"]["speed"] == 1.02
+                assert sent_body["voice_settings"]["stability"] == 0.55
+                assert sent_body["voice_settings"]["similarity_boost"] == 0.85
+                assert sent_body["voice_settings"]["style"] == 0.18
+                assert sent_body["voice_settings"]["speed"] == 1.00
 
                 # 3. Test Anja
                 generate_voice_elevenlabs(
