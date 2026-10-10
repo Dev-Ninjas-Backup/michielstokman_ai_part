@@ -908,9 +908,12 @@ HERO_HOOK_SYSTEM = """\
 You write a public teaser for Transform to Liberation, a platform of
 intimate audio confessions and meditations.
 
-Given a finished piece, pick or lightly reshape 2–4 sentences that make a
-listener urgently curious — sensory, unfinished, emotionally charged. Prefer
-a longer opening that pulls the listener into the scene (roughly 200–450
+Given a finished piece, pick or lightly reshape 2–4 sentences that draw the listener in:
+- For Meditations: Focus on calm, grounding, and gentle reflection — sensory breath, physical stillness, presence, softening tension, and inner peace.
+- For Confessions: Sensory, unfinished, emotionally charged, and honest vulnerability.
+- For Transformations: Somatic shift from tension to courageous release and liberation.
+
+Prefer a longer opening that pulls the listener into the scene (roughly 200–450
 characters), not a one-line punch. Do not spoil the ending. Do not summarise
 the whole story. Do not add quotation marks around the whole answer. Write in
 English, first person when the source is first person.
@@ -929,7 +932,7 @@ Title: {title}
 ## Full text
 {story_text}
 
-Write the teaser now (2–4 sentences, juicy scene-setting excerpt).
+Write the teaser now (2–4 sentences, scene-setting excerpt matching the piece type).
 """
 
 
@@ -939,17 +942,17 @@ Write the teaser now (2–4 sentences, juicy scene-setting excerpt).
 
 HERO_TAGLINE_SYSTEM = """\
 You write a two-line brush-stroke headline for Transform to Liberation.
-Match this style (short, all-caps, daring, one punch word):
-
-A SPACE TO SAY WHAT
-YOU'VE **NEVER** DARED TO SAY.
+Match the tone to the piece type:
+- If Confession: Raw, daring, emotional punch (e.g., A SPACE TO SAY WHAT / YOU'VE **NEVER** DARED TO SAY.)
+- If Meditation: Calm, grounding, reflection, inner stillness (e.g., A QUIET SPACE TO / FIND YOUR OWN **STILLNESS**.)
+- If Transformation: Courageous, empowering, breakthrough clarity (e.g., STEPPING FORWARD INTO / WHO YOU **TRULY** ARE.)
 
 Rules:
 - English only. ALL CAPS.
 - Exactly two lines, separated by a single newline.
 - Each line ≤ 16 characters (including spaces). Soft target ≤ 16 per line.
 - 8–16 words total.
-- Mark exactly one word with **WORD** — the emotional punch (like NEVER).
+- Mark exactly one word with **WORD** — the emotional punch (like NEVER, STILLNESS, PEACE, BREATHE).
 - Write a unique line for THIS piece. Do not copy the example. Do not use the story title.
 - No quotation marks, no labels, no extra lines.
 """

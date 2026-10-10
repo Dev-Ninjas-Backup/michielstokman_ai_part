@@ -65,10 +65,17 @@ def get_or_create_credit(db: Session, user_id: str) -> UserCredit:
 
 def is_premium_user(db: Session, user_id: str) -> bool:
     """
-    Check if the user has any active standard subscription.
+    Check if the user has any active standard subscription or is an administrator.
     Journey purchases do not count as a premium subscription.
     """
     from app.model.billing import SubscriptionPlan
+    from app.model.user import User
+
+    # Administrators have full unlimited access
+    user = db.query(User).filter(User.id == user_id).first()
+    if user and user.is_admin:
+        return True
+
     active_sub = (
         db.query(UserSubscription)
         .join(SubscriptionPlan, UserSubscription.plan_id == SubscriptionPlan.id)

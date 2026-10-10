@@ -1050,6 +1050,24 @@ def _detect_v2_lighting_and_atmosphere(story: Story, seed_num: int) -> tuple[str
     """
     full_text = f"{_story_blob(story)} {getattr(story, 'title', '')}".lower()
 
+    from app.model.story import StoryType
+    if getattr(story, "story_type", None) == StoryType.meditation:
+        meditation_profiles = [
+            (
+                "Warm natural window slant light casting soft chiaroscuro shadows, subtle warm golden-olive and amber undertones, delicate highlights on closed eyes, and rich velvety blacks",
+                "Tranquil, meditative inner sanctuary with soft warm golden-olive tones, gentle ambient shadows, and deep grounding stillness",
+            ),
+            (
+                "Soft diffused morning daylight filtering into an intimate room with warm amber undertones, gentle highlights on shoulders and face, and rich velvety blacks",
+                "Calm, grounding room ambiance with quiet natural stillness, warm earthy tones, and deep contemplative presence",
+            ),
+            (
+                "Gentle late-afternoon window light with warm amber-gold highlights and soft chiaroscuro sculpting peaceful facial contours",
+                "Serene, eye-soothing inner sanctuary with warm muted undertones, tranquil room ambiance, and profound inner quiet",
+            ),
+        ]
+        return meditation_profiles[seed_num % len(meditation_profiles)]
+
     # 1. Sunset / Golden hour / Beach / Summer / Trip / Journey
     if any(k in full_text for k in ("sunset", "dusk", "golden hour", "beach", "ocean", "sea", "lake", "coast", "shore", "island", "trip", "journey", "holiday", "vacation", "summer")):
         return (
@@ -1240,7 +1258,7 @@ def _heuristic_v2_photograph_description(story: Story) -> str:
             "stillness beside a tranquil window with soft diffused natural light",
         ]
         sensory_anchor = sensory_props_med[seed_num % len(sensory_props_med)]
-        tonal_depth = f"Serene silvery tonal palette with rich velvety blacks, gentle highlights, and luminous catchlights in the eyes. {lighting_desc}"
+        tonal_depth = f"Serene warm amber-gold and silvery monochrome tonal palette with rich velvety blacks, delicate highlights, and deep tranquil contrast. {lighting_desc}"
         if cast_mode == "group":
             subjects = f"An adult {gender} and companions"
             action = "sharing a quiet, mindful moment of contemplative silence and grounded stillness"
@@ -1251,9 +1269,9 @@ def _heuristic_v2_photograph_description(story: Story) -> str:
             comp = "Intimate profile framing and calm interpersonal closeness with soft natural lighting and gentle background roll-off"
         else:
             subjects = f"A {age_str}{gender}"
-            action = "in a deeply peaceful, contemplative state of mindfulness and inner quiet"
-            comp = "Contemplative medium shot with centered poised posture, sharp eye clarity with luminous catchlights, and creamy depth of field"
-        mood_posture = f"Gentle breathing, serene expression, {sensory_anchor}, and grounded, eye-soothing presence (peaceful and content, never sad)"
+            action = "seated in calm, grounding reflection and deep inner peace, eyes softly closed or gentle downward gaze, resting in natural meditative stillness"
+            comp = "Contemplative medium shot with centered poised posture, soft chiaroscuro contours, and creamy depth of field"
+        mood_posture = f"Gentle breathing, serene expression, {sensory_anchor}, deep calm, grounding reflection, and eye-soothing presence (peaceful and content, never sad)"
 
     elif stype == StoryType.transformation:
         sensory_props_trans = [
