@@ -29,6 +29,8 @@ class Settings:
         self.LLM_TEMPERATURE_STORY: float = float(os.getenv("LLM_TEMPERATURE_STORY", "0.85"))
         # Temperature for confession processing (lower = faithful preservation of original story)
         self.LLM_TEMPERATURE_CONFESSION: float = float(os.getenv("LLM_TEMPERATURE_CONFESSION", "0.35"))
+        # Temperature for meditation processing (lower = faithful preservation of original meditation)
+        self.LLM_TEMPERATURE_MEDITATION: float = float(os.getenv("LLM_TEMPERATURE_MEDITATION", "0.35"))
         # Max output tokens for story generation (prevents truncation of long 1800-word confessions)
         self.LLM_MAX_TOKENS: int = int(os.getenv("LLM_MAX_TOKENS", "8192"))
         # Temperature for resonance questions (lower = more focused)

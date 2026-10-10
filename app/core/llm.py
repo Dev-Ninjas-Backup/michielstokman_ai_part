@@ -34,6 +34,7 @@ def get_story_llm(
         LLM_MODEL=grok-3-mini          # cheaper/faster
         LLM_TEMPERATURE_STORY=0.9      # more creative
         LLM_TEMPERATURE_CONFESSION=0.35 # fidelity for confessions
+        LLM_TEMPERATURE_MEDITATION=0.35 # fidelity for meditations
         LLM_MAX_TOKENS=8192            # output token budget
     """
     if not settings.XAI_API_KEY:

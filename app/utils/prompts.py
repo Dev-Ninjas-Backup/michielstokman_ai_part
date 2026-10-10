@@ -235,19 +235,19 @@ IMPORTANT: The design must contain very little text. The photograph and headline
 DESIGN DIRECTION
 - Warm ivory paper background with subtle natural paper texture, generous whitespace, and balanced wide layout proportions across both sides.
 - Complete square page / square cover format (1:1 aspect ratio, perfectly square canvas), straight-on view, no device frame or mockup.
-- Minimal handmade editorial aesthetic. Solid deep black and raspberry pink (#D72655) are the only design colours. No gradients, no additional accent colours, no decorative stickers.
+- Minimal handmade editorial aesthetic. Solid deep black and {accent_color_desc} ({accent_color_hex}) are the only design colours. No gradients, no additional accent colours, no decorative stickers.
 
 CRITICAL TEXT LIMITATION & READABILITY
-ALL TEXT MUST BE CRISP, HIGH-CONTRAST, AND EASILY READABLE at normal viewing distance. Use ONLY the exact text specified below. Do NOT extract additional sentences or paragraphs from the story. Keep the introduction extremely short (under 15 words total) in clean regular/normal font weight (NOT bold). Ensure bottom metadata is in clean regular/normal font weight (NOT bold). Top-right category wordmark ("{category_upper}") is an original, distinctive hand-lettered brush mark in vivid raspberry pink. Do not use any additional text anywhere on the page.
+ALL TEXT MUST BE CRISP, HIGH-CONTRAST, AND EASILY READABLE at normal viewing distance. Use ONLY the exact text specified below. Do NOT extract additional sentences or paragraphs from the story. Keep the introduction extremely short (under 15 words total) in clean regular/normal font weight (NOT bold). Ensure bottom metadata is in clean regular/normal font weight (NOT bold). Top-right category wordmark ("{category_upper}") is an original, distinctive hand-lettered brush mark in vivid {accent_color_desc}. Do not use any additional text anywhere on the page.
 
 HEADER
-Top left: "TTL" in solid deep black bold condensed sans-serif with two short hand-painted vivid raspberry pink (#D72655) brush strokes underneath. No slogan, subtitle, or extra text.
-Top right: "{category_upper}" as a distinctive, original hand-lettered brush wordmark in solid raspberry red (#D72655) with natural slant and high legibility.
+Top left: "TTL" in solid deep black bold condensed sans-serif with two short hand-painted vivid {accent_color_desc} ({accent_color_hex}) brush strokes underneath. No slogan, subtitle, or extra text.
+Top right: "{category_upper}" as a distinctive, original hand-lettered brush wordmark in solid {accent_color_desc} ({accent_color_hex}) with natural slant and high legibility.
 
 MAIN TITLE
 Large headline on the left:
 "{title}"
-- Raspberry pink (#D72655), bold textured dry-brush marker uppercase lettering slanted dynamically upward (~10-15 degrees) across 1-2 lines. Prominent and easy to read at a glance.
+- {accent_color_title_desc} ({accent_color_hex}), bold textured dry-brush marker uppercase lettering slanted dynamically upward (~10-15 degrees) across 1-2 lines. Prominent and easy to read at a glance.
 
 SHORT STORY INTRODUCTION
 Directly below the title, use ONLY this short text:
@@ -320,7 +320,7 @@ On the bottom white border of the Polaroid:
 "{author_name}"
 Directly underneath:
 "AUTHOR"
-Add a small hand-drawn raspberry-pink heart. The photograph itself must remain completely black and white. Note: The author label identifies the narrator; the photograph inside must show all characters involved in the story together, never reducing a couple or group to a single person.
+Add a small hand-drawn {accent_color_desc} heart. The photograph itself must remain completely black and white. Note: The author label identifies the narrator; the photograph inside must show all characters involved in the story together, never reducing a couple or group to a single person.
 
 BOTTOM INFORMATION
 At the lower-left area of the page, include ONLY:
@@ -339,7 +339,7 @@ ABSOLUTELY DO NOT GENERATE:
 
 OVERALL COMPOSITION
 Follow the client's reference as closely as possible:
-- TTL logo near upper-left, {category_upper} at top right, raspberry dry-brush title on the left, clearly readable short body introduction underneath in regular/normal weight black sans-serif, large square Polaroid photograph on the right, author name inside the Polaroid, metadata section near lower left in regular/normal font weight.
+- TTL logo near upper-left, {category_upper} at top right, {accent_color_desc} dry-brush title on the left, clearly readable short body introduction underneath in regular/normal weight black sans-serif, large square Polaroid photograph on the right, author name inside the Polaroid, metadata section near lower left in regular/normal font weight.
 {explicit_bullet}- Generous empty space, spacious two-column square layout, NO BUTTON, NO CTA.
 
 TEXT CONTROL — EXTREMELY IMPORTANT
@@ -555,15 +555,18 @@ STORY_TYPE_INSTRUCTIONS: dict[StoryType, str] = {
     ),
     StoryType.meditation: (
         "Write a MEDITATION.\n"
-        "Format: slow, grounding, present-tense. Second person ('you') spoken in a soft, steady voice. "
-        "It should guide her from her current emotional state toward a place of stillness and self-compassion. "
-        "Use sensory language: breath, warmth, light, weight. Never preachy. End with an invitation, not a command. "
-        "Note: As a meditation, adapt the base rules (like 1st person 'I') to 2nd person ('you') where appropriate, "
-        "but keep the raw, sensory, and emotionally honest tone. No headers. Pure flowing prose.\n"
-        "PACING & SILENCE: To make the audio recording feel calm, spacious, and meditative, you MUST insert silent pauses. "
-        "Insert `<break time=\"3.0s\" />` at the end of every paragraph and `<break time=\"2.0s\" />` at the end of key grounding sentences/instructions. "
-        "Ensure there are natural moments of silence throughout.\n"
-        "EMOTIONAL DELIVERY & SENSATION: Guide the listener into their body with slow, breathy suggestions. Emphasize physical relaxation, the rise and fall of the chest, warmth radiating through the skin, and the quiet pleasure of letting go."
+        "MEDITATION PROCESSING & REFINEMENT INSTRUCTIONS (STRICT FIDELITY & SOOTHING PACING):\n"
+        "The user has provided a meditation text (frontend word limit: up to 1,800 words).\n"
+        "Your task is to carefully read, understand, and polish this meditation for audio narration while preserving the author's original guidance, intent, and text in full.\n\n"
+        "MANDATORY PRESERVATION & PACING RULES:\n"
+        "1. CAREFUL READING: Read and understand the complete original meditation carefully from beginning to end before processing.\n"
+        "2. DO NOT SUMMARIZE OR SHORTEN: You MUST NOT summarize, shorten, compress, condense, or unnecessarily remove any part, reflection, breath cue, or grounding exercise.\n"
+        "3. PRESERVE ORIGINAL LENGTH: The output meditation MUST remain approximately the SAME LENGTH as the user's input (up to 1,800 words). Under NO circumstances should you truncate, compress, or shorten it.\n"
+        "4. PRESERVE GUIDANCE & CONTEXT: The core guidance, emotional arc, calming tone, and soothing journey must remain completely unchanged.\n"
+        "5. NO INVENTED INFORMATION: You MUST NOT invent new guidance, facts, or instructions that were not provided by the user.\n"
+        "6. FORMAT & TONE: Format in slow, grounding, present-tense second-person ('you') spoken in a soft, steady voice. Guide the listener toward stillness and self-compassion using sensory language (breath, warmth, light, release). No headers, bullet points, or markdown formatting.\n"
+        "7. PACING & SILENCE (CRITICAL): To make the audio recording feel calm, spacious, and meditative, you MUST insert silent pauses: `<break time=\"3.0s\" />` at the end of every paragraph and `<break time=\"2.0s\" />` at the end of key grounding sentences/instructions. Do not let these pause markers displace or shorten the text itself.\n"
+        "8. EMOTIONAL DELIVERY: Guide the listener into their body with slow, gentle, breathy suggestions. Emphasize physical relaxation and the quiet feeling of release."
     ),
     StoryType.transformation: (
         "Write a TRANSFORMATION story.\n"
@@ -617,6 +620,7 @@ CRITICAL CONFESSION PROCESSING REQUIREMENTS (STRICT FIDELITY):
 STORY_HUMAN_TEMPLATE = (
     "Process the {story_type} now using all the rules above.\n"
     "FOR CONFESSIONS: Carefully read the complete original story and preserve it in full — do NOT summarize, shorten, compress, or rewrite. Keep the user's main story, context, meaning, events, characters, and emotions unchanged. The output must remain approximately the same length as the original input (1,000–1,800 words), making only minimal grammar, clarity, and readability improvements without inventing new information.\n"
+    "FOR MEDITATIONS: Carefully read the complete meditation text and preserve it in full — do NOT summarize, shorten, or compress. Keep the user's guidance, reflections, and grounding instructions unchanged, maintaining approximately the same length (up to 1,800 words) while optimizing flow and inserting pacing pauses for a soothing spoken meditation.\n"
     "FOR OTHER STORY TYPES: Make it so personal, raw and true that the reader thinks: “This could have been written by me.”\n\n"
     "IMPORTANT: You MUST write the final story, title, and image prompt entirely in English, regardless of the input language. Under no circumstances should any part of the output contain non-English words.\n\n"
     "IMPORTANT: You MUST format your response exactly like this:\n"

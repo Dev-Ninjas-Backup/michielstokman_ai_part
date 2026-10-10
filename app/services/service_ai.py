@@ -183,6 +183,11 @@ class AIService:
                 temperature=settings.LLM_TEMPERATURE_CONFESSION,
                 max_tokens=settings.LLM_MAX_TOKENS,
             )
+        elif request.story_type == StoryType.meditation:
+            llm = get_story_llm(
+                temperature=getattr(settings, "LLM_TEMPERATURE_MEDITATION", 0.35),
+                max_tokens=settings.LLM_MAX_TOKENS,
+            )
         else:
             llm = get_story_llm(max_tokens=settings.LLM_MAX_TOKENS)
 

@@ -1834,16 +1834,25 @@ def build_v2_cover_prompt(
         category_upper = "MEDITATIONS"
         kind_singular = "meditation"
         button_label = "READ MEDITATION →"
+        accent_color_hex = "#EEA13D"
+        accent_color_desc = "warm amber gold"
+        accent_color_title_desc = "Warm amber gold"
     elif is_transformation:
         category_title = "Transformations"
         category_upper = "TRANSFORMATIONS"
         kind_singular = "transformation"
         button_label = "READ STORY →"
+        accent_color_hex = "#8A4BDE"
+        accent_color_desc = "vivid purple"
+        accent_color_title_desc = "Vivid purple"
     else:
         category_title = "Confessions"
         category_upper = "CONFESSIONS"
         kind_singular = "confession"
         button_label = "READ CONFESSION →"
+        accent_color_hex = "#D72655"
+        accent_color_desc = "raspberry pink"
+        accent_color_title_desc = "Raspberry pink"
 
     raw_title = (story.title or story.member_title or getattr(story, "ai_generated_title", None) or "Untitled").strip()
     title = raw_title.replace('"', '').replace('“', '').replace('”', '').strip() or "Untitled"
@@ -1890,7 +1899,7 @@ def build_v2_cover_prompt(
 
     is_explicit = bool(getattr(story, "high_intensity", False))
     if is_explicit:
-        explicit_section = '\nAdd a bold outlined raspberry-pink label:\n\n"EXPLICIT"\n'
+        explicit_section = f'\nAdd a bold outlined {accent_color_desc} label:\n\n"EXPLICIT"\n'
         explicit_bullet = "- EXPLICIT label\n"
         explicit_numbered_item = "9. EXPLICIT\n"
     else:
@@ -1938,6 +1947,9 @@ def build_v2_cover_prompt(
         category_title=category_title,
         category_upper=category_upper,
         kind_singular=kind_singular,
+        accent_color_desc=accent_color_desc,
+        accent_color_hex=accent_color_hex,
+        accent_color_title_desc=accent_color_title_desc,
         title=title,
         body_text=body_text,
         location_text=location_text,
