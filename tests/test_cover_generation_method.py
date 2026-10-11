@@ -63,7 +63,8 @@ def _meditation_story(**kwargs):
         hero_tagline="Breath And Soft Light",
         situation="Early light across a wooden floor in a still room.",
         background="Years of rushing finally slowed into presence.",
-        # Pose comes from MEDITATION_STAGING_MENU by a stable per-meditation index.
+        # Staging follows this meditation's own words; a meditation that names no
+        # distinctive place falls back to a stable per-meditation index.
         story_text="The room held a soft hush while warmth reached the floorboards.",
     )
     defaults.update(kwargs)
@@ -1911,7 +1912,7 @@ def test_v2_meditation_stagings_vary_and_never_press_hand_to_chest():
 
     # Every one of these meditations is written entirely around breath and the heart —
     # exactly the wording that used to make every cover land on the same hand-on-chest
-    # pose. The pose must now come from the assigned staging instead.
+    # pose. The pose must now spread across the stagings instead.
     def _breath_meditation(n: int):
         return _meditation_story(
             title=f"Breathe And Let Go {n}",
@@ -1945,25 +1946,90 @@ def test_v2_meditation_stagings_vary_and_never_press_hand_to_chest():
     assert _meditation_staging(_breath_meditation(0)) == _meditation_staging(_breath_meditation(0))
 
 
-def test_meditation_staging_menu_excludes_chest_gesture_and_override_names_staging():
-    """The menu itself carries no hand-on-chest staging, and the per-meditation
-    override text pins the assigned staging while banning that gesture."""
-    from app.utils.prompts import MEDITATION_STAGING_MENU
-    from app.utils.story_image_prompt import _meditation_staging, _meditation_visual_override
+def test_meditation_staging_menu_excludes_chest_gesture_and_override_grounds_scene_in_story():
+    """The menu itself carries no hand-on-chest staging, and the meditation override
+    makes the story authoritative rather than imposing a stock pose."""
+    from app.utils.prompts import MEDITATION_STAGING_MENU, MEDITATION_VISUAL_OVERRIDE
 
     assert len(MEDITATION_STAGING_MENU) >= 6
     assert len({entry[0] for entry in MEDITATION_STAGING_MENU}) == len(MEDITATION_STAGING_MENU)
-    for pose, framing, anchor in MEDITATION_STAGING_MENU:
-        assert pose and framing and anchor
+    for pose, framing, anchor, keywords in MEDITATION_STAGING_MENU:
+        assert pose and framing and anchor and keywords
         assert "chest" not in pose.lower()
         assert "heart" not in pose.lower()
+        # No breath/heart/chest keyword may be used for matching: those words appear in
+        # almost every meditation and would collapse the whole collection onto one pose.
+        assert not {"chest", "heart", "breath", "breathing", "sternum"} & set(keywords)
 
-    story = _meditation_story(title="Standing At The Window", first_name="Aoi")
-    override = _meditation_visual_override(story)
+    assert "hand pressed to, resting on, covering, or cradling the chest" in MEDITATION_VISUAL_OVERRIDE
+    # The story's own words win over any stock cover pose.
+    assert "COME FROM THIS MEDITATION, NOT FROM A STOCK COVER" in MEDITATION_VISUAL_OVERRIDE
+    assert "that detail is binding" in MEDITATION_VISUAL_OVERRIDE
 
-    assert _meditation_staging(story)[0] in override
-    assert "REQUIRED STAGING FOR THIS MEDITATION" in override
-    assert "hand pressed to, resting on, covering, or cradling the chest" in override
+
+def test_meditation_staging_follows_the_story_that_is_told():
+    """A meditation that names a place or posture gets the matching staging, so the
+    cover follows the story instead of an arbitrary assignment."""
+    from app.utils.story_image_prompt import _meditation_staging
+
+    walking = _meditation_staging(
+        _meditation_story(
+            title="A Slow Walk Through The Woods",
+            situation="Walking a forest trail at first light.",
+            story_text="I walk the path slowly, unhurried, letting the trees hold me.",
+        )
+    )
+    assert walking[0].startswith("walking slowly along a quiet natural path")
+
+    window = _meditation_staging(
+        _meditation_story(
+            title="Standing At The Window",
+            situation="Standing at the open window before anyone wakes.",
+            story_text="I open the window and let the dawn air reach my face.",
+        )
+    )
+    assert window[0].startswith("standing quietly at an open window")
+
+    # A meditation that names no distinctive place or posture still resolves stably,
+    # and different meditations still spread across the menu.
+    plain = [_meditation_story(title=f"Simply Here {n}", first_name=f"Person{n}") for n in range(40)]
+    assert len({_meditation_staging(story)[0] for story in plain}) >= 4
+    assert _meditation_staging(plain[0]) == _meditation_staging(plain[0])
+
+
+def test_meditation_extraction_prompt_carries_the_story_text():
+    """The vision-LLM extraction step must read the meditation itself — not only the
+    paraphrased brief — or the polaroid scene drifts away from what was written."""
+    from app.core.config import settings
+    from app.utils.story_image_prompt import extract_v2_visual_art_direction
+
+    story = _meditation_story(
+        title="Walking The Ridge At Dawn",
+        situation="A slow walk along a mountain trail before sunrise.",
+        story_text="I walk the ridge path alone at dawn, unhurried, letting the cold air settle me.",
+    )
+
+    captured: dict[str, str] = {}
+
+    class _CapturingLLM:
+        def invoke(self, prompt: str):
+            captured["prompt"] = prompt
+            return SimpleNamespace(content="{}")
+
+    with (
+        patch.object(settings, "XAI_API_KEY", "test-key"),
+        patch("app.utils.story_image_prompt.get_story_llm", return_value=_CapturingLLM()),
+    ):
+        extract_v2_visual_art_direction(story)
+
+    prompt = captured["prompt"]
+    assert "I walk the ridge path alone at dawn" in prompt
+    assert "A slow walk along a mountain trail before sunrise." in prompt
+    assert "LOCATION & MOMENT REUSE MANDATE" in prompt
+    assert "Never relocate the scene to a different setting" in prompt
+    # The stock pose must not be re-imposed on the meditation.
+    assert "REQUIRED STAGING FOR THIS MEDITATION" not in prompt
+    assert "Use ONLY the single assigned meditation staging" not in prompt
 
 
 def test_meditation_cover_prompt_bans_the_repeated_chest_pose():

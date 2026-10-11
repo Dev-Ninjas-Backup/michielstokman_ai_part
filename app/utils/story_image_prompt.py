@@ -1243,13 +1243,12 @@ def _build_v2_detailed_setting(story: Story, blob: str, seed_num: int) -> str:
     return default_scenes[seed_num % len(default_scenes)]
 
 
-def _meditation_staging_index(story: Story) -> int:
-    """Stable per-meditation index into MEDITATION_STAGING_MENU.
+def _meditation_staging_hash(story: Story) -> int:
+    """Stable fallback index when the meditation names no distinctive place or posture.
 
     Uses sha1 rather than the salted built-in hash() so the same meditation always
-    resolves to the same staging (a regenerated cover stays consistent), while
-    different meditations spread across the whole menu instead of collapsing onto
-    one repeated stock pose.
+    resolves to the same staging, while different meditations still spread across the
+    menu instead of collapsing onto one repeated stock pose.
     """
     from app.utils.prompts import MEDITATION_STAGING_MENU
 
@@ -1266,22 +1265,38 @@ def _meditation_staging_index(story: Story) -> int:
     return int(hashlib.sha1(key.encode("utf-8")).hexdigest(), 16) % len(MEDITATION_STAGING_MENU)
 
 
-def _meditation_staging(story: Story) -> tuple[str, str, str]:
-    """The (pose, framing, sensory anchor) staging assigned to this meditation."""
+def _meditation_staging_index(story: Story) -> int:
+    """Best-matching staging for this meditation, so the cover follows the story.
+
+    Each staging carries the context words that belong to it. The staging whose words
+    the meditation actually uses wins; a tie (including the common case of a meditation
+    that names no distinctive place or posture at all) falls back to the stable hash, so
+    meditations that give no visual signal still vary instead of repeating one pose.
+    """
     from app.utils.prompts import MEDITATION_STAGING_MENU
 
-    return MEDITATION_STAGING_MENU[_meditation_staging_index(story)]
+    context = f"{_story_blob(story, story_chars=1800)} {getattr(story, 'situation', '') or ''} {getattr(story, 'title', '') or ''}".lower()
+
+    scores = [
+        sum(1 for keyword in entry[3] if keyword in context)
+        for entry in MEDITATION_STAGING_MENU
+    ]
+    best = max(scores)
+    if best == 0:
+        return _meditation_staging_hash(story)
+
+    winners = [index for index, score in enumerate(scores) if score == best]
+    if len(winners) == 1:
+        return winners[0]
+    return winners[_meditation_staging_hash(story) % len(winners)]
 
 
-def _meditation_visual_override(story: Story) -> str:
-    """Per-meditation vision-LLM override with this meditation's staging baked in."""
-    from app.utils.prompts import MEDITATION_STAGING_MENU, MEDITATION_VISUAL_OVERRIDE_TEMPLATE
+def _meditation_staging(story: Story) -> tuple[str, str, str]:
+    """The (pose, framing, sensory anchor) staging that fits this meditation."""
+    from app.utils.prompts import MEDITATION_STAGING_MENU
 
-    index = _meditation_staging_index(story)
-    return MEDITATION_VISUAL_OVERRIDE_TEMPLATE.format(
-        staging=MEDITATION_STAGING_MENU[index][0],
-        staging_label=f"staging {index + 1} of {len(MEDITATION_STAGING_MENU)}",
-    )
+    pose, framing, anchor, _keywords = MEDITATION_STAGING_MENU[_meditation_staging_index(story)]
+    return pose, framing, anchor
 
 
 def _heuristic_v2_photograph_description(story: Story) -> str:
@@ -1313,6 +1328,7 @@ def _heuristic_v2_photograph_description(story: Story) -> str:
     lighting_desc, atmosphere_desc = _detect_v2_lighting_and_atmosphere(story, seed_num)
 
     if stype == StoryType.meditation:
+        beat_snippet = ""
         # Meditation covers are one person's private practice (never a couple or
         # group). The staging comes from the shared menu by a stable per-meditation
         # index, so covers spread across the whole menu instead of every meditation
@@ -1685,17 +1701,17 @@ def refine_story_visual_art_direction(story: Story, *, use_llm: bool = True) -> 
     - Excludes dialogue, internal monologue, and explicit sexual acts.
     """
     from app.model.story import StoryType
-    from app.utils.prompts import STORY_VISUAL_REFINEMENT_SYSTEM
+    from app.utils.prompts import MEDITATION_VISUAL_OVERRIDE, STORY_VISUAL_REFINEMENT_SYSTEM
 
     if use_llm and (settings.XAI_API_KEY or "").strip():
         stype = getattr(story, "story_type", None)
         is_meditation = stype == StoryType.meditation
-        override = _meditation_visual_override(story) if is_meditation else ""
-        # Meditations are all written in the same calm register, so the default low
-        # temperature makes every one resolve to the same scene; open it up so the
-        # assigned staging and this meditation's own context actually surface.
+        override = MEDITATION_VISUAL_OVERRIDE if is_meditation else ""
+        # Low temperature on purpose: the scene has to follow the story's own words, and
+        # the override already carries the variety guidance, so inventing beyond the text
+        # only costs fidelity.
         gesture_clause = (
-            "Natural expression and ONLY the single assigned meditation staging given below — no other pose, "
+            "Natural expression and a pose taken from this meditation's own words — no stock cover pose, "
             "and never a hand pressed to the chest or heart; authentic imperfections, soft natural light, and film texture. "
             if is_meditation
             else "Natural expression, subtle varied gestures (e.g. holding an object, touching hair, resting against a wall, "
@@ -1719,7 +1735,7 @@ def refine_story_visual_art_direction(story: Story, *, use_llm: bool = True) -> 
         narrative_moment = portrait_narrative_moment(story)
 
         try:
-            llm = get_story_llm(temperature=0.7 if is_meditation else 0.35)
+            llm = get_story_llm(temperature=0.35)
             response = llm.invoke(
                 f"{STORY_VISUAL_REFINEMENT_SYSTEM}{override}\n\n"
                 f"STORY METADATA & 6-DIMENSION ANALYSIS:\n"
@@ -1796,7 +1812,7 @@ def extract_v2_visual_art_direction(
     - "atmosphere"
     - "sensory_anchor"
     """
-    from app.utils.prompts import VISUAL_ART_DIRECTION_EXTRACTION_SYSTEM
+    from app.utils.prompts import MEDITATION_VISUAL_OVERRIDE, VISUAL_ART_DIRECTION_EXTRACTION_SYSTEM
 
     brief = visual_brief or refine_story_visual_art_direction(story, use_llm=use_llm)
 
@@ -1805,14 +1821,14 @@ def extract_v2_visual_art_direction(
             from app.model.story import StoryType
 
             is_meditation = getattr(story, "story_type", None) == StoryType.meditation
-            override = _meditation_visual_override(story) if is_meditation else ""
+            override = MEDITATION_VISUAL_OVERRIDE if is_meditation else ""
             # The color_palette/visual_style key defaults in the extraction system
-            # prompt are monochrome; restate the meditation palette (and the single
-            # assigned staging) so the returned polaroid_scene stays sunrise-gold and
-            # never lands on the same repeated pose.
+            # prompt are monochrome; restate the meditation palette so the returned
+            # polaroid_scene stays sunrise-gold.
             gesture_clause = (
-                "Use ONLY the single assigned meditation staging given below — no other pose, and never a hand "
-                "pressed to the chest or heart. Return \"color_palette\" as warm sunrise-gold and pale-amber dawn "
+                "The pose, the setting, and every prop come from THIS meditation's own words — never a stock or "
+                "repeated cover pose, and never a hand pressed to, resting on, covering, or cradling the chest, "
+                "heart, or sternum. Return \"color_palette\" as warm sunrise-gold and pale-amber dawn "
                 "light over muted sage-green and soft warm-grey shadows with low airy contrast, and \"visual_style\" "
                 "as a warm sunrise-gold vintage 35mm analogue colour-film snapshot — never monochrome, sepia, or "
                 "black-and-white. "
@@ -1820,16 +1836,29 @@ def extract_v2_visual_art_direction(
                 else "Use subtle varied gestures appropriate to the story (holding an object, touching hair, resting "
                 "against a wall, looking through a window, sitting quietly, walking alone; never forcing a single pose). "
             )
-            # Meditations share one calm register, so the default low temperature
-            # collapses them onto the same scene; open it up for variety.
             tonal_clause = (
                 "a soft sunrise-gold dawn glow over muted sage-green and warm-grey shadows with low airy contrast. "
                 if is_meditation
                 else "rich velvety blacks. "
             )
-            llm = get_story_llm(temperature=0.65 if is_meditation else 0.2)
+            # The extraction model must read the meditation itself, not just the
+            # paraphrased brief, or the scene drifts away from what was written.
+            story_excerpt = _story_blob(story, story_chars=1800).strip()
+            source_block = (
+                f"SOURCE STORY TEXT (verbatim — the scene must be faithful to this):\n{story_excerpt}\n\n"
+                f"Story situation as written: {getattr(story, 'situation', '') or 'unspecified'}\n\n"
+                f"LOCATION & MOMENT REUSE MANDATE: the polaroid_scene must be set in the location, hour, weather, "
+                f"season, and physical surroundings this story actually describes, and must show whatever posture, "
+                f"action, or object it names. Never relocate the scene to a different setting and never substitute a "
+                f"generic or visually attractive backdrop. If the story names a place, an hour, or a prop, that detail "
+                f"is binding — reuse it exactly as written.\n\n"
+                if story_excerpt
+                else ""
+            )
+            llm = get_story_llm(temperature=0.2)
             response = llm.invoke(
                 f"{VISUAL_ART_DIRECTION_EXTRACTION_SYSTEM}{override}\n\n"
+                f"{source_block}"
                 f"EDITORIAL VISUAL BRIEF:\n{brief}\n\n"
                 f"STORY METADATA & CONTEXT:\n"
                 f"Story Type: {story.story_type.value.capitalize() if getattr(story, 'story_type', None) else 'Confession'}\n"

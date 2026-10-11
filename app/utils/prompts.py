@@ -316,59 +316,68 @@ V2_COVER_POLAROID_CAPTION_MEDITATION = (
     "partner, or group."
 )
 
-# Distinct meditation stagings, each an (pose/action, camera framing, sensory anchor)
-# triple. The live cover path assigns exactly ONE of these per meditation
-# (see _meditation_staging in story_image_prompt) so consecutive meditation covers
-# cannot collapse onto one stock pose. The over-used "hand pressed to the chest"
-# gesture is deliberately absent from every entry.
-MEDITATION_STAGING_MENU: tuple[tuple[str, str, str], ...] = (
+# Meditation stagings, each a (pose/action, camera framing, sensory anchor, context
+# keywords) tuple. These exist so a meditation cover can show a real, varied practice
+# instead of one stock pose, but the staging is ALWAYS subordinate to the story: the
+# pose is derived from what THIS meditation actually describes. The keywords let the
+# no-LLM fallback match a staging to the text (see _meditation_staging in
+# story_image_prompt); they deliberately carry no breath/heart/chest words, which
+# appear in nearly every meditation and would otherwise match everything.
+MEDITATION_STAGING_MENU: tuple[tuple[str, str, str, tuple[str, ...]], ...] = (
     (
         "seated cross-legged on a low cushion, spine softly upright, palms open and resting on the knees",
         "Grounded centred medium shot with calm negative space and shallow creamy depth of field",
         "the settled weight of the body resting on the cushion",
+        ("cushion", "cross-legged", "cross legged", "zafu", "sitting on the floor", "lotus"),
     ),
     (
         "standing quietly at an open window, eyes gently closed, shoulders soft as first light crosses the face",
         "Unhurried medium shot with the sunlit window frame behind and soft dawn air",
         "morning light warming the skin",
+        ("window", "windowsill", "windowpane", "curtain", "looking out of the window", "looking out the window"),
     ),
     (
         "lying on a mat with both hands resting open on the belly, knees soft, face turned up toward the ceiling light",
         "Leaning three-quarter frame with airy low contrast and quiet empty space",
         "the slow rise and fall of the breath under open palms",
+        ("mat", "lying down", "lie down", "lying on", "on your back", "belly", "reclining", "savasana"),
     ),
     (
         "walking slowly along a quiet natural path, unhurried and present, gaze resting softly downward",
         "Environmental 35mm frame with layered natural depth behind and dawn light through foliage",
         "a gentle breeze and the openness of the natural surroundings",
+        ("path", "trail", "forest", "woods", "walk", "walking", "meadow", "field", "beach", "shore",
+         "seaside", "lake", "river", "mountain", "park", "countryside", "outdoors"),
     ),
     (
         "sitting on an outdoor stone step, forearms resting on the knees, head lifted into the morning air",
         "Wide environmental frame with generous quiet space and soft foreground texture",
         "cool stone underfoot and the morning air on the face",
+        ("step", "steps", "staircase", "stairs", "doorstep", "porch", "stoop", "terrace", "balcony"),
     ),
     (
         "kneeling upright on the grass of a garden, hands resting palm-down on the thighs",
         "Calm three-quarter medium shot with layered greenery falling softly out of focus",
         "damp grass, soil, and the green stillness of the garden",
+        ("garden", "grass", "soil", "roots", "kneeling", "kneel", "flowers", "petals", "plants", "earth"),
     ),
     (
         "leaning back lightly against a plain wall mid-breath, chin level, eyes closed, arms loose at the sides",
         "Simple straight-on medium framing with soft shadow and shallow background falloff",
         "the cool wall at the back and the hush of the room",
+        ("wall", "leaning", "hallway", "corner of the room"),
     ),
     (
         "standing with both palms turned open toward the light, head lifted slightly, a serene half-smile",
         "Serene vertical framing with soft sunrise glow behind and generous quiet space",
         "open palms catching the first warm light",
+        ("palms", "open hands", "arms open", "outstretched", "surrender", "letting go", "gratitude"),
     ),
 )
 
 # Appended to the two V2 vision-LLM prompts for meditations only, overriding the
 # confession-centric defaults they otherwise carry (group cast, monochrome, one pose).
-# {staging} and {staging_label} are filled per meditation by _meditation_visual_override()
-# so each meditation is told which single staging it owns.
-MEDITATION_VISUAL_OVERRIDE_TEMPLATE = (
+MEDITATION_VISUAL_OVERRIDE = (
     "\n\nMEDITATION OVERRIDE — HIGHEST PRIORITY (this is a MEDITATION, not a confession):\n"
     "- ONE PERSON ONLY: depict the narrator ALONE in a private practice. Never a couple, partner, friend, "
     "or group; no other people in the frame and no physical interaction with another person. Ignore any "
@@ -376,13 +385,18 @@ MEDITATION_VISUAL_OVERRIDE_TEMPLATE = (
     "- WARM SUNRISE-GOLD COLOUR, NOT MONOCHROME: soft pale-amber dawn light over muted sage-green and "
     "warm-grey shadows, low airy contrast, a tranquil luminous glow. Never black-and-white, sepia, or "
     "desaturated. Quiet first light — never bright golden-hour celebration or sun flare.\n"
-    "- REQUIRED STAGING FOR THIS MEDITATION ({staging_label}): {staging}. Use exactly this staging, and do "
-    "not substitute another pose or scene.\n"
-    "- NEVER THE OVERUSED POSE: do NOT show a hand pressed to, resting on, covering, or cradling the chest, "
-    "heart, or sternum. That gesture is already repeated across the collection and must not appear here.\n"
-    "- GROUND IT IN THE MEDITATION'S REAL CONTEXT: derive the setting, hour, and sensory anchors from the "
-    "actual text (breath, water, mountain, morning, forest, room, window, candle) rather than a generic "
-    "studio backdrop."
+    "- THE POSE AND SURROUNDINGS COME FROM THIS MEDITATION, NOT FROM A STOCK COVER: read the meditation's "
+    "own words and depict what it actually describes — the place, the hour, the light, and any posture or "
+    "action it names (lying down, walking, standing at a window, sitting on the floor, kneeling in a "
+    "garden, resting against a wall, palms open toward the light). If the meditation names a posture, a "
+    "place, or a prop, that detail is binding — use it exactly as written and never relocate the scene to "
+    "a different setting.\n"
+    "- NEVER THE OVERUSED POSE: do NOT show a hand pressed to, resting on, covering, or cradling the "
+    "chest, heart, or sternum, and do not fall back on a generic studio or empty-backdrop portrait. That "
+    "gesture is already repeated across the collection and must not appear here.\n"
+    "- ONLY INVENT WHAT THE MEDITATION LEAVES OPEN: where it gives no detail, choose something plausible "
+    "for that hour and setting — and choose differently from the other meditations in the collection "
+    "rather than reusing one default pose."
 )
 
 V2_COVER_PROMPT_TEMPLATE = """\
