@@ -271,6 +271,71 @@ V2_COVER_CLOSING_CONSTRAINTS = (
     "Render the complete portrait page straight-on, without a device frame."
 )
 
+# The analogue brand character is shared across the collection, but the *colour* is
+# category-specific: confessions and transformations stay strict black-and-white,
+# while meditations render in warm sunrise-gold colour so a meditation cover never
+# reads as a confession and always feels like a calm dawn practice.
+V2_COVER_PHOTOGRAPHY_STYLE_DEFAULT = (
+    "The photograph inside the Polaroid must be STRICTLY BLACK AND WHITE.\n"
+    "Use an authentic vintage 35mm analogue snapshot aesthetic (common brand photographic treatment across all categories):\n"
+    "- organic film grain with tactile grain texture\n"
+    "- natural photographic texture\n"
+    "- soft focus background roll-off paired with razor-sharp focal clarity on the eyes and face\n"
+    "- faded blacks in deep shadow roll-off balanced by rich velvety blacks in the subject\n"
+    "- muted contrast balanced by natural chiaroscuro and luminous eye catchlights\n"
+    "- gentle highlight bloom, subtle dust, fine film scratches\n"
+    "- authentic documentary/editorial film character\n"
+    "- shallow depth of field with creamy background falloff"
+)
+
+V2_COVER_PHOTOGRAPHY_STYLE_MEDITATION = (
+    "The photograph inside the Polaroid must be in warm sunrise-gold COLOUR — never black-and-white, "
+    "monochrome, sepia, or desaturated.\n"
+    "Use an authentic vintage 35mm analogue colour-film snapshot aesthetic (same brand character as the "
+    "collection, carried in soft dawn colour):\n"
+    "- soft sunrise-gold and pale-amber first light, the tranquil glow of early morning\n"
+    "- muted sage-green and soft warm-grey shadows with low, airy contrast — calm and unhurried\n"
+    "- organic film grain with tactile grain texture and natural colour-film character\n"
+    "- soft focus background roll-off paired with razor-sharp focal clarity on the eyes and face\n"
+    "- gentle highlight bloom, subtle dust, fine film scratches\n"
+    "- authentic documentary/editorial film character, never glossy or digital-flat\n"
+    "- shallow depth of field with creamy background falloff\n"
+    "Never bright golden-hour celebration, sun flare, or festive saturation — this is quiet dawn light."
+)
+
+V2_COVER_POLAROID_CAPTION_DEFAULT = (
+    "The photograph itself must remain completely black and white. Note: The author label identifies the "
+    "narrator; the photograph inside must show all characters involved in the story together, never reducing "
+    "a couple or group to a single person."
+)
+
+V2_COVER_POLAROID_CAPTION_MEDITATION = (
+    "The photograph itself must remain in warm sunrise-gold colour — never monochrome, sepia, or "
+    "black-and-white. Note: The author label identifies the narrator; this meditation is one person's private "
+    "practice — the photograph must show a SINGLE person alone in quiet inward presence, never a couple, "
+    "partner, or group."
+)
+
+# Appended to the two V2 vision-LLM prompts for meditations only, overriding the
+# confession-centric defaults they otherwise carry (group cast, monochrome, one pose).
+MEDITATION_VISUAL_OVERRIDE = (
+    "\n\nMEDITATION OVERRIDE — HIGHEST PRIORITY (this is a MEDITATION, not a confession):\n"
+    "- ONE PERSON ONLY: depict the narrator ALONE in a private practice. Never a couple, partner, friend, "
+    "or group; no other people in the frame and no physical interaction with another person. Ignore any "
+    "'cast fidelity / never drop characters' rule above.\n"
+    "- WARM SUNRISE-GOLD COLOUR, NOT MONOCHROME: soft pale-amber dawn light over muted sage-green and "
+    "warm-grey shadows, low airy contrast, a tranquil luminous glow. Never black-and-white, sepia, or "
+    "desaturated. Quiet first light — never bright golden-hour celebration or sun flare.\n"
+    "- VARY THE POSE AND THE SCENE for every meditation. Never reuse one stock pose. Choose and adapt to "
+    "THIS meditation's own words, hour, and setting, e.g.: seated cross-legged on a cushion or floor; "
+    "standing quietly at an open window with eyes closed; lying on a mat with hands resting on the belly; "
+    "walking slowly outdoors; sitting on a step with a hand over the heart; kneeling in a garden; leaning "
+    "back against a wall mid-breath; palms open toward first light.\n"
+    "- GROUND IT IN THE MEDITATION'S REAL CONTEXT: derive the setting, hour, and sensory anchors from the "
+    "actual text (breath, water, mountain, morning, forest, room, window, candle) rather than a generic "
+    "studio backdrop."
+)
+
 V2_COVER_PROMPT_TEMPLATE = """\
 Create a complete TTL {category_title} story introduction page using the attached client reference as the PRIMARY visual, layout, typography, spacing, and composition reference.
 The goal is to closely match the visual simplicity and editorial hierarchy of the client reference.
@@ -329,7 +394,7 @@ Any subject shown must be naturally readable within the frame; framing may be cl
 CRITICAL POSE & EXPRESSION RULES BY STORY TYPE:
 - FOR CONFESSIONS (Intimate / Magnetic / Vulnerable): Intimate body language, magnetic attraction, and emotional revelation. When a partner, lover, or companions are present, depict magnetic chemistry and warm connection: standing close together in a tender romantic embrace, captivating magnetic eye contact, leaning in close with emotional chemistry, playful touches, warm embrace, holding hands, laughing mid-motion, or sitting side by side. For solitary stories: alluring magnetic gaze, self-assured composure, touching hair, resting against a wall, looking through a window, walking with purpose, or contemplative poise.
 - STRICTLY FORBIDDEN: NEVER DEPICT CHARACTERS WHO LOOK DEPRESSED, SAD, GLOOMY, SULLEN, TIRED, OR MISERABLE. Characters must look magnetic, attractive, alive, and emotionally captivating.
-- FOR MEDITATIONS (Calm / Inward): Still, grounded, calm, inward, contemplative, gentle breath, inner peace, quiet natural or room presence (serene and content, never depressed). When companions are present, sharing a peaceful grounded silence together.
+- FOR MEDITATIONS (Calm / Inward): Still, grounded, calm, inward, contemplative, gentle breath, inner peace, quiet natural or room presence (serene and content, never depressed). Exactly ONE person alone in quiet inward presence — never a couple, partner, or group. Vary the pose and scene per meditation (seated on a cushion, standing at a window, walking a quiet path, lying on a mat, hand on the heart); derive it from THIS meditation's own words, hour, and setting rather than repeating one stock pose.
 - FOR TRANSFORMATIONS / LIBERATIONS (Expressive / Free): Open, expansive, movement, newfound freedom, courage, quiet confidence, or radiant joy. When companions are present, joyful celebration, dancing together, or mutual breakthrough.
 - GENERAL POSE RULES: Any subject shown must be naturally readable within the frame; framing may be close, medium, or environmental depending on the emotional moment. Avoid stiff mannequin poses, artificial commercial stock smiles, or theatrical over-acting. STRICTLY FORBIDDEN: Do NOT depict bent necks, heads unnaturally tilted away, or awkward distorted anatomy.
 
@@ -343,16 +408,7 @@ STRICTLY FORBIDDEN CONTENT:
 - All subjects must be fully and tastefully clothed in stylish, non-revealing wardrobe appropriate to the setting and season (e.g. cozy knitwear, buttoned linen shirts, tailored jackets, elegant coats, casual festival wear, beachwear with cover-up, shirts, or casual daywear).
 
 PHOTOGRAPHIC STYLE & BRAND TREATMENT
-The photograph inside the Polaroid must be STRICTLY BLACK AND WHITE.
-Use an authentic vintage 35mm analogue snapshot aesthetic (common brand photographic treatment across all categories):
-- organic film grain with tactile grain texture
-- natural photographic texture
-- soft focus background roll-off paired with razor-sharp focal clarity on the eyes and face
-- faded blacks in deep shadow roll-off balanced by rich velvety blacks in the subject
-- muted contrast balanced by natural chiaroscuro and luminous eye catchlights
-- gentle highlight bloom, subtle dust, fine film scratches
-- authentic documentary/editorial film character
-- shallow depth of field with creamy background falloff
+{photography_style_block}
 CATEGORY EMOTIONAL PHOTOGRAPHY DIRECTION (the photographic treatment is part of the common brand, but emotional photography direction varies by category):
 - For Confessions: intimate, vulnerable, emotionally revealing, magnetic attraction, and vibrant personal truth (never depressed or gloomy)
 - For Meditations: calm, inward, contemplative stillness, gentle breathing, inner peace
@@ -365,7 +421,7 @@ On the bottom white border of the Polaroid:
 "{author_name}"
 Directly underneath:
 "AUTHOR"
-Add a small hand-drawn {accent_color_desc} heart. The photograph itself must remain completely black and white. Note: The author label identifies the narrator; the photograph inside must show all characters involved in the story together, never reducing a couple or group to a single person.
+Add a small hand-drawn {accent_color_desc} heart. {polaroid_caption_directive}
 
 BOTTOM INFORMATION
 At the lower-left area of the page, include ONLY:

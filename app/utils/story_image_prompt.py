@@ -1271,26 +1271,50 @@ def _heuristic_v2_photograph_description(story: Story) -> str:
     lighting_desc, atmosphere_desc = _detect_v2_lighting_and_atmosphere(story, seed_num)
 
     if stype == StoryType.meditation:
-        sensory_props_med = [
-            "soft natural light warming bare floorboards and gentle breathing stillness",
-            "hands resting naturally open in the lap, peaceful calm and organic stillness",
-            "a gentle breeze stirring light fabric, quiet mindful presence",
-            "stillness beside a tranquil window with soft diffused natural light",
+        # Meditation covers are one person's private practice (never a couple or
+        # group), and both the pose and the sensory anchor are drawn from THIS
+        # meditation's own context so no two covers repeat the same pose.
+        med_context = f"{blob} {situation} {getattr(story, 'title', '')}".lower()
+        meditation_poses = [
+            (
+                ("window", "morning", "sun", "dawn", "first light"),
+                "seated quietly beside a large sunlit window, eyes gently closed, shoulders soft and relaxed",
+                "Unhurried medium shot with the sunlit window frame behind, soft dawn air and quiet depth",
+                "morning light warming the skin and gentle breathing stillness",
+            ),
+            (
+                ("breath", "breathing", "chest", "heart", "inhale", "exhale"),
+                "seated with one hand resting lightly over the heart, feeling the slow rise and fall of the breath",
+                "Tender close framing centred on the calm face and resting hand, airy low contrast",
+                "the quiet rhythm of the breath and a settling calm",
+            ),
+            (
+                ("walk", "forest", "garden", "nature", "mountain", "lake", "water", "path", "outdoor"),
+                "walking slowly along a quiet natural path, unhurried and present, gaze resting softly downward",
+                "Environmental 35mm frame with layered natural depth behind, dawn light through foliage",
+                "a gentle breeze and the openness of the natural surroundings",
+            ),
+            (
+                ("floor", "mat", "cushion", "lotus", "kneel", "sit", "seat", "body"),
+                "seated cross-legged on a mat or cushion, spine soft and upright, palms resting open on the knees",
+                "Grounded centred medium shot with calm negative space and shallow creamy depth of field",
+                "the settled weight of the body resting on the mat",
+            ),
+            (
+                ("let", "release", "surrender", "peace", "stillness", "gratitude", "ego", "freedom"),
+                "standing still with palms turned open toward the light, head lifted slightly, a serene half-smile",
+                "Serene vertical framing with soft sunrise glow behind and generous quiet space",
+                "open palms catching the first warm light",
+            ),
         ]
-        sensory_anchor = sensory_props_med[seed_num % len(sensory_props_med)]
+        chosen_pose = meditation_poses[seed_num % len(meditation_poses)]
+        for pose in meditation_poses:
+            if any(k in med_context for k in pose[0]):
+                chosen_pose = pose
+                break
+        _, action, comp, sensory_anchor = chosen_pose
         tonal_depth = f"Soft sunrise-gold and muted sage tonal palette, gentle luminous glow, low airy contrast, and tranquil meditative depth. {lighting_desc}"
-        if cast_mode == "group":
-            subjects = f"An adult {gender} and companions"
-            action = "sharing a quiet, mindful moment of contemplative silence and grounded stillness"
-            comp = "Natural unposed spacing and environmental framing with sharp subject focus and soft background blur"
-        elif cast_mode == "pair":
-            subjects = f"An adult {gender} and a companion"
-            action = "seated in serene stillness, gently breathing in a tranquil, reflective space"
-            comp = "Intimate profile framing and calm interpersonal closeness with soft natural lighting and gentle background roll-off"
-        else:
-            subjects = f"A {age_str}{gender}"
-            action = "seated in calm, grounding reflection and deep inner peace, eyes softly closed or gentle downward gaze, resting in natural meditative stillness"
-            comp = "Contemplative medium shot with centered poised posture, soft chiaroscuro contours, and creamy depth of field"
+        subjects = f"A {age_str}{gender}"
         mood_posture = f"Gentle breathing, serene expression, {sensory_anchor}, deep calm, grounding reflection, and eye-soothing presence (peaceful and content, never sad)"
 
     elif stype == StoryType.transformation:
@@ -1532,12 +1556,17 @@ def _heuristic_v2_visual_art_direction(
         comp_str = "Intimate two-shot framing showing both individuals clearly in the scene with emotional closeness and tactile connection; unposed and natural."
         rel_dynamics = "Intimate emotional resonance, magnetic attraction, and genuine physical and emotional closeness."
     else:
-        characters_str = f"A {age_str}{gender} with magnetic presence, captivating gaze, and dynamic, natural posture, tastefully clothed in elegant, textured casual wear."
         if stype == StoryType.meditation:
+            characters_str = (
+                f"One {age_str}{gender} alone in a private practice — never a couple, partner, or group — "
+                "calm, grounded, and quietly present, fully clothed in soft neutral knitwear or simple layered clothing."
+            )
             comp_str = "A single figure seated or standing in grounded stillness with centered medium framing, gentle breath; unposed and natural."
         elif stype == StoryType.transformation:
+            characters_str = f"A {age_str}{gender} with magnetic presence, captivating gaze, and dynamic, natural posture, tastefully clothed in elegant, textured casual wear."
             comp_str = "A single figure naturally poised with open, expansive framing, radiant confidence and quiet strength; unposed and natural."
         else:
+            characters_str = f"A {age_str}{gender} with magnetic presence, captivating gaze, and dynamic, natural posture, tastefully clothed in elegant, textured casual wear."
             comp_str = "A single figure in an intimate documentary portrait, natural body language with subtle unforced gesture (e.g. resting against a wall, sitting quietly, or hand near chest); unposed and emotionally honest."
         rel_dynamics = "Introspective solitude, self-reckoning, and quiet dialogue between the narrator and the surrounding space."
 
@@ -1599,11 +1628,24 @@ def _heuristic_v2_visual_art_direction(
     ]
     sensory_anchor_str = heuristic_props[seed_num % len(heuristic_props)]
 
-    color_palette_str = "Monochrome tones: rich velvety blacks, soft silvery grays, gentle ivory highlights, authentic film tonal range, and luminous eye catchlights."
-    lighting_str = (
-        f"{dynamic_lighting}, with luminous catchlights in the eyes, rich velvety blacks, and {dynamic_atmosphere.lower()}."
-    )
-    visual_style_str = "Strictly black-and-white vintage 35mm analogue snapshot, visible organic film grain, soft focus, faded blacks, muted contrast, documentary editorial realism."
+    if stype == StoryType.meditation:
+        color_palette_str = (
+            "Warm sunrise-gold and pale-amber dawn light over muted sage-green and soft warm-grey "
+            "shadows; low airy contrast, calm and luminous. Never monochrome or black-and-white."
+        )
+        lighting_str = (
+            f"{dynamic_lighting}, with luminous catchlights in the eyes, soft dawn glow, and {dynamic_atmosphere.lower()}."
+        )
+        visual_style_str = (
+            "Warm sunrise-gold vintage 35mm analogue colour-film snapshot, visible organic film grain, "
+            "soft focus, airy low contrast, documentary editorial realism."
+        )
+    else:
+        color_palette_str = "Monochrome tones: rich velvety blacks, soft silvery grays, gentle ivory highlights, authentic film tonal range, and luminous eye catchlights."
+        lighting_str = (
+            f"{dynamic_lighting}, with luminous catchlights in the eyes, rich velvety blacks, and {dynamic_atmosphere.lower()}."
+        )
+        visual_style_str = "Strictly black-and-white vintage 35mm analogue snapshot, visible organic film grain, soft focus, faded blacks, muted contrast, documentary editorial realism."
     polaroid_scene_str = _heuristic_v2_photograph_description(story)
 
     return {
@@ -1632,10 +1674,12 @@ def refine_story_visual_art_direction(story: Story, *, use_llm: bool = True) -> 
     - Excludes dialogue, internal monologue, and explicit sexual acts.
     """
     from app.model.story import StoryType
-    from app.utils.prompts import STORY_VISUAL_REFINEMENT_SYSTEM
+    from app.utils.prompts import MEDITATION_VISUAL_OVERRIDE, STORY_VISUAL_REFINEMENT_SYSTEM
 
     if use_llm and (settings.XAI_API_KEY or "").strip():
         stype = getattr(story, "story_type", None)
+        is_meditation = stype == StoryType.meditation
+        override = MEDITATION_VISUAL_OVERRIDE if is_meditation else ""
         kind = stype.value if hasattr(stype, "value") else (str(stype) if stype else "confession")
         full_text = (story.story_text or story.story_input or "").strip()[:6000]
         title = (story.title or story.member_title or getattr(story, "ai_generated_title", None) or "Untitled").strip()
@@ -1650,7 +1694,7 @@ def refine_story_visual_art_direction(story: Story, *, use_llm: bool = True) -> 
         try:
             llm = get_story_llm(temperature=0.35)
             response = llm.invoke(
-                f"{STORY_VISUAL_REFINEMENT_SYSTEM}\n\n"
+                f"{STORY_VISUAL_REFINEMENT_SYSTEM}{override}\n\n"
                 f"STORY METADATA & 6-DIMENSION ANALYSIS:\n"
                 f"- Story Type: {kind.capitalize()}\n"
                 f"- Title: {title}\n"
@@ -1675,6 +1719,7 @@ def refine_story_visual_art_direction(story: Story, *, use_llm: bool = True) -> 
                 f"Create a story-specific scene reflecting the actual narrative and emotional tone. "
                 f"Strictly avoid generic stock-photo compositions such as happy friends at a bar, posed group shots, or repetitive social scenes. "
                 f"Produce distinct visual compositions, locations, lighting, emotions, character relationships, and atmospheres."
+                f"{override}"
             )
             content = (getattr(response, "content", None) or str(response) or "").strip().strip('"').strip("'")
             content = _sanitize_v2_scene_text(content)
@@ -1724,15 +1769,22 @@ def extract_v2_visual_art_direction(
     - "atmosphere"
     - "sensory_anchor"
     """
-    from app.utils.prompts import VISUAL_ART_DIRECTION_EXTRACTION_SYSTEM
+    from app.utils.prompts import MEDITATION_VISUAL_OVERRIDE, VISUAL_ART_DIRECTION_EXTRACTION_SYSTEM
 
     brief = visual_brief or refine_story_visual_art_direction(story, use_llm=use_llm)
 
     if use_llm and (settings.XAI_API_KEY or "").strip():
         try:
+            from app.model.story import StoryType
+
+            override = (
+                MEDITATION_VISUAL_OVERRIDE
+                if getattr(story, "story_type", None) == StoryType.meditation
+                else ""
+            )
             llm = get_story_llm(temperature=0.2)
             response = llm.invoke(
-                f"{VISUAL_ART_DIRECTION_EXTRACTION_SYSTEM}\n\n"
+                f"{VISUAL_ART_DIRECTION_EXTRACTION_SYSTEM}{override}\n\n"
                 f"EDITORIAL VISUAL BRIEF:\n{brief}\n\n"
                 f"STORY METADATA & CONTEXT:\n"
                 f"Story Type: {story.story_type.value.capitalize() if getattr(story, 'story_type', None) else 'Confession'}\n"
@@ -1751,6 +1803,7 @@ def extract_v2_visual_art_direction(
                 f"Never create theatrical movie stills, artificial melodrama, dull pictures, or sterile modern realism. "
                 f"Strictly forbidden: never depict someone sitting behind a computer, at a desk, or in an office. "
                 f"Strictly avoid generic stock-photo compositions such as happy friends at a bar, posed group shots, or repetitive social scenes."
+                f"{override}"
             )
             raw = (getattr(response, "content", None) or str(response) or "").strip()
             if "```" in raw:
@@ -1860,6 +1913,10 @@ def build_v2_cover_prompt(
     from app.utils.prompts import (
         V2_COVER_ANALOGUE_TREATMENT,
         V2_COVER_CLOSING_CONSTRAINTS,
+        V2_COVER_PHOTOGRAPHY_STYLE_DEFAULT,
+        V2_COVER_PHOTOGRAPHY_STYLE_MEDITATION,
+        V2_COVER_POLAROID_CAPTION_DEFAULT,
+        V2_COVER_POLAROID_CAPTION_MEDITATION,
         V2_COVER_PROMPT_TEMPLATE,
     )
     from app.utils.story_cover import _description_for_story, _split_location
@@ -1979,6 +2036,13 @@ def build_v2_cover_prompt(
             "A single individual in an authentic, evocative private moment reflecting personal truth."
         )
 
+    if is_meditation:
+        photography_style_block = V2_COVER_PHOTOGRAPHY_STYLE_MEDITATION
+        polaroid_caption_directive = V2_COVER_POLAROID_CAPTION_MEDITATION
+    else:
+        photography_style_block = V2_COVER_PHOTOGRAPHY_STYLE_DEFAULT
+        polaroid_caption_directive = V2_COVER_POLAROID_CAPTION_DEFAULT
+
     author_name = (story.first_name or "Anonymous").strip().upper()
 
     prompt = V2_COVER_PROMPT_TEMPLATE.format(
@@ -1998,6 +2062,8 @@ def build_v2_cover_prompt(
         button_label=button_label,
         photo_desc=photo_desc,
         cast_mandate_block=cast_mandate_block,
+        photography_style_block=photography_style_block,
+        polaroid_caption_directive=polaroid_caption_directive,
         author_name=author_name,
     )
     return prompt

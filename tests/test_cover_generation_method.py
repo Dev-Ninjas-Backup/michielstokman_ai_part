@@ -1858,7 +1858,7 @@ def test_v2_prompt_incorporates_authentic_moment_and_framing_freedom():
 
 
 def test_v2_category_emotional_differentiation():
-    """Verify that photographic treatment is shared brand while emotional photography direction varies by category."""
+    """Verify the analogue brand character is shared while colour and emotional direction vary by category."""
     from app.utils.story_image_prompt import build_v2_cover_prompt
     from app.model.story import StoryType
 
@@ -1870,13 +1870,23 @@ def test_v2_category_emotional_differentiation():
     p_med = build_v2_cover_prompt(meditation, use_llm_scene=False)
     p_trans = build_v2_cover_prompt(transformation, use_llm_scene=False)
 
-    # Shared brand photographic treatment
+    # Shared analogue brand character (film grain, soft focus) ...
     for p in (p_conf, p_med, p_trans):
-        assert "STRICTLY BLACK AND WHITE" in p
         assert "organic film grain" in p
         assert "soft focus" in p
+
+    # ... but colour is category-specific: confessions and transformations stay
+    # strict black-and-white, while meditations render in warm sunrise-gold colour
+    # so a meditation cover never reads as a confession.
+    for p in (p_conf, p_trans):
+        assert "STRICTLY BLACK AND WHITE" in p
         assert "faded blacks" in p
         assert "muted contrast" in p
+
+    assert "STRICTLY BLACK AND WHITE" not in p_med
+    assert "warm sunrise-gold COLOUR" in p_med
+    assert "never black-and-white" in p_med
+    assert "muted sage-green" in p_med
 
     # Category-specific emotional direction
     assert "Confessions: intimate, vulnerable, emotionally revealing" in p_conf
