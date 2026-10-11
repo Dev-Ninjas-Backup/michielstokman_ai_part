@@ -6,6 +6,7 @@ build one from the finished story text so every cover reflects that story.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import re
@@ -1242,6 +1243,47 @@ def _build_v2_detailed_setting(story: Story, blob: str, seed_num: int) -> str:
     return default_scenes[seed_num % len(default_scenes)]
 
 
+def _meditation_staging_index(story: Story) -> int:
+    """Stable per-meditation index into MEDITATION_STAGING_MENU.
+
+    Uses sha1 rather than the salted built-in hash() so the same meditation always
+    resolves to the same staging (a regenerated cover stays consistent), while
+    different meditations spread across the whole menu instead of collapsing onto
+    one repeated stock pose.
+    """
+    from app.utils.prompts import MEDITATION_STAGING_MENU
+
+    body = (getattr(story, "story_text", "") or getattr(story, "story_input", "") or "")[:200]
+    key = "_".join(
+        str(value or "")
+        for value in (
+            getattr(story, "title", ""),
+            getattr(story, "first_name", ""),
+            getattr(story, "situation", ""),
+            body,
+        )
+    )
+    return int(hashlib.sha1(key.encode("utf-8")).hexdigest(), 16) % len(MEDITATION_STAGING_MENU)
+
+
+def _meditation_staging(story: Story) -> tuple[str, str, str]:
+    """The (pose, framing, sensory anchor) staging assigned to this meditation."""
+    from app.utils.prompts import MEDITATION_STAGING_MENU
+
+    return MEDITATION_STAGING_MENU[_meditation_staging_index(story)]
+
+
+def _meditation_visual_override(story: Story) -> str:
+    """Per-meditation vision-LLM override with this meditation's staging baked in."""
+    from app.utils.prompts import MEDITATION_STAGING_MENU, MEDITATION_VISUAL_OVERRIDE_TEMPLATE
+
+    index = _meditation_staging_index(story)
+    return MEDITATION_VISUAL_OVERRIDE_TEMPLATE.format(
+        staging=MEDITATION_STAGING_MENU[index][0],
+        staging_label=f"staging {index + 1} of {len(MEDITATION_STAGING_MENU)}",
+    )
+
+
 def _heuristic_v2_photograph_description(story: Story) -> str:
     """Deterministic, story-grounded 1-2 sentence description for the V2 Polaroid slot."""
     from app.model.story import StoryType
@@ -1272,47 +1314,11 @@ def _heuristic_v2_photograph_description(story: Story) -> str:
 
     if stype == StoryType.meditation:
         # Meditation covers are one person's private practice (never a couple or
-        # group), and both the pose and the sensory anchor are drawn from THIS
-        # meditation's own context so no two covers repeat the same pose.
-        med_context = f"{blob} {situation} {getattr(story, 'title', '')}".lower()
-        meditation_poses = [
-            (
-                ("window", "morning", "sun", "dawn", "first light"),
-                "seated quietly beside a large sunlit window, eyes gently closed, shoulders soft and relaxed",
-                "Unhurried medium shot with the sunlit window frame behind, soft dawn air and quiet depth",
-                "morning light warming the skin and gentle breathing stillness",
-            ),
-            (
-                ("breath", "breathing", "chest", "heart", "inhale", "exhale"),
-                "seated with one hand resting lightly over the heart, feeling the slow rise and fall of the breath",
-                "Tender close framing centred on the calm face and resting hand, airy low contrast",
-                "the quiet rhythm of the breath and a settling calm",
-            ),
-            (
-                ("walk", "forest", "garden", "nature", "mountain", "lake", "water", "path", "outdoor"),
-                "walking slowly along a quiet natural path, unhurried and present, gaze resting softly downward",
-                "Environmental 35mm frame with layered natural depth behind, dawn light through foliage",
-                "a gentle breeze and the openness of the natural surroundings",
-            ),
-            (
-                ("floor", "mat", "cushion", "lotus", "kneel", "sit", "seat", "body"),
-                "seated cross-legged on a mat or cushion, spine soft and upright, palms resting open on the knees",
-                "Grounded centred medium shot with calm negative space and shallow creamy depth of field",
-                "the settled weight of the body resting on the mat",
-            ),
-            (
-                ("let", "release", "surrender", "peace", "stillness", "gratitude", "ego", "freedom"),
-                "standing still with palms turned open toward the light, head lifted slightly, a serene half-smile",
-                "Serene vertical framing with soft sunrise glow behind and generous quiet space",
-                "open palms catching the first warm light",
-            ),
-        ]
-        chosen_pose = meditation_poses[seed_num % len(meditation_poses)]
-        for pose in meditation_poses:
-            if any(k in med_context for k in pose[0]):
-                chosen_pose = pose
-                break
-        _, action, comp, sensory_anchor = chosen_pose
+        # group). The staging comes from the shared menu by a stable per-meditation
+        # index, so covers spread across the whole menu instead of every meditation
+        # landing on the same stock pose (previously the hand-on-chest gesture, whose
+        # keywords — breath/heart/chest — match almost every meditation).
+        action, comp, sensory_anchor = _meditation_staging(story)
         tonal_depth = f"Soft sunrise-gold and muted sage tonal palette, gentle luminous glow, low airy contrast, and tranquil meditative depth. {lighting_desc}"
         subjects = f"A {age_str}{gender}"
         mood_posture = f"Gentle breathing, serene expression, {sensory_anchor}, deep calm, grounding reflection, and eye-soothing presence (peaceful and content, never sad)"
@@ -1557,11 +1563,13 @@ def _heuristic_v2_visual_art_direction(
         rel_dynamics = "Intimate emotional resonance, magnetic attraction, and genuine physical and emotional closeness."
     else:
         if stype == StoryType.meditation:
+            med_pose, med_framing, _med_anchor = _meditation_staging(story)
             characters_str = (
                 f"One {age_str}{gender} alone in a private practice — never a couple, partner, or group — "
-                "calm, grounded, and quietly present, fully clothed in soft neutral knitwear or simple layered clothing."
+                f"{med_pose}, calm, grounded, and quietly present, fully clothed in soft neutral knitwear or "
+                "simple layered clothing."
             )
-            comp_str = "A single figure seated or standing in grounded stillness with centered medium framing, gentle breath; unposed and natural."
+            comp_str = f"{med_framing}; a single figure only, unposed, natural, and never a hand pressed to the chest or heart."
         elif stype == StoryType.transformation:
             characters_str = f"A {age_str}{gender} with magnetic presence, captivating gaze, and dynamic, natural posture, tastefully clothed in elegant, textured casual wear."
             comp_str = "A single figure naturally poised with open, expansive framing, radiant confidence and quiet strength; unposed and natural."
@@ -1629,6 +1637,9 @@ def _heuristic_v2_visual_art_direction(
     sensory_anchor_str = heuristic_props[seed_num % len(heuristic_props)]
 
     if stype == StoryType.meditation:
+        # Meditation anchors come from this meditation's own staging (cushion, window
+        # light, mat, garden grass…) rather than the confession prop list below.
+        sensory_anchor_str = _meditation_staging(story)[2]
         color_palette_str = (
             "Warm sunrise-gold and pale-amber dawn light over muted sage-green and soft warm-grey "
             "shadows; low airy contrast, calm and luminous. Never monochrome or black-and-white."
@@ -1674,12 +1685,28 @@ def refine_story_visual_art_direction(story: Story, *, use_llm: bool = True) -> 
     - Excludes dialogue, internal monologue, and explicit sexual acts.
     """
     from app.model.story import StoryType
-    from app.utils.prompts import MEDITATION_VISUAL_OVERRIDE, STORY_VISUAL_REFINEMENT_SYSTEM
+    from app.utils.prompts import STORY_VISUAL_REFINEMENT_SYSTEM
 
     if use_llm and (settings.XAI_API_KEY or "").strip():
         stype = getattr(story, "story_type", None)
         is_meditation = stype == StoryType.meditation
-        override = MEDITATION_VISUAL_OVERRIDE if is_meditation else ""
+        override = _meditation_visual_override(story) if is_meditation else ""
+        # Meditations are all written in the same calm register, so the default low
+        # temperature makes every one resolve to the same scene; open it up so the
+        # assigned staging and this meditation's own context actually surface.
+        gesture_clause = (
+            "Natural expression and ONLY the single assigned meditation staging given below — no other pose, "
+            "and never a hand pressed to the chest or heart; authentic imperfections, soft natural light, and film texture. "
+            if is_meditation
+            else "Natural expression, subtle varied gestures (e.g. holding an object, touching hair, resting against a wall, "
+            "looking through a window, sitting quietly, or walking alone; never forcing a single pose), authentic "
+            "imperfections, soft natural light, and film texture. "
+        )
+        sensory_clause = (
+            f"Ground the scene in this meditation's own sensory anchor: {_meditation_staging(story)[2]}. "
+            if is_meditation
+            else "Ground the scene in a concrete sensory anchor / prop (e.g. warm cup, rain on glass, fingers on coat collar, wind lifting hair). "
+        )
         kind = stype.value if hasattr(stype, "value") else (str(stype) if stype else "confession")
         full_text = (story.story_text or story.story_input or "").strip()[:6000]
         title = (story.title or story.member_title or getattr(story, "ai_generated_title", None) or "Untitled").strip()
@@ -1692,7 +1719,7 @@ def refine_story_visual_art_direction(story: Story, *, use_llm: bool = True) -> 
         narrative_moment = portrait_narrative_moment(story)
 
         try:
-            llm = get_story_llm(temperature=0.35)
+            llm = get_story_llm(temperature=0.7 if is_meditation else 0.35)
             response = llm.invoke(
                 f"{STORY_VISUAL_REFINEMENT_SYSTEM}{override}\n\n"
                 f"STORY METADATA & 6-DIMENSION ANALYSIS:\n"
@@ -1709,8 +1736,8 @@ def refine_story_visual_art_direction(story: Story, *, use_llm: bool = True) -> 
                 f"The image should create an immediate feeling of recognition and emotional intimacy — as if the viewer has unexpectedly witnessed a real private moment. "
                 f"Focus on the emotional truth of the story: Person + genuine emotion + natural environment + an authentic moment that feels naturally photographed. "
                 f"Capture genuine human emotion, quiet vulnerability, personal honesty, and authentic presence. "
-                f"Natural expression, subtle varied gestures (e.g. hand near chest, holding an object, touching hair, resting against a wall, looking through a window, sitting quietly, or walking alone; never forcing a single pose), authentic imperfections, soft natural light, and film texture. "
-                f"Ground the scene in a concrete sensory anchor / prop (e.g. warm cup, rain on glass, fingers on coat collar, wind lifting hair). "
+                f"{gesture_clause}"
+                f"{sensory_clause}"
                 f"Direct with intentional camera framing (intimate 85mm close-up or 35mm environmental frame), soft directional chiaroscuro, and luminous catchlights in the eyes. "
                 f"Use the actual location or environment implied by the story; do not substitute a visually attractive location simply because it looks cinematic. "
                 f"Any subject shown must be naturally readable within the frame; framing may be close, medium, or environmental depending on the emotional moment. "
@@ -1769,7 +1796,7 @@ def extract_v2_visual_art_direction(
     - "atmosphere"
     - "sensory_anchor"
     """
-    from app.utils.prompts import MEDITATION_VISUAL_OVERRIDE, VISUAL_ART_DIRECTION_EXTRACTION_SYSTEM
+    from app.utils.prompts import VISUAL_ART_DIRECTION_EXTRACTION_SYSTEM
 
     brief = visual_brief or refine_story_visual_art_direction(story, use_llm=use_llm)
 
@@ -1777,12 +1804,30 @@ def extract_v2_visual_art_direction(
         try:
             from app.model.story import StoryType
 
-            override = (
-                MEDITATION_VISUAL_OVERRIDE
-                if getattr(story, "story_type", None) == StoryType.meditation
-                else ""
+            is_meditation = getattr(story, "story_type", None) == StoryType.meditation
+            override = _meditation_visual_override(story) if is_meditation else ""
+            # The color_palette/visual_style key defaults in the extraction system
+            # prompt are monochrome; restate the meditation palette (and the single
+            # assigned staging) so the returned polaroid_scene stays sunrise-gold and
+            # never lands on the same repeated pose.
+            gesture_clause = (
+                "Use ONLY the single assigned meditation staging given below — no other pose, and never a hand "
+                "pressed to the chest or heart. Return \"color_palette\" as warm sunrise-gold and pale-amber dawn "
+                "light over muted sage-green and soft warm-grey shadows with low airy contrast, and \"visual_style\" "
+                "as a warm sunrise-gold vintage 35mm analogue colour-film snapshot — never monochrome, sepia, or "
+                "black-and-white. "
+                if is_meditation
+                else "Use subtle varied gestures appropriate to the story (holding an object, touching hair, resting "
+                "against a wall, looking through a window, sitting quietly, walking alone; never forcing a single pose). "
             )
-            llm = get_story_llm(temperature=0.2)
+            # Meditations share one calm register, so the default low temperature
+            # collapses them onto the same scene; open it up for variety.
+            tonal_clause = (
+                "a soft sunrise-gold dawn glow over muted sage-green and warm-grey shadows with low airy contrast. "
+                if is_meditation
+                else "rich velvety blacks. "
+            )
+            llm = get_story_llm(temperature=0.65 if is_meditation else 0.2)
             response = llm.invoke(
                 f"{VISUAL_ART_DIRECTION_EXTRACTION_SYSTEM}{override}\n\n"
                 f"EDITORIAL VISUAL BRIEF:\n{brief}\n\n"
@@ -1796,10 +1841,10 @@ def extract_v2_visual_art_direction(
                 f"composition, lighting, color palette, visual style, narrative focus, sensory anchor, and polaroid scene) into valid JSON. "
                 f"The scene must capture emotional intimacy, genuine human truth, and quiet vulnerability — creating an immediate feeling of recognition, as if witnessing a real private moment. "
                 f"Focus on the core visual idea: Person + genuine emotion + natural environment + an authentic moment that feels naturally photographed. "
-                f"Incorporate concrete sensory anchors/props, intentional camera framing, sharp eye focus with luminous catchlights, and rich velvety blacks. "
+                f"Incorporate concrete sensory anchors/props, intentional camera framing, sharp eye focus with luminous catchlights, and {tonal_clause}"
                 f"Use the actual location or environment implied by the story; do not substitute a visually attractive location simply because it looks cinematic. "
                 f"Any subject shown must be naturally readable within the frame; framing may be close, medium, or environmental depending on the emotional moment. "
-                f"Use subtle varied gestures appropriate to the story (hand near chest, holding an object, touching hair, resting against a wall, looking through a window, sitting quietly, walking alone; never forcing a single pose). "
+                f"{gesture_clause}"
                 f"Never create theatrical movie stills, artificial melodrama, dull pictures, or sterile modern realism. "
                 f"Strictly forbidden: never depict someone sitting behind a computer, at a desk, or in an office. "
                 f"Strictly avoid generic stock-photo compositions such as happy friends at a bar, posed group shots, or repetitive social scenes."

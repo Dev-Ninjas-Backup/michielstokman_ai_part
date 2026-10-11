@@ -316,9 +316,59 @@ V2_COVER_POLAROID_CAPTION_MEDITATION = (
     "partner, or group."
 )
 
+# Distinct meditation stagings, each an (pose/action, camera framing, sensory anchor)
+# triple. The live cover path assigns exactly ONE of these per meditation
+# (see _meditation_staging in story_image_prompt) so consecutive meditation covers
+# cannot collapse onto one stock pose. The over-used "hand pressed to the chest"
+# gesture is deliberately absent from every entry.
+MEDITATION_STAGING_MENU: tuple[tuple[str, str, str], ...] = (
+    (
+        "seated cross-legged on a low cushion, spine softly upright, palms open and resting on the knees",
+        "Grounded centred medium shot with calm negative space and shallow creamy depth of field",
+        "the settled weight of the body resting on the cushion",
+    ),
+    (
+        "standing quietly at an open window, eyes gently closed, shoulders soft as first light crosses the face",
+        "Unhurried medium shot with the sunlit window frame behind and soft dawn air",
+        "morning light warming the skin",
+    ),
+    (
+        "lying on a mat with both hands resting open on the belly, knees soft, face turned up toward the ceiling light",
+        "Leaning three-quarter frame with airy low contrast and quiet empty space",
+        "the slow rise and fall of the breath under open palms",
+    ),
+    (
+        "walking slowly along a quiet natural path, unhurried and present, gaze resting softly downward",
+        "Environmental 35mm frame with layered natural depth behind and dawn light through foliage",
+        "a gentle breeze and the openness of the natural surroundings",
+    ),
+    (
+        "sitting on an outdoor stone step, forearms resting on the knees, head lifted into the morning air",
+        "Wide environmental frame with generous quiet space and soft foreground texture",
+        "cool stone underfoot and the morning air on the face",
+    ),
+    (
+        "kneeling upright on the grass of a garden, hands resting palm-down on the thighs",
+        "Calm three-quarter medium shot with layered greenery falling softly out of focus",
+        "damp grass, soil, and the green stillness of the garden",
+    ),
+    (
+        "leaning back lightly against a plain wall mid-breath, chin level, eyes closed, arms loose at the sides",
+        "Simple straight-on medium framing with soft shadow and shallow background falloff",
+        "the cool wall at the back and the hush of the room",
+    ),
+    (
+        "standing with both palms turned open toward the light, head lifted slightly, a serene half-smile",
+        "Serene vertical framing with soft sunrise glow behind and generous quiet space",
+        "open palms catching the first warm light",
+    ),
+)
+
 # Appended to the two V2 vision-LLM prompts for meditations only, overriding the
 # confession-centric defaults they otherwise carry (group cast, monochrome, one pose).
-MEDITATION_VISUAL_OVERRIDE = (
+# {staging} and {staging_label} are filled per meditation by _meditation_visual_override()
+# so each meditation is told which single staging it owns.
+MEDITATION_VISUAL_OVERRIDE_TEMPLATE = (
     "\n\nMEDITATION OVERRIDE — HIGHEST PRIORITY (this is a MEDITATION, not a confession):\n"
     "- ONE PERSON ONLY: depict the narrator ALONE in a private practice. Never a couple, partner, friend, "
     "or group; no other people in the frame and no physical interaction with another person. Ignore any "
@@ -326,11 +376,10 @@ MEDITATION_VISUAL_OVERRIDE = (
     "- WARM SUNRISE-GOLD COLOUR, NOT MONOCHROME: soft pale-amber dawn light over muted sage-green and "
     "warm-grey shadows, low airy contrast, a tranquil luminous glow. Never black-and-white, sepia, or "
     "desaturated. Quiet first light — never bright golden-hour celebration or sun flare.\n"
-    "- VARY THE POSE AND THE SCENE for every meditation. Never reuse one stock pose. Choose and adapt to "
-    "THIS meditation's own words, hour, and setting, e.g.: seated cross-legged on a cushion or floor; "
-    "standing quietly at an open window with eyes closed; lying on a mat with hands resting on the belly; "
-    "walking slowly outdoors; sitting on a step with a hand over the heart; kneeling in a garden; leaning "
-    "back against a wall mid-breath; palms open toward first light.\n"
+    "- REQUIRED STAGING FOR THIS MEDITATION ({staging_label}): {staging}. Use exactly this staging, and do "
+    "not substitute another pose or scene.\n"
+    "- NEVER THE OVERUSED POSE: do NOT show a hand pressed to, resting on, covering, or cradling the chest, "
+    "heart, or sternum. That gesture is already repeated across the collection and must not appear here.\n"
     "- GROUND IT IN THE MEDITATION'S REAL CONTEXT: derive the setting, hour, and sensory anchors from the "
     "actual text (breath, water, mountain, morning, forest, room, window, candle) rather than a generic "
     "studio backdrop."
@@ -394,7 +443,7 @@ Any subject shown must be naturally readable within the frame; framing may be cl
 CRITICAL POSE & EXPRESSION RULES BY STORY TYPE:
 - FOR CONFESSIONS (Intimate / Magnetic / Vulnerable): Intimate body language, magnetic attraction, and emotional revelation. When a partner, lover, or companions are present, depict magnetic chemistry and warm connection: standing close together in a tender romantic embrace, captivating magnetic eye contact, leaning in close with emotional chemistry, playful touches, warm embrace, holding hands, laughing mid-motion, or sitting side by side. For solitary stories: alluring magnetic gaze, self-assured composure, touching hair, resting against a wall, looking through a window, walking with purpose, or contemplative poise.
 - STRICTLY FORBIDDEN: NEVER DEPICT CHARACTERS WHO LOOK DEPRESSED, SAD, GLOOMY, SULLEN, TIRED, OR MISERABLE. Characters must look magnetic, attractive, alive, and emotionally captivating.
-- FOR MEDITATIONS (Calm / Inward): Still, grounded, calm, inward, contemplative, gentle breath, inner peace, quiet natural or room presence (serene and content, never depressed). Exactly ONE person alone in quiet inward presence — never a couple, partner, or group. Vary the pose and scene per meditation (seated on a cushion, standing at a window, walking a quiet path, lying on a mat, hand on the heart); derive it from THIS meditation's own words, hour, and setting rather than repeating one stock pose.
+- FOR MEDITATIONS (Calm / Inward): Still, grounded, calm, inward, contemplative, gentle breath, inner peace, quiet natural or room presence (serene and content, never depressed). Exactly ONE person alone in quiet inward presence — never a couple, partner, or group. STRICTLY FORBIDDEN for meditations: a hand pressed to, resting on, covering, or cradling the chest, heart, or sternum — that gesture is over-used across the collection and must never appear. Use ONLY the single staging described in the scene above; never substitute a generic or repeated stock pose.
 - FOR TRANSFORMATIONS / LIBERATIONS (Expressive / Free): Open, expansive, movement, newfound freedom, courage, quiet confidence, or radiant joy. When companions are present, joyful celebration, dancing together, or mutual breakthrough.
 - GENERAL POSE RULES: Any subject shown must be naturally readable within the frame; framing may be close, medium, or environmental depending on the emotional moment. Avoid stiff mannequin poses, artificial commercial stock smiles, or theatrical over-acting. STRICTLY FORBIDDEN: Do NOT depict bent necks, heads unnaturally tilted away, or awkward distorted anatomy.
 
@@ -740,7 +789,7 @@ STORY_HUMAN_TEMPLATE = (
     "   - Background: aged yellow-green cardboard with dark grunge borders, using warm paper, butter yellow, and sage green tones.\n"
     "   - Top left: black tape label saying 'MEDITATION' in white letters, next to a sketched green heart doodle.\n"
     "   - Main title on the left: large 3D butter-yellow block letters for the title '[INSERT GENERATED TITLE HERE]' with a thick black outline and dark sage-green/charcoal drop-shadows.\n"
-    "   - Right side: a vertical rectangular soft sunrise-gold toned photograph of the narrator taped down at the corners, slightly larger. The narrator (based on gender) must be depicted as a single person in a deeply serene, calm, and intimate mindful moment that fits the specific meditation setting. You MUST NOT describe more than one character. Keep the portrait or photo strictly singular, depicting only the narrator alone. Never include multiple people, couples, or physical interactions between characters. Write a detailed description of this scene, selecting from these serene, contemplative concepts based on the meditation: (1) a portrait of a person sitting by a sunlit window in a cozy knit cardigan or soft sweater with a high, fully-buttoned collar, with closed eyes, head tilted gently up in quiet calm, and soft morning light filtering in to cast delicate slatted shadow lines across the collar and shoulders; or (2) a portrait of a person with a messy high bun, closed eyes, and a serene, deeply feeling expression, resting a hand gently over the chest to feel their breathing, wearing a simple long-sleeve top with a high neckline, bathed in soft, dappled dawn light and delicate leaf shadows. To prevent OpenAI safety moderation blocks, you MUST NOT describe nudity, bare skin, bare shoulders, collarbones, exposed necklines, thin straps, lingerie, silk slips, or physical touch. Instead, keep the narrator fully clothed (e.g., cozy knit sweater, soft turtleneck, simple shirt, high-collar jacket). Ensure the description uses evocative but fully safe, atmospheric, and artistic descriptors (e.g., cozy knit cardigan, high-neck soft sweater, hand resting over the chest, head tilted gently back, soft sunbeams, slatted shadows, soft sunrise-gold and pale-amber tone) to capture a serene, intimate, and grounded atmosphere while keeping it fully compliant with safety filters.\n"
+    "   - Right side: a vertical rectangular soft sunrise-gold toned photograph of the narrator taped down at the corners, slightly larger. The narrator (based on gender) must be depicted as a single person in a deeply serene, calm, and intimate mindful moment that fits the specific meditation setting. You MUST NOT describe more than one character. Keep the portrait or photo strictly singular, depicting only the narrator alone. Never include multiple people, couples, or physical interactions between characters. Write a detailed description of this scene, choosing the ONE staging that best fits THIS meditation's own words, hour, and setting from these options: (1) seated cross-legged on a low cushion, spine softly upright, palms open on the knees; (2) standing quietly at an open window with eyes gently closed as first light crosses the face; (3) lying on a mat with both hands resting open on the belly, face turned up toward the ceiling light; (4) walking slowly along a quiet natural path, gaze resting softly downward; (5) sitting on an outdoor stone step, forearms on the knees, head lifted into the morning air; (6) kneeling upright on the grass of a garden, hands resting palm-down on the thighs; (7) leaning back lightly against a plain wall mid-breath, chin level, eyes closed; (8) standing with both palms turned open toward the light, head lifted slightly, a serene half-smile. Vary this staging across meditations — never default to the same pose, and NEVER place a hand on or over the chest, heart, or breastbone. To prevent OpenAI safety moderation blocks, you MUST NOT describe nudity, bare skin, bare shoulders, collarbones, exposed necklines, thin straps, lingerie, silk slips, or physical touch. Instead, keep the narrator fully clothed (e.g., cozy knit sweater, soft turtleneck, simple shirt, high-collar jacket). Ensure the description uses evocative but fully safe, atmospheric, and artistic descriptors (e.g., cozy knit cardigan, high-neck soft sweater, soft sunbeams, slatted shadows, soft sunrise-gold and pale-amber tone, grounded stillness) to capture a serene, intimate, and grounded atmosphere while keeping it fully compliant with safety filters.\n"
     "   - Bottom left: themes listed ('PRESENCE', 'BREATH', 'HEALING', 'SLEEP') next to hand-drawn icons.\n"
     "   - Bottom right: a torn yellow note saying 'DURATION 3 MIN' (or '[INSERT DURATION HERE]').\n"
     "3. For TRANSFORMATIONS:\n"

@@ -63,7 +63,7 @@ def _meditation_story(**kwargs):
         hero_tagline="Breath And Soft Light",
         situation="Early light across a wooden floor in a still room.",
         background="Years of rushing finally slowed into presence.",
-        # No pose-keyword matches — exercises the type-aware pose fallback.
+        # Pose comes from MEDITATION_STAGING_MENU by a stable per-meditation index.
         story_text="The room held a soft hush while warmth reached the floorboards.",
     )
     defaults.update(kwargs)
@@ -1897,6 +1897,85 @@ def test_v2_category_emotional_differentiation():
 
     assert "Transformations / Liberations: expressive, free, open, radiant courage" in p_trans
     assert "transformation archive" in p_trans
+
+
+def test_v2_meditation_stagings_vary_and_never_press_hand_to_chest():
+    """Meditation covers must spread across distinct stagings and never repeat the
+    over-used hand-on-chest pose, whatever the meditation text talks about."""
+    from app.utils.prompts import MEDITATION_STAGING_MENU
+    from app.utils.story_image_prompt import (
+        _heuristic_v2_photograph_description,
+        _meditation_staging,
+        _meditation_staging_index,
+    )
+
+    # Every one of these meditations is written entirely around breath and the heart —
+    # exactly the wording that used to make every cover land on the same hand-on-chest
+    # pose. The pose must now come from the assigned staging instead.
+    def _breath_meditation(n: int):
+        return _meditation_story(
+            title=f"Breathe And Let Go {n}",
+            first_name=f"Person{n}",
+            situation=f"Breathe into the chest and rest a hand over the heart, session {n}.",
+            story_text="I place a hand on my chest and feel the breath settle. Breathe in, breathe out.",
+        )
+
+    by_staging: dict[int, str] = {}
+    for n in range(40):
+        story = _breath_meditation(n)
+        index = _meditation_staging_index(story)
+        by_staging.setdefault(index, _heuristic_v2_photograph_description(story))
+        if len(by_staging) >= 4:
+            break
+
+    assert len(by_staging) >= 4, "Meditations must spread across multiple stagings"
+    assert len(set(by_staging.values())) == len(by_staging)
+    for index, description in by_staging.items():
+        assert MEDITATION_STAGING_MENU[index][0] in description
+
+    # The hand-on-chest gesture must never appear, however breath-heavy the text is.
+    for description in by_staging.values():
+        lowered = description.lower()
+        assert "over the heart" not in lowered
+        assert "on the chest" not in lowered
+        assert "cradling the sternum" not in lowered
+
+    # A single meditation always resolves to the same staging, so a regenerated
+    # cover stays consistent.
+    assert _meditation_staging(_breath_meditation(0)) == _meditation_staging(_breath_meditation(0))
+
+
+def test_meditation_staging_menu_excludes_chest_gesture_and_override_names_staging():
+    """The menu itself carries no hand-on-chest staging, and the per-meditation
+    override text pins the assigned staging while banning that gesture."""
+    from app.utils.prompts import MEDITATION_STAGING_MENU
+    from app.utils.story_image_prompt import _meditation_staging, _meditation_visual_override
+
+    assert len(MEDITATION_STAGING_MENU) >= 6
+    assert len({entry[0] for entry in MEDITATION_STAGING_MENU}) == len(MEDITATION_STAGING_MENU)
+    for pose, framing, anchor in MEDITATION_STAGING_MENU:
+        assert pose and framing and anchor
+        assert "chest" not in pose.lower()
+        assert "heart" not in pose.lower()
+
+    story = _meditation_story(title="Standing At The Window", first_name="Aoi")
+    override = _meditation_visual_override(story)
+
+    assert _meditation_staging(story)[0] in override
+    assert "REQUIRED STAGING FOR THIS MEDITATION" in override
+    assert "hand pressed to, resting on, covering, or cradling the chest" in override
+
+
+def test_meditation_cover_prompt_bans_the_repeated_chest_pose():
+    """The rendered meditation cover prompt must explicitly forbid the over-used
+    hand-on-chest pose so the image model can no longer default to it."""
+    from app.utils.story_image_prompt import build_v2_cover_prompt
+
+    prompt = build_v2_cover_prompt(_meditation_story(), use_llm_scene=False)
+
+    assert "STRICTLY FORBIDDEN for meditations" in prompt
+    assert "hand pressed to, resting on, covering, or cradling the chest, heart, or sternum" in prompt
+    assert "hand on the heart" not in prompt
 
 
 def test_v2_confession_gestures_vary_without_forcing_hand_on_chest():
