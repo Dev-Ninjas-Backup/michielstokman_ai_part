@@ -179,17 +179,18 @@ MEDITATION_COVER_PHOTOGRAPHY_LOOK = CONFESSION_COVER_PHOTOGRAPHY_LOOK  # legacy 
 # shadows, generous quiet space. Live for build_portrait_only_prompt.
 MEDITATION_COVER_PHOTOGRAPHY_LOOK_V2 = (
     "Photography style (always apply, non-negotiable): full color, soft sunrise-gold "
-    "and pale-amber light — the tranquil first light of early morning. Gentle dawn "
-    "palette: warm gold highlights over muted sage-green and soft warm-grey shadows, "
-    "low and airy contrast, calm and unhurried. Rich natural color, never desaturated "
+    "and warm amber-olive light — the tranquil, grounding first light of early morning. Gentle dawn "
+    "palette: warm gold highlights over muted sage-green and deep velvety dark shadows with subtle "
+    "directional chiaroscuro, calm and unhurried. Rich natural color, never desaturated "
     "or monochrome. This is quiet dawn light — never bright golden-hour celebration, "
-    "sun flare, or festive saturation. Light is diffused and meditative — soft morning "
-    "mist, one hushed shaft of dawn light through a window, or an even warm glow that "
-    "wraps a single person in stillness. Documentary mindfulness photography style — "
+    "sun flare, or festive saturation. Light is intimate, motivated, and meditative — soft morning "
+    "slant light through a window casting delicate chiaroscuro shadows across a textured wall, or an "
+    "even warm glow that wraps a single person in stillness. Documentary mindfulness photography style — "
     "personal, serene, and inward, never a posed studio shot and never a couple or "
-    "group. Natural film-like color texture with soft grain, not digital-flat. Scenes "
-    "feel spacious and still — breath, space, and quiet presence rather than outward "
-    "spectacle. Render natural skin texture (pores, fine lines, flyaway hair) — never "
+    "group. Varied intimate settings (warm quiet rooms, window nooks, peaceful terraces, courtyards) "
+    "— avoid defaulting to repetitive mountain landscapes. Natural film-like color texture with soft "
+    "grain, not digital-flat. Scenes feel spacious and still — breath, space, and quiet presence rather "
+    "than outward spectacle. Render natural skin texture (pores, fine lines, flyaway hair) — never "
     "airbrushed beauty retouch. Prefer generous negative space and shallow depth of "
     "field with a readable mid-ground (window frame, plant, furniture edge, horizon) — "
     "not infinite empty bokeh. Show believable fabric folds and material response to "
@@ -291,16 +292,18 @@ V2_COVER_PHOTOGRAPHY_STYLE_DEFAULT = (
 V2_COVER_PHOTOGRAPHY_STYLE_MEDITATION = (
     "The photograph inside the Polaroid must be in warm sunrise-gold COLOUR — never black-and-white, "
     "monochrome, sepia, or desaturated.\n"
-    "Use an authentic vintage 35mm analogue colour-film snapshot aesthetic (same brand character as the "
-    "collection, carried in soft dawn colour):\n"
-    "- soft sunrise-gold and pale-amber first light, the tranquil glow of early morning\n"
-    "- muted sage-green and soft warm-grey shadows with low, airy contrast — calm and unhurried\n"
+    "Use an authentic vintage 35mm analogue colour-film snapshot aesthetic with warm amber-olive and golden-earth toning "
+    "(quiet, grounded, contemplative mindfulness photography):\n"
+    "- soft sunrise-gold and pale-amber first light, or motivated warm directional window slant light illuminating the subject\n"
+    "- muted sage-green undertones, warm earthy midtones, and deep velvety dark shadows with natural directional chiaroscuro\n"
     "- organic film grain with tactile grain texture and natural colour-film character\n"
     "- soft focus background roll-off paired with razor-sharp focal clarity on the eyes and face\n"
     "- gentle highlight bloom, subtle dust, fine film scratches\n"
-    "- authentic documentary/editorial film character, never glossy or digital-flat\n"
+    "- authentic documentary/editorial film character, never glossy, flat, or digital-sterile\n"
     "- shallow depth of field with creamy background falloff\n"
-    "Never bright golden-hour celebration, sun flare, or festive saturation — this is quiet dawn light."
+    "- varied intimate environments (sunlit rooms with textured walls, quiet window nooks, terraces, courtyards) — "
+    "avoid defaulting to repetitive mountain landscapes or generic outdoor vistas\n"
+    "Never bright golden-hour celebration, sun flare, or festive saturation — this is quiet, intimate, inward contemplative light."
 )
 
 V2_COVER_POLAROID_CAPTION_DEFAULT = (
@@ -347,7 +350,7 @@ MEDITATION_STAGING_MENU: tuple[tuple[str, str, str, tuple[str, ...]], ...] = (
         "Environmental 35mm frame with layered natural depth behind and dawn light through foliage",
         "a gentle breeze and the openness of the natural surroundings",
         ("path", "trail", "forest", "woods", "walk", "walking", "meadow", "field", "beach", "shore",
-         "seaside", "lake", "river", "mountain", "park", "countryside", "outdoors"),
+         "seaside", "lake", "river", "park", "countryside", "outdoors"),
     ),
     (
         "sitting on an outdoor stone step, forearms resting on the knees, head lifted into the morning air",
@@ -382,15 +385,20 @@ MEDITATION_VISUAL_OVERRIDE = (
     "- ONE PERSON ONLY: depict the narrator ALONE in a private practice. Never a couple, partner, friend, "
     "or group; no other people in the frame and no physical interaction with another person. Ignore any "
     "'cast fidelity / never drop characters' rule above.\n"
-    "- WARM SUNRISE-GOLD COLOUR, NOT MONOCHROME: soft pale-amber dawn light over muted sage-green and "
-    "warm-grey shadows, low airy contrast, a tranquil luminous glow. Never black-and-white, sepia, or "
-    "desaturated. Quiet first light — never bright golden-hour celebration or sun flare.\n"
+    "- WARM SUNRISE-GOLD & AMBER-OLIVE COLOUR, NOT MONOCHROME: soft pale-amber and warm sunrise-gold directional "
+    "light over muted sage-green and deep velvety dark shadows with rich chiaroscuro. Never black-and-white, sepia, or "
+    "desaturated. Quiet first light or window slant light — never bright golden-hour celebration or sun flare.\n"
     "- THE POSE AND SURROUNDINGS COME FROM THIS MEDITATION, NOT FROM A STOCK COVER: read the meditation's "
     "own words and depict what it actually describes — the place, the hour, the light, and any posture or "
     "action it names (lying down, walking, standing at a window, sitting on the floor, kneeling in a "
     "garden, resting against a wall, palms open toward the light). If the meditation names a posture, a "
     "place, or a prop, that detail is binding — use it exactly as written and never relocate the scene to "
     "a different setting.\n"
+    "- VARIETY OF SETTINGS (AVOID REPETITIVE MOUNTAINTOP VISTAS): strictly DO NOT default every meditation to "
+    "a mountain, mountain peak, or generic outdoor nature overlook. Ensure broad variety across the collection: "
+    "intimate indoor rooms with textured plaster/stucco walls and window slant light, sunlit bedroom cushions, "
+    "open-air terraces overlooking city rooftops, quiet balconies, sheltered garden courtyards, quiet walkways, "
+    "and indoor sanctuaries. Only depict a mountain if the meditation text specifically names one.\n"
     "- NEVER THE OVERUSED POSE: do NOT show a hand pressed to, resting on, covering, or cradling the "
     "chest, heart, or sternum, and do not fall back on a generic studio or empty-backdrop portrait. That "
     "gesture is already repeated across the collection and must not appear here.\n"

@@ -1075,16 +1075,16 @@ def _detect_v2_lighting_and_atmosphere(story: Story, seed_num: int) -> tuple[str
     if getattr(story, "story_type", None) == StoryType.meditation:
         meditation_profiles = [
             (
-                "Soft sunrise-gold light through gentle morning mist, warm pale-amber highlights over muted sage-green and soft warm-grey shadows, low airy contrast, and a quiet luminous glow",
-                "Serene first-light atmosphere with soft dawn haze, grounding stillness, and quiet inward presence",
+                "Warm directional slant window light casting delicate chiaroscuro shadows across a textured wall, subtle warm amber-olive and golden undertones, and deep velvety dark shadows",
+                "Tranquil, meditative inner sanctuary with soft warm golden-olive tones, gentle ambient chiaroscuro, and deep grounding stillness",
             ),
             (
-                "Delicate early-morning light diffusing into a still room, warm gold wrapping the subject softly, airy low-contrast shadows, and generous calm negative space",
-                "Tranquil, spacious dawn ambiance with muted sage and warm-grey undertones and deep contemplative quiet",
+                "Soft diffused morning daylight filtering into an intimate room with warm amber-gold highlights, muted sage and earthy shadows, and rich velvety dark tones",
+                "Calm, grounding room ambiance with quiet natural stillness, warm earthy tones, and deep contemplative presence",
             ),
             (
-                "Low golden sunrise light slanting gently across the scene, a soft luminous glow on skin, muted warm sage shadows, and serene low contrast",
-                "Still, sunlit-quiet atmosphere with soft dawn tones and profound inner calm",
+                "Gentle morning window slant light with warm pale-amber highlights and soft chiaroscuro sculpting peaceful facial contours over muted sage-olive undertones",
+                "Serene, eye-soothing sanctuary with warm muted undertones, tranquil room ambiance, and profound inner quiet",
             ),
         ]
         return meditation_profiles[seed_num % len(meditation_profiles)]
@@ -1161,6 +1161,23 @@ def _build_v2_detailed_setting(story: Story, blob: str, seed_num: int) -> str:
     """Generate an eye-soothing, dynamic, and richly detailed setting description with layered depth."""
     full_context = f"{blob} {getattr(story, 'location', '')} {getattr(story, 'city', '')} {getattr(story, 'country', '')} {getattr(story, 'situation', '')}".lower()
     location = (story.location or story.city or "").strip()
+
+    from app.model.story import StoryType
+    if getattr(story, "story_type", None) == StoryType.meditation:
+        loc_suffix = f" in {location}" if location else ""
+        if any(k in full_context for k in ("terrace", "balcony", "patio", "rooftop")):
+            return f"on an intimate, eye-soothing outdoor terrace{loc_suffix} overlooking sun-dappled terracotta rooftops, rustic ironwork balconies, and soft ambient perspective"
+        if any(k in full_context for k in ("garden", "courtyard")):
+            return f"in an intimate, private garden courtyard{loc_suffix} with textured stone walls, lush green foliage, and soft dappled sunlight"
+        if any(k in full_context for k in ("path", "trail", "walk", "lake")):
+            return f"along an intimate, tranquil natural path{loc_suffix} with soft morning air, rustic stone, and layered quiet perspective"
+        med_varied_scenes = [
+            f"in an intimate, beautifully textured room{loc_suffix} with a textured plaster wall, warm window slant light casting delicate shadows, and gentle ambient depth",
+            f"in an intimate morning sanctuary{loc_suffix} beside an open window with soft diffused daylight, warm wooden floorboards, and peaceful spatial depth",
+            f"on an intimate, eye-soothing open terrace{loc_suffix} overlooking sun-dappled rooftops, weathered stone balustrades, and quiet morning air",
+            f"in an intimate, quiet living space{loc_suffix} with soft linen drapery, warm practical light, textured surfaces, and deep serene stillness",
+        ]
+        return med_varied_scenes[seed_num % len(med_varied_scenes)]
 
     # 1. Coastal / Beach / Sea / Ocean / Shore / Harbour / Pier
     if any(k in full_context for k in ("beach", "ocean", "sea", "coast", "coastal", "shore", "island", "harbor", "harbour", "pier")):
@@ -1335,7 +1352,7 @@ def _heuristic_v2_photograph_description(story: Story) -> str:
         # landing on the same stock pose (previously the hand-on-chest gesture, whose
         # keywords — breath/heart/chest — match almost every meditation).
         action, comp, sensory_anchor = _meditation_staging(story)
-        tonal_depth = f"Soft sunrise-gold and muted sage tonal palette, gentle luminous glow, low airy contrast, and tranquil meditative depth. {lighting_desc}"
+        tonal_depth = f"Warm sunrise-gold and amber-olive tonal palette with directional chiaroscuro, deep velvety shadows, and tranquil meditative depth. {lighting_desc}"
         subjects = f"A {age_str}{gender}"
         mood_posture = f"Gentle breathing, serene expression, {sensory_anchor}, deep calm, grounding reflection, and eye-soothing presence (peaceful and content, never sad)"
 
@@ -1712,7 +1729,9 @@ def refine_story_visual_art_direction(story: Story, *, use_llm: bool = True) -> 
         # only costs fidelity.
         gesture_clause = (
             "Natural expression and a pose taken from this meditation's own words — no stock cover pose, "
-            "and never a hand pressed to the chest or heart; authentic imperfections, soft natural light, and film texture. "
+            "never defaulting to generic mountain peaks or nature vistas, and never a hand pressed to the chest or heart; "
+            "varied intimate spaces (warm quiet rooms, window slant light, balconies, terraces), authentic imperfections, "
+            "warm amber-olive and golden-earth light with directional chiaroscuro, and film texture. "
             if is_meditation
             else "Natural expression, subtle varied gestures (e.g. holding an object, touching hair, resting against a wall, "
             "looking through a window, sitting quietly, or walking alone; never forcing a single pose), authentic "
@@ -1828,16 +1847,18 @@ def extract_v2_visual_art_direction(
             gesture_clause = (
                 "The pose, the setting, and every prop come from THIS meditation's own words — never a stock or "
                 "repeated cover pose, and never a hand pressed to, resting on, covering, or cradling the chest, "
-                "heart, or sternum. Return \"color_palette\" as warm sunrise-gold and pale-amber dawn "
-                "light over muted sage-green and soft warm-grey shadows with low airy contrast, and \"visual_style\" "
-                "as a warm sunrise-gold vintage 35mm analogue colour-film snapshot — never monochrome, sepia, or "
-                "black-and-white. "
+                "heart, or sternum. Strictly avoid defaulting to generic mountain peaks, distant mountain ridges, "
+                "or repetitive outdoor nature vistas; provide rich variety across intimate rooms with window slant light, "
+                "peaceful terraces, quiet balconies, courtyards, and sanctuaries. Return \"color_palette\" as warm "
+                "sunrise-gold and amber-olive tones with directional chiaroscuro and deep velvety dark shadows over "
+                "muted sage-green, and \"visual_style\" as a warm sunrise-gold and amber-olive vintage 35mm analogue "
+                "colour-film snapshot — never monochrome, sepia, or black-and-white. "
                 if is_meditation
                 else "Use subtle varied gestures appropriate to the story (holding an object, touching hair, resting "
                 "against a wall, looking through a window, sitting quietly, walking alone; never forcing a single pose). "
             )
             tonal_clause = (
-                "a soft sunrise-gold dawn glow over muted sage-green and warm-grey shadows with low airy contrast. "
+                "a warm sunrise-gold and amber-olive dawn glow with directional chiaroscuro over muted sage-green and deep velvety shadows. "
                 if is_meditation
                 else "rich velvety blacks. "
             )
