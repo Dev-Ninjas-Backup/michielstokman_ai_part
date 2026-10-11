@@ -1,9 +1,10 @@
-"""Meditation cover photography style is warm, full-color, and safety-safe.
+"""Meditation cover photography style is warm sunrise-gold, solo, and safety-safe.
 
-Meditation parity with confession:
-- The template portrait path uses a warm amber-olive LOOK_V2 (not the retired sepia).
-- The brand-collection line carries the warm full-color language (no stale "sepia").
-- The legacy sepia LOOK survives only as a rollback alias.
+Meditation parity with confession (but deliberately distinct):
+- The template portrait path uses a soft sunrise-gold LOOK_V2 (not the retired sepia,
+  and not confession's bright golden-hour lifestyle look).
+- Meditation covers are ALWAYS a single person — never a couple or group.
+- The brand-collection line carries the sunrise-gold language (no stale "sepia").
 - The collage IMAGE_PROMPT block is scrubbed of the bare-shoulder / collarbone
   language that OpenAI moderation rejects.
 """
@@ -18,7 +19,11 @@ from app.utils.prompts import (
     MEDITATION_COVER_PHOTOGRAPHY_PORTRAIT_CLOSING_V2,
     STORY_HUMAN_TEMPLATE,
 )
-from app.utils.story_image_prompt import build_portrait_only_prompt
+from app.utils.story_image_prompt import (
+    _cast_mode,
+    build_portrait_only_prompt,
+    portrait_cast_instruction,
+)
 
 
 def _meditation_story(**kwargs):
@@ -52,14 +57,21 @@ def _meditation_story(**kwargs):
     return SimpleNamespace(**defaults)
 
 
-def test_meditation_look_v2_is_warm_full_color_amber_olive():
-    """LOOK_V2 pivots meditation portraits to warm amber-olive contemplative color."""
+def test_meditation_look_v2_is_soft_sunrise_gold_and_distinct_from_confession():
+    """LOOK_V2 pivots meditation portraits to a serene sunrise-gold dawn palette."""
     look = MEDITATION_COVER_PHOTOGRAPHY_LOOK_V2.lower()
     assert look.startswith("photography style (always apply, non-negotiable):")
     assert "full color" in look
-    assert "amber-olive" in look
-    assert "golden" in look
+    assert "sunrise-gold" in look
+    assert "sage" in look
     assert "never desaturated or monochrome" in look
+
+    # Distinct from the confession golden-hour lifestyle look — quiet dawn, not
+    # bright sun-flared celebration.
+    assert "golden-hour" in look  # only inside the "never bright golden-hour" negation
+    assert "sun flare" in look  # likewise inside the negation
+    assert "single person" in look
+    assert "never a couple or group" in look
 
     # Realism cues must not be dropped again — they do real anti-AI work.
     assert "skin texture" in look
@@ -77,12 +89,12 @@ def test_meditation_look_v2_is_warm_full_color_amber_olive():
 
 
 def test_meditation_brand_collection_drops_sepia_language():
-    """The brand line must read warm and full-color — not the retired sepia."""
+    """The brand line must read sunrise-gold and solo — not the retired sepia."""
     brand = MEDITATION_COVER_BRAND_COLLECTION.lower()
     assert "sepia" not in brand
-    assert "full-color" in brand
-    assert "amber-olive" in brand
-    assert "golden-earth" in brand
+    assert "sunrise-gold" in brand
+    assert "sage" in brand
+    assert "single person" in brand
     assert "meditation" in brand
 
 
@@ -97,6 +109,25 @@ def test_meditation_template_path_uses_look_v2_not_retired_sepia():
     assert CONFESSION_COVER_PHOTOGRAPHY_LOOK not in prompt
     assert "warm sepia toning" not in prompt.lower()
     assert "confession" not in prompt.lower()
+
+
+def test_meditation_cover_is_always_solo_even_with_partner_wording():
+    """A meditation that mentions a partner/friend must still render a single person."""
+    coupled = _meditation_story(
+        situation="My partner and I sit together breathing slowly in the morning.",
+        background="We started meditating together after a hard year.",
+        story_text="We breathe in, we breathe out, holding hands on the floor.",
+    )
+    assert _cast_mode(coupled) == "solo"
+    cast = portrait_cast_instruction(coupled)
+    assert "ALONE" in cast
+    assert "Never a couple" in cast
+
+    prompt = build_portrait_only_prompt(coupled, use_llm_brief=False)
+    # No couple / second-person casting instructions may leak into the meditation prompt.
+    assert "second person" not in prompt.lower()
+    assert "EXACTLY TWO PEOPLE" not in prompt
+    assert "small group" not in prompt.lower()
 
 
 def test_legacy_sepia_look_alias_retained_for_rollback():
@@ -116,6 +147,6 @@ def test_meditation_collage_block_is_safety_scrubbed():
     assert "slips off one bare shoulder" not in STORY_HUMAN_TEMPLATE
     assert "thin-strap top" not in STORY_HUMAN_TEMPLATE
     assert "sternum" not in STORY_HUMAN_TEMPLATE
-    # The warm, calm art direction replaces the retired sepia/vintage wording.
-    assert "warm amber-toned photograph" in STORY_HUMAN_TEMPLATE
+    # The sunrise-gold, solo art direction replaces the retired sepia/vintage wording.
+    assert "soft sunrise-gold toned photograph" in STORY_HUMAN_TEMPLATE
     assert "sepia-toned vintage photo" not in STORY_HUMAN_TEMPLATE

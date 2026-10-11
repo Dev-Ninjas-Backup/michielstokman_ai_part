@@ -336,10 +336,18 @@ def _distinct_matches(pattern: re.Pattern[str], text: str) -> set[str]:
 def _cast_mode(story: Story, brief_text: str | None = None) -> str:
     """Portrait cast size: ``"solo"``, ``"pair"``, or ``"group"``.
 
-    Explicit partner/intimacy wording (``_MULTI_PERSON_RE``) still wins, but is now
-    joined by the broader connection lexicon. Genuine aloneness outweighs both, so
+    Meditations are always ``"solo"`` — they are a private, inward practice, so the
+    cover is a single person regardless of any "we"/partner/friend wording in the text.
+
+    For other types, explicit partner/intimacy wording (``_MULTI_PERSON_RE``) wins, but
+    is joined by the broader connection lexicon. Genuine aloneness outweighs both, so
     "alone, remembering my husband" stays a solo portrait.
     """
+    from app.model.story import StoryType
+
+    if getattr(story, "story_type", None) == StoryType.meditation:
+        return "solo"
+
     text = _cast_scan_text(story, brief_text)
     explicit = bool(_MULTI_PERSON_RE.search(text))
     connection = _distinct_matches(_CONNECTION_RE, text)
@@ -688,6 +696,17 @@ def portrait_cast_instruction(
     cast_mode: str | None = None,
 ) -> str:
     """Solo vs pair vs small-group cast from the story text and STORY BRIEF."""
+    from app.model.story import StoryType
+
+    # Meditations are always a single person — never a couple or group.
+    if getattr(story, "story_type", None) == StoryType.meditation:
+        return (
+            "Cast (required): the narrator ALONE — a single person in quiet, inward "
+            "presence. Never a couple, partner, friend, or group; no other people in "
+            "the frame and no physical interaction with another person. This is one "
+            "person's private meditation."
+        )
+
     mode = cast_mode or _cast_mode(story, brief_text)
 
     if mode == "group":
@@ -1055,16 +1074,16 @@ def _detect_v2_lighting_and_atmosphere(story: Story, seed_num: int) -> tuple[str
     if getattr(story, "story_type", None) == StoryType.meditation:
         meditation_profiles = [
             (
-                "Warm natural window slant light casting soft chiaroscuro shadows, subtle warm golden-olive and amber undertones, delicate highlights on closed eyes, and rich velvety blacks",
-                "Tranquil, meditative inner sanctuary with soft warm golden-olive tones, gentle ambient shadows, and deep grounding stillness",
+                "Soft sunrise-gold light through gentle morning mist, warm pale-amber highlights over muted sage-green and soft warm-grey shadows, low airy contrast, and a quiet luminous glow",
+                "Serene first-light atmosphere with soft dawn haze, grounding stillness, and quiet inward presence",
             ),
             (
-                "Soft diffused morning daylight filtering into an intimate room with warm amber undertones, gentle highlights on shoulders and face, and rich velvety blacks",
-                "Calm, grounding room ambiance with quiet natural stillness, warm earthy tones, and deep contemplative presence",
+                "Delicate early-morning light diffusing into a still room, warm gold wrapping the subject softly, airy low-contrast shadows, and generous calm negative space",
+                "Tranquil, spacious dawn ambiance with muted sage and warm-grey undertones and deep contemplative quiet",
             ),
             (
-                "Gentle late-afternoon window light with warm amber-gold highlights and soft chiaroscuro sculpting peaceful facial contours",
-                "Serene, eye-soothing inner sanctuary with warm muted undertones, tranquil room ambiance, and profound inner quiet",
+                "Low golden sunrise light slanting gently across the scene, a soft luminous glow on skin, muted warm sage shadows, and serene low contrast",
+                "Still, sunlit-quiet atmosphere with soft dawn tones and profound inner calm",
             ),
         ]
         return meditation_profiles[seed_num % len(meditation_profiles)]
@@ -1259,7 +1278,7 @@ def _heuristic_v2_photograph_description(story: Story) -> str:
             "stillness beside a tranquil window with soft diffused natural light",
         ]
         sensory_anchor = sensory_props_med[seed_num % len(sensory_props_med)]
-        tonal_depth = f"Serene warm amber-gold and silvery monochrome tonal palette with rich velvety blacks, delicate highlights, and deep tranquil contrast. {lighting_desc}"
+        tonal_depth = f"Soft sunrise-gold and muted sage tonal palette, gentle luminous glow, low airy contrast, and tranquil meditative depth. {lighting_desc}"
         if cast_mode == "group":
             subjects = f"An adult {gender} and companions"
             action = "sharing a quiet, mindful moment of contemplative silence and grounded stillness"
