@@ -381,8 +381,10 @@ def test_portrait_prompt_includes_framing_and_anti_repetition():
 def test_retired_look_constant_stays_sepia_for_collage_and_meditation():
     """The pre-pivot LOOK is retired from the confession portrait path only.
 
-    It must stay byte-identical because two other consumers still depend on it:
-    CONFESSION_COVER_PHOTOGRAPHY_STYLE (→ dalle/collage) and the meditation alias.
+    It must stay byte-identical because two consumers still depend on it:
+    CONFESSION_COVER_PHOTOGRAPHY_STYLE (→ dalle/collage) and the retained
+    MEDITATION_COVER_PHOTOGRAPHY_LOOK rollback alias. The live meditation template
+    path now uses MEDITATION_COVER_PHOTOGRAPHY_LOOK_V2.
     """
     look = CONFESSION_COVER_PHOTOGRAPHY_LOOK.lower()
     assert "sepia" in look
@@ -877,7 +879,7 @@ def test_meditation_portrait_uses_inward_energy():
     from app.utils.prompts import (
         MEDITATION_COVER_ANTI_AI_LOOK,
         MEDITATION_COVER_ENERGY,
-        MEDITATION_COVER_PHOTOGRAPHY_LOOK,
+        MEDITATION_COVER_PHOTOGRAPHY_LOOK_V2,
     )
 
     prompt = build_portrait_only_prompt(
@@ -888,7 +890,7 @@ def test_meditation_portrait_uses_inward_energy():
         use_llm_brief=False,
     )
     assert MEDITATION_COVER_ENERGY in prompt
-    assert MEDITATION_COVER_PHOTOGRAPHY_LOOK in prompt
+    assert MEDITATION_COVER_PHOTOGRAPHY_LOOK_V2 in prompt
     assert MEDITATION_COVER_ANTI_AI_LOOK in prompt
     assert "CONFESSION — outward" not in prompt
     assert "STORY ANALYSIS" in prompt or "STORY BRIEF" in prompt
@@ -1019,7 +1021,7 @@ def test_meditation_analysis_and_prompt_never_say_confession():
     from app.utils.prompts import (
         MEDITATION_COVER_ANTI_AI_LOOK,
         MEDITATION_COVER_ENERGY,
-        MEDITATION_COVER_PHOTOGRAPHY_LOOK,
+        MEDITATION_COVER_PHOTOGRAPHY_LOOK_V2,
     )
 
     # Genuinely meditation-shaped fixture (no confession hero_hook) and no
@@ -1044,7 +1046,7 @@ def test_meditation_analysis_and_prompt_never_say_confession():
     assert "change it per meditation" in heuristic_prompt
     assert "Anti-repetition: each meditation" in heuristic_prompt
     assert MEDITATION_COVER_ENERGY in heuristic_prompt
-    assert MEDITATION_COVER_PHOTOGRAPHY_LOOK in heuristic_prompt
+    assert MEDITATION_COVER_PHOTOGRAPHY_LOOK_V2 in heuristic_prompt
     assert MEDITATION_COVER_ANTI_AI_LOOK in heuristic_prompt
     assert "Guiding principle: use the specific details and emotional essence of THIS meditation" in heuristic_prompt
     # Story beat comes from the meditation situation (not the confession fixture hook).

@@ -29,7 +29,9 @@ from app.schemas.schema_ai import StoryGenerateRequest, StoryType
 #      and extract_v2_visual_art_direction().
 #
 # 2. V1 HTML TEMPLATE (LEGACY / FALLBACK — COVER_GENERATION_METHOD=template):
-#    - HTML + Playwright rendering. Uses CONFESSION_COVER_PHOTOGRAPHY_LOOK_V2.
+#    - HTML + Playwright rendering. Confession portraits use
+#      CONFESSION_COVER_PHOTOGRAPHY_LOOK_V2 (warm golden-hour); meditation
+#      portraits use MEDITATION_COVER_PHOTOGRAPHY_LOOK_V2 (warm amber-olive).
 #
 # 3. V1 DALL-E COLLAGE (LEGACY — COVER_GENERATION_METHOD=dalle):
 #    - Multi-layer scrapbook collage with stickers, banners, and tape.
@@ -57,10 +59,11 @@ CONFESSION_COVER_PHOTOGRAPHY_LOOK = (
 
 # ---------------------------------------------------------------------------
 # RETIRED for the confession TEMPLATE portrait path (see LOOK_V2 below).
-# Still LIVE for two other consumers — do not delete:
+# Still LIVE for these consumers — do not delete:
 #   1. CONFESSION_COVER_PHOTOGRAPHY_STYLE (LOOK + COLLAGE_BODY) → the dalle/collage path
 #      via ensure_confession_photography_style / build_image_prompt_from_story.
-#   2. MEDITATION_COVER_PHOTOGRAPHY_LOOK aliases this constant.
+#   2. MEDITATION_COVER_PHOTOGRAPHY_LOOK retains this constant as a rollback alias only —
+#      the live meditation template path now uses MEDITATION_COVER_PHOTOGRAPHY_LOOK_V2.
 # Kept verbatim so the template path can be rolled back by swapping one name.
 # ---------------------------------------------------------------------------
 
@@ -165,10 +168,31 @@ CONFESSION_COVER_ANTI_AI_LOOK = (
     "rendered illustration."
 )
 
-# Meditation template portraits share the same TTL film LOOK / anti-AI brand language
-# as confessions, with inward energy (guiding principle — not a fixed pose template).
-MEDITATION_COVER_PHOTOGRAPHY_LOOK = CONFESSION_COVER_PHOTOGRAPHY_LOOK
+# Meditation template portraits carry the same warm, full-color brand language as
+# confessions but with inward energy — calm, grounding, inner-world focus.
+# The legacy sepia film LOOK is retained below as a rollback alias only.
+MEDITATION_COVER_PHOTOGRAPHY_LOOK = CONFESSION_COVER_PHOTOGRAPHY_LOOK  # legacy rollback alias
 
+# Meditation template portrait look — full-color warm amber-olive / golden-earth
+# contemplative photography (serene, grounding, inward). Live for build_portrait_only_prompt.
+MEDITATION_COVER_PHOTOGRAPHY_LOOK_V2 = (
+    "Photography style (always apply, non-negotiable): full color, warm and serene "
+    "amber-olive and golden-earth toning — soft golden light, quiet warm haze, and "
+    "deep velvety blacks. Rich, natural color grading, never desaturated or monochrome. "
+    "Lighting feels calm and grounded — low golden sun through a window, soft diffused "
+    "daylight, or candlelight warming skin and fabric with a gentle amber glow. "
+    "Editorial mindfulness photography style — intimate, unhurried, and contemplative, "
+    "never a posed studio shot. Natural film-like color texture with soft grain, not "
+    "digital-flat. Scenes feel still and inward — breath, stillness, and quiet presence "
+    "rather than outward spectacle. Render natural skin texture (pores, fine lines, "
+    "flyaway hair) — never airbrushed beauty retouch. Prefer shallow depth of field with "
+    "a readable mid-ground (window frame, plant, furniture edge, horizon) — not infinite "
+    "empty bokeh. Show believable fabric folds and material response to light. "
+    "Avoid cold tones, blue-hour, overcast flatness, or desaturated/sepia/black-and-white "
+    "treatment entirely."
+)
+
+# Legacy closing retained for rollback; the live path uses _V2 (warm light).
 MEDITATION_COVER_PHOTOGRAPHY_PORTRAIT_CLOSING = (
     " Intimate indoor or quiet outdoor natural setting matching the meditation's place "
     "and hour, with visible depth and atmosphere — never a flat studio void. Prefer soft "
@@ -176,6 +200,18 @@ MEDITATION_COVER_PHOTOGRAPHY_PORTRAIT_CLOSING = (
     "sky. Composition feels intimate and editorial — never a posed studio headshot. Eye "
     "contact with camera only when it feels inward and story-true; otherwise gaze soft into "
     "the scene. Avoid glossy, overly polished, or stock-photo aesthetics."
+)
+
+# Warm-light closing aligned with MEDITATION_COVER_PHOTOGRAPHY_LOOK_V2.
+MEDITATION_COVER_PHOTOGRAPHY_PORTRAIT_CLOSING_V2 = (
+    " Intimate indoor or quiet outdoor natural setting matching the meditation's place "
+    "and hour, with visible depth and atmosphere — never a flat studio void. Prefer "
+    "warm, soft practical light that fits the story (low golden sun through a window, "
+    "warm lamp or candle glow, soft dawn light) over a generic dramatic empty sky or "
+    "cold, flat, overcast light. Composition feels intimate and editorial — never a "
+    "posed studio headshot. Eye contact with camera only when it feels inward and "
+    "story-true; otherwise gaze soft into the scene. Avoid glossy, overly polished, or "
+    "stock-photo aesthetics."
 )
 
 MEDITATION_COVER_PORTRAIT_ENVIRONMENT = CONFESSION_COVER_PORTRAIT_ENVIRONMENT
@@ -190,9 +226,10 @@ MEDITATION_COVER_ENERGY = (
 
 MEDITATION_COVER_BRAND_COLLECTION = (
     "Brand collection (fixed visual language): This image is part of the curated TTL "
-    "visual collection — the sepia/film-grain/warm-tone photographic style "
-    "is the fixed brand language. Within that language, composition, pose, and scene must "
-    "be emotionally specific to THIS meditation — never a generic age+gender+location portrait."
+    "visual collection — the warm, full-color amber-olive and golden-earth contemplative "
+    "photographic style is the fixed brand language across all meditations. Within that "
+    "language, composition, pose, and scene must be emotionally specific to THIS "
+    "meditation — never a generic age+gender+location portrait."
 )
 
 MEDITATION_COVER_ANTI_AI_LOOK = CONFESSION_COVER_ANTI_AI_LOOK
@@ -639,7 +676,7 @@ STORY_HUMAN_TEMPLATE = (
     "   - Background: aged yellow-green cardboard with dark grunge borders, using warm paper, butter yellow, and sage green tones.\n"
     "   - Top left: black tape label saying 'MEDITATION' in white letters, next to a sketched green heart doodle.\n"
     "   - Main title on the left: large 3D butter-yellow block letters for the title '[INSERT GENERATED TITLE HERE]' with a thick black outline and dark sage-green/charcoal drop-shadows.\n"
-    "   - Right side: a vertical rectangular sepia-toned vintage photo of the narrator taped down at the corners, slightly larger. The narrator (based on gender) must be dynamically depicted in a deeply serene, sensual, and intimate mindful moment that fits the specific meditation setting. You MUST NOT describe more than one character. Keep the portrait or photo strictly singular, depicting only the narrator alone. Never include multiple people, couples, or physical interactions between characters. Write a detailed description of this scene, selecting from these highly sensual, intimate concepts based on the meditation: (1) a portrait of a person sitting on a bed by a sunlit window, wearing a loose knit cardigan or sweater that gently slips off one bare shoulder, with closed eyes, head tilted up in quiet bliss, and warm light filtering in to cast delicate slatted shadow lines across their bare shoulder, neck, and collarbones; or (2) a portrait of a person with a messy high bun, closed eyes, and a serene, deeply feeling expression, resting a hand gently on their chest/sternum to feel their breathing, wearing a simple thin-strap top that exposes their neck and collarbones, bathed in soft, dappled light and delicate leaf shadows. Ensure the description uses highly evocative, sensory, and artistic descriptors (e.g., bare shoulder, loose knit cardigan, hand resting on chest, head tilted back, soft sunbeams, slatted shadows, vintage warm sepia tone) to capture a highly sensual, intimate, and serene atmosphere while keeping it fully compliant with safety filters.\n"
+    "   - Right side: a vertical rectangular warm amber-toned photograph of the narrator taped down at the corners, slightly larger. The narrator (based on gender) must be depicted in a deeply serene, calm, and intimate mindful moment that fits the specific meditation setting. You MUST NOT describe more than one character. Keep the portrait or photo strictly singular, depicting only the narrator alone. Never include multiple people, couples, or physical interactions between characters. Write a detailed description of this scene, selecting from these serene, contemplative concepts based on the meditation: (1) a portrait of a person sitting by a sunlit window in a cozy knit cardigan or soft sweater with a high, fully-buttoned collar, with closed eyes, head tilted gently up in quiet calm, and warm light filtering in to cast delicate slatted shadow lines across the collar and shoulders; or (2) a portrait of a person with a messy high bun, closed eyes, and a serene, deeply feeling expression, resting a hand gently over the chest to feel their breathing, wearing a simple long-sleeve top with a high neckline, bathed in soft, dappled light and delicate leaf shadows. To prevent OpenAI safety moderation blocks, you MUST NOT describe nudity, bare skin, bare shoulders, collarbones, exposed necklines, thin straps, lingerie, silk slips, or physical touch. Instead, keep the narrator fully clothed (e.g., cozy knit sweater, soft turtleneck, simple shirt, high-collar jacket). Ensure the description uses evocative but fully safe, atmospheric, and artistic descriptors (e.g., cozy knit cardigan, high-neck soft sweater, hand resting over the chest, head tilted gently back, soft sunbeams, slatted shadows, warm amber and golden tone) to capture a serene, intimate, and grounded atmosphere while keeping it fully compliant with safety filters.\n"
     "   - Bottom left: themes listed ('PRESENCE', 'BREATH', 'HEALING', 'SLEEP') next to hand-drawn icons.\n"
     "   - Bottom right: a torn yellow note saying 'DURATION 3 MIN' (or '[INSERT DURATION HERE]').\n"
     "3. For TRANSFORMATIONS:\n"

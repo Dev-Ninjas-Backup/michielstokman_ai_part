@@ -863,7 +863,8 @@ def build_portrait_only_prompt(story: Story, *, use_llm_brief: bool = True) -> s
 
     The HTML cover_template owns all collage text/badges/layout. OpenAI Images only
     produces the person photograph for the tear-hole. Confession vs meditation
-    energy and TTL LOOK/anti-AI are applied from brand constants.
+    energy and TTL LOOK/anti-AI are applied from brand constants — both types now
+    render warm, full-color portraits (confession golden-hour, meditation amber-olive).
     """
     from app.model.story import StoryType
     from app.utils.prompts import (
@@ -876,16 +877,16 @@ def build_portrait_only_prompt(story: Story, *, use_llm_brief: bool = True) -> s
         MEDITATION_COVER_ANTI_AI_LOOK,
         MEDITATION_COVER_BRAND_COLLECTION,
         MEDITATION_COVER_ENERGY,
-        MEDITATION_COVER_PHOTOGRAPHY_LOOK,
-        MEDITATION_COVER_PHOTOGRAPHY_PORTRAIT_CLOSING,
+        MEDITATION_COVER_PHOTOGRAPHY_LOOK_V2,
+        MEDITATION_COVER_PHOTOGRAPHY_PORTRAIT_CLOSING_V2,
         MEDITATION_COVER_PORTRAIT_ENVIRONMENT,
     )
 
     is_meditation = story.story_type == StoryType.meditation
     if is_meditation:
         energy = MEDITATION_COVER_ENERGY
-        look = MEDITATION_COVER_PHOTOGRAPHY_LOOK
-        closing = MEDITATION_COVER_PHOTOGRAPHY_PORTRAIT_CLOSING
+        look = MEDITATION_COVER_PHOTOGRAPHY_LOOK_V2
+        closing = MEDITATION_COVER_PHOTOGRAPHY_PORTRAIT_CLOSING_V2
         environment = MEDITATION_COVER_PORTRAIT_ENVIRONMENT
         brand = MEDITATION_COVER_BRAND_COLLECTION
         anti_ai = MEDITATION_COVER_ANTI_AI_LOOK
