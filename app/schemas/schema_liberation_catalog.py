@@ -7,7 +7,7 @@ from datetime import datetime
 from typing import Optional
 from uuid import UUID
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 # ── Day theme (used inside requests and responses) ──────────────────────────
@@ -20,14 +20,13 @@ class DayDefinitionInput(BaseModel):
     image_url: Optional[str] = Field(None, description="Image URL or local fallback path for this day")
 
 class DayThemeItem(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     day_number: int
     day_theme: str
     exercise_text: Optional[str] = None
     why_text: Optional[str] = None
     image_url: Optional[str] = None
-
-    class Config:
-        from_attributes = True
 
 
 # ── Requests ────────────────────────────────────────────────────────────────
@@ -38,7 +37,7 @@ class CreateLiberationRequest(BaseModel):
     The caller only needs to provide the journey blueprint;
     the route decides if it is auto-approved (admin) or pending (user).
     """
-    title: str = Field(..., min_length=3, max_length=300, example="The Path to Inner Peace")
+    title: str = Field(..., min_length=3, max_length=300, json_schema_extra={"example": "The Path to Inner Peace"})
     description: Optional[str] = Field(None, max_length=5000)
     price_cents: int = Field(default=4700, ge=0)
     price: Optional[float] = Field(None, description="Human readable price (e.g. 47.00)")
@@ -85,6 +84,8 @@ class SetLiberationActiveRequest(BaseModel):
 
 
 class LiberationDefinitionResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: UUID
     journey_code: str
     title: str
@@ -104,9 +105,6 @@ class LiberationDefinitionResponse(BaseModel):
     setup_instructions: list[str] = []
     has_access: bool = False
     days: list[DayThemeItem] = []
-
-    class Config:
-        from_attributes = True
 
 
 from app.schemas.schema_system import PaginationMeta

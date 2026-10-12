@@ -7,22 +7,23 @@ from datetime import datetime
 from typing import Optional
 from uuid import UUID
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 # ── Step detail (used inside responses) ─────────────────────────────────────
 
 class StepSummary(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     day_number: int
     day_theme: str
     status: str  # "locked" | "available" | "completed"
     completed_at: Optional[datetime] = None
 
-    class Config:
-        from_attributes = True
-
 
 class StepDetail(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     day_number: int
     day_theme: str
     status: str
@@ -36,13 +37,12 @@ class StepDetail(BaseModel):
     completed_at: Optional[datetime] = None
     image_url: Optional[str] = None
 
-    class Config:
-        from_attributes = True
-
 
 # ── Journey status response ────────────────────────────────────────────────
 
 class JourneyStatusResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     journey_id: UUID
     journey_code: str
     status: str  # "active" | "completed" | "abandoned"
@@ -50,17 +50,14 @@ class JourneyStatusResponse(BaseModel):
     current_day: int  # highest available day
     steps: list[StepSummary]
 
-    class Config:
-        from_attributes = True
-
 
 # ── Requests ────────────────────────────────────────────────────────────────
 
 class EnrollJourneyRequest(BaseModel):
     """Payload to enroll in a journey with customizable day counts and reminder time."""
-    journey_code: str = Field(..., example="vitality")
+    journey_code: str = Field(..., json_schema_extra={"example": "vitality"})
     total_days: int = Field(default=7, ge=1, le=100)
-    reminder_preference: Optional[str] = Field(None, example="7:30")
+    reminder_preference: Optional[str] = Field(None, json_schema_extra={"example": "7:30"})
 
 
 class DayCheckinRequest(BaseModel):
