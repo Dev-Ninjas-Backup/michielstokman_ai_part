@@ -11,9 +11,6 @@ from app.model.profile import UserProfile
 from app.model.billing import UserSubscription, SubscriptionPlan, PaymentTransaction
 from app.model.credit import UserCredit
 from app.model.feedback import StoryFeedback
-from app.model.guest_session import GuestSession
-from app.model.liberation import LiberationJourney, TransformationStep, UserStepProgress
-from app.model.cover_image import CoverImage
 from app.core.db import SessionLocal
 from app.model.story import Story, StoryType, GenerationStatus, ModerationStatus
 from app.core.llm import generate_voice_elevenlabs, save_audio
@@ -83,16 +80,16 @@ def main():
             print(f"Sample: {s['story_text'][:150]}...")
             
             # Generate Audio
-            print("Generating voice audio via ElevenLabs...")
-            audio_bytes = generate_voice_elevenlabs(text=s['story_text'], voice_id=s['voice_name'])
-            
-            print("Saving audio file...")
-            audio_path = save_audio(audio_bytes)
-            print(f"Audio path: {audio_path}")
-            
-            # Calculate duration
-            duration = int(get_mp3_duration(audio_bytes))
-            print(f"Audio duration: {duration} seconds")
+            try:
+                print("Generating voice audio via ElevenLabs...")
+                audio_bytes = generate_voice_elevenlabs(text=s['story_text'], voice_id=s['voice_name'])
+                audio_path = save_audio(audio_bytes)
+                duration = int(get_mp3_duration(audio_bytes))
+                print(f"Audio saved: {audio_path} ({duration}s)")
+            except Exception as audio_err:
+                print(f"Warning: Audio generation skipped/failed ({audio_err}). Using default audio placeholder.")
+                audio_path = "media/audio/seed_confession_sample.mp3"
+                duration = 180
             
             # Seed social metrics
             views = random.randint(150, 450)
