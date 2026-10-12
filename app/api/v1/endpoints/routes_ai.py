@@ -44,6 +44,7 @@ router = APIRouter()
 async def ai_search(
     query: str = Query(None, alias="q", description="The user's query about how they feel"),
     q: str = Query(None, description="Alias: same as 'query' — the user's query"),
+    db: Session = Depends(get_db),
     _: None = Depends(rate_limit_public_ai),
 ):
     """
@@ -54,7 +55,7 @@ async def ai_search(
     if not search_query:
         raise HTTPException(status_code=422, detail="Query parameter 'q' is required")
     try:
-        result = AIService.search_tracks(search_query)
+        result = AIService.search_tracks(search_query, db=db)
         return success_response("Track search completed", status.HTTP_200_OK, result)
     except Exception as e:
         raise HTTPException(status_code=503, detail=f"AI search unavailable: {str(e)[:100]}")

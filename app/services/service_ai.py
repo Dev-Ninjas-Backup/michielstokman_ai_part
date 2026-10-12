@@ -11,6 +11,7 @@ import logging
 import re
 from typing import Optional, Tuple, Dict, Any
 import json
+from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
 
@@ -63,13 +64,85 @@ class AIService:
     # --- Track Search -------------------------------------------------------
 
     @staticmethod
-    def search_tracks(query: str) -> SearchResult:
+    def _resolve_emotional_fallback(query: str, db: Optional[Session] = None) -> list[str]:
         """
-        Business logic: Connect to Pinecone and embed the query using xAI.
-        Retrieves the top 5 most relevant liberation definitions (tracks).
+        Provides intelligent emotional keyword fallback when Pinecone has no vectors or is offline.
+        """
+        matched_ids: list[str] = []
+        if db is not None:
+            try:
+                from app.model.story import Story, GenerationStatus, ModerationStatus
+                from app.model.liberation import LiberationDefinition, DefinitionStatus
+                from sqlalchemy import or_
+
+                words = [
+                    w.lower().strip(".,!?;:\"'")
+                    for w in (query or "").split()
+                    if len(w) > 3 and w.lower() not in {"this", "that", "with", "from", "your", "what", "find", "feel", "seeking"}
+                ]
+                if words:
+                    story_filters = []
+                    for w in words:
+                        story_filters.append(Story.title.ilike(f"%{w}%"))
+                        story_filters.append(Story.life_phase.ilike(f"%{w}%"))
+
+                    stories = (
+                        db.query(Story)
+                        .filter(Story.generation_status == GenerationStatus.completed)
+                        .filter(Story.moderation_status == ModerationStatus.approved)
+                        .filter(or_(*story_filters))
+                        .limit(5)
+                        .all()
+                    )
+                    for s in stories:
+                        sid = str(s.id)
+                        if sid not in matched_ids:
+                            matched_ids.append(sid)
+
+                    if len(matched_ids) < 5:
+                        lib_filters = [LiberationDefinition.title.ilike(f"%{w}%") for w in words]
+                        libs = (
+                            db.query(LiberationDefinition)
+                            .filter(LiberationDefinition.moderation_status == DefinitionStatus.approved)
+                            .filter(LiberationDefinition.is_active.is_(True))
+                            .filter(or_(*lib_filters))
+                            .limit(5)
+                            .all()
+                        )
+                        for l in libs:
+                            lid = str(l.journey_code or l.id)
+                            if lid not in matched_ids:
+                                matched_ids.append(lid)
+
+                # If still empty, return newest approved stories from DB
+                if not matched_ids:
+                    general_stories = (
+                        db.query(Story)
+                        .filter(Story.generation_status == GenerationStatus.completed)
+                        .filter(Story.moderation_status == ModerationStatus.approved)
+                        .order_by(Story.created_at.desc())
+                        .limit(5)
+                        .all()
+                    )
+                    for s in general_stories:
+                        sid = str(s.id)
+                        if sid not in matched_ids:
+                            matched_ids.append(sid)
+            except Exception as e:
+                logger.warning(f"Database emotional search fallback encountered error: {e}")
+
+        return matched_ids
+
+    @staticmethod
+    def search_tracks(query: str, db: Optional[Session] = None) -> SearchResult:
+        """
+        Takes a natural language query describing how the user feels and returns
+        the top matching story/track IDs using vector similarity in Pinecone,
+        with intelligent fallback for empty indexes or offline providers.
         """
         from app.services.service_rag import _get_embeddings, _get_pinecone_index
         
+        track_ids: list[str] = []
         try:
             embeddings_client = _get_embeddings()
             index = _get_pinecone_index()
@@ -77,31 +150,33 @@ class AIService:
             # Embed the natural language query
             query_vector = embeddings_client.embed_query(query)
 
-            # Query Pinecone for 'track' doc_types
+            # Query Pinecone across both tracks and stories (no restrictive doc_type filter)
             response = index.query(
                 vector=query_vector,
-                top_k=5,
+                top_k=8,
                 include_metadata=True,
-                filter={"doc_type": {"$eq": "track"}}
             )
 
-            # Extract track_ids (journey_codes or IDs) from metadata
-            # The frontend expects strings, we use the journey_code for better readability if available, 
-            # or the UUID string.
-            track_ids = []
             for match in response.get("matches", []):
                 meta = match.get("metadata", {})
-                # Use journey_code if present, else fallback to track_id (UUID)
-                t_id = meta.get("journey_code") or meta.get("track_id")
-                if t_id:
-                    track_ids.append(t_id)
-
-            return SearchResult(track_ids=track_ids)
+                t_id = (
+                    meta.get("story_id")
+                    or meta.get("track_id")
+                    or meta.get("journey_code")
+                )
+                if t_id and str(t_id) not in track_ids:
+                    track_ids.append(str(t_id))
 
         except Exception as e:
-            logger.error(f"Track search failed: {e}", exc_info=True)
-            # Fallback to empty list or some default tracks if needed
-            return SearchResult(track_ids=[])
+            logger.warning(f"Vector search failed or index offline: {e}")
+
+        # If vector search returned matches, return them
+        if track_ids:
+            return SearchResult(track_ids=track_ids[:5])
+
+        # Otherwise, fall back to resonant keywords from DB or catalog items
+        fallback_ids = AIService._resolve_emotional_fallback(query, db)
+        return SearchResult(track_ids=fallback_ids)
 
     # --- Resonance Question -------------------------------------------------
 

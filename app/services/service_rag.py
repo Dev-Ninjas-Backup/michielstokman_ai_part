@@ -39,26 +39,71 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
-EMBEDDING_MODEL = "grok-embedding-small"     # xAI embedding model name
-EMBEDDING_DIMENSION = 1024                   # xAI default embedding dimension
+EMBEDDING_MODEL = "multilingual-e5-large"     # Pinecone native inference model
+EMBEDDING_DIMENSION = 1024                   # Pinecone default embedding dimension (1024)
 PINECONE_METRIC = "cosine"
 TOP_K = 5
-
 
 
 # ---------------------------------------------------------------------------
 # Embedding helpers
 # ---------------------------------------------------------------------------
 
-def _get_embeddings() -> OpenAIEmbeddings:
-    """Returns an xAI-compatible embedding client via langchain_openai."""
-    if not settings.XAI_API_KEY:
-        raise ValueError("XAI_API_KEY is missing. Add it to your .env file.")
-    return OpenAIEmbeddings(
-        model=EMBEDDING_MODEL,
-        openai_api_key=settings.XAI_API_KEY,
-        openai_api_base="https://api.x.ai/v1",
-    )
+class PineconeInferenceEmbeddings:
+    """
+    Native Pinecone serverless inference embeddings client (1024-dim, cosine).
+    Compatible with LangChain's embed_query and embed_documents interface.
+    """
+    def __init__(self, api_key: str, model: str = EMBEDDING_MODEL):
+        self.pc = Pinecone(api_key=api_key)
+        self.model = model
+
+    def embed_query(self, text: str) -> list[float]:
+        clean_text = (text or "").strip() or "story"
+        res = self.pc.inference.embed(
+            model=self.model,
+            inputs=[clean_text],
+            parameters={"input_type": "query", "truncate": "END"},
+        )
+        return res[0].values
+
+    def embed_documents(self, texts: list[str]) -> list[list[float]]:
+        if not texts:
+            return []
+        cleaned = [(t or "").strip() or "story" for t in texts]
+        batch_size = 96
+        all_vecs = []
+        for i in range(0, len(cleaned), batch_size):
+            chunk = cleaned[i : i + batch_size]
+            res = self.pc.inference.embed(
+                model=self.model,
+                inputs=chunk,
+                parameters={"input_type": "passage", "truncate": "END"},
+            )
+            all_vecs.extend([r.values for r in res])
+        return all_vecs
+
+
+def _get_embeddings():
+    """
+    Returns an embedding client.
+    Prefers native Pinecone serverless inference (multilingual-e5-large, 1024-dim).
+    Falls back to xAI/OpenAI if configured.
+    """
+    if settings.PINECONE_API_KEY:
+        try:
+            return PineconeInferenceEmbeddings(api_key=settings.PINECONE_API_KEY)
+        except Exception as e:
+            logger.warning(f"Pinecone inference embeddings unavailable, attempting xAI fallback: {e}")
+
+    if settings.XAI_API_KEY:
+        return OpenAIEmbeddings(
+            model="grok-embedding-small",
+            openai_api_key=settings.XAI_API_KEY,
+            openai_api_base="https://api.x.ai/v1",
+        )
+
+    raise ValueError("No vector embedding provider available. PINECONE_API_KEY is missing.")
 
 
 def _get_pinecone_index():
