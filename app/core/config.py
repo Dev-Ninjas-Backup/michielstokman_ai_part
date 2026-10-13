@@ -40,7 +40,7 @@ class Settings:
         # Voice ID — Sophia by default (client preferred female voice)
         # Find other voice IDs at: https://elevenlabs.io/voice-library
         self.ELEVENLABS_VOICE_ID: str = os.getenv("ELEVENLABS_VOICE_ID", "u8ADrbquiJqufR9XMtb8")
-        # TTS model — eleven_multilingual_v2 for emotional storytelling fidelity & intimacy
+        # TTS model — eleven_turbo_v2_5 is recommended for speed and long-form (40k char limit)
         self.ELEVENLABS_MODEL_ID: str = os.getenv("ELEVENLABS_MODEL_ID", "eleven_multilingual_v2")
         # Voice stability (0.0-1.0): higher = more consistent, warmer delivery
         self.ELEVENLABS_STABILITY: float = float(os.getenv("ELEVENLABS_STABILITY", "0.65"))
@@ -48,8 +48,8 @@ class Settings:
         self.ELEVENLABS_SIMILARITY_BOOST: float = float(os.getenv("ELEVENLABS_SIMILARITY_BOOST", "0.80"))
         # Style (0.0-1.0): subtle stylistic variation
         self.ELEVENLABS_STYLE: float = float(os.getenv("ELEVENLABS_STYLE", "0.30"))
-        # TTS Pipeline V2 model ID (defaults to ELEVENLABS_MODEL_ID for emotional storytelling fidelity)
-        self.TTS_V2_MODEL_ID: str = os.getenv("TTS_V2_MODEL_ID", self.ELEVENLABS_MODEL_ID)
+        # TTS Pipeline V2 model ID (defaults to eleven_turbo_v2_5 for native request-id chaining and voice stability)
+        self.TTS_V2_MODEL_ID: str = os.getenv("TTS_V2_MODEL_ID", "eleven_turbo_v2_5")
         # TTS Pipeline V2 feature flag (default False for backward-compatibility)
         self.TTS_PIPELINE_V2: bool = os.getenv("TTS_PIPELINE_V2", "false").strip().lower() in ("true", "1", "yes", "on")
         # TTS Smooth Audio feature flag (default False, active only inside V2 pipeline)
