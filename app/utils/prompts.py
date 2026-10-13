@@ -428,7 +428,7 @@ Top right: "{category_upper}" as a distinctive, original hand-lettered brush wor
 MAIN TITLE
 Large headline on the left:
 "{title}"
-- {accent_color_title_desc} ({accent_color_hex}), bold textured dry-brush marker uppercase lettering slanted dynamically upward (~10-15 degrees) across 1-2 lines. Prominent and easy to read at a glance.
+- {accent_color_title_desc} ({accent_color_hex}), bold textured dry-brush marker uppercase lettering slanted dynamically upward (~10-15 degrees) across 1-2 lines. Prominent and easy to read at a glance. STRICTLY RENDER ONLY "{title}" — do NOT append any trailing hyphens, dashes, or punctuation.
 
 SHORT STORY INTRODUCTION
 Directly below the title, use ONLY this short text:

@@ -2046,6 +2046,50 @@ def _format_v2_cover_body_text(body: str, max_words: int = 14) -> str:
     return f"{cleaned}."
 
 
+def _format_v2_cover_title(raw_title: str, max_words: int = 6) -> str:
+    """Format short story title headline for V2 cover cards.
+
+    Guarantees:
+    - When a title contains a hyphen, dash, or colon separating a main title and
+      subtitle (e.g. 'Just Do It – The Cut I Chose for Myself'), only the primary
+      headline phrase before the hyphen/dash is added to the cover card ('Just Do It').
+    - The hyphen or dash is NEVER added to the cover card.
+    - Strips all leading and trailing hyphens, dashes, colons, spaces, and punctuation.
+    - If truncated by word limit, strips dangling prepositions or conjunctions.
+    """
+    from app.utils.story_cover import _cleanup_truncated_phrase
+
+    raw = (raw_title or "").replace('"', '').replace('“', '').replace('”', '').strip()
+    if not raw:
+        return "Untitled"
+
+    # If the title contains a hyphen/dash or colon separating main title and subtitle
+    sep_pattern = r'\s+[-–—]\s*|\s*[-–—]\s+|\s*–\s*|\s*—\s*|\s*:\s*'
+    parts = re.split(sep_pattern, raw)
+    if parts and parts[0].strip():
+        first_clause = parts[0].strip()
+    else:
+        first_clause = raw
+
+    # Strip any leading or trailing hyphens, dashes, colons, or punctuation
+    cleaned = re.sub(r'[\s\-–—:;,.]+$', '', first_clause).strip()
+    cleaned = re.sub(r'^[\s\-–—:;,.]+', '', cleaned).strip()
+    if not cleaned:
+        return "Untitled"
+
+    words = cleaned.split()
+    if len(words) <= max_words:
+        return cleaned
+
+    # If first clause exceeds max_words, safely slice and clean dangling function words
+    cand = " ".join(words[:max_words])
+    trimmed = _cleanup_truncated_phrase(cand)
+    if not trimmed:
+        trimmed = cand
+    final_title = re.sub(r'[\s\-–—:;,.]+$', '', trimmed).strip()
+    return final_title or "Untitled"
+
+
 def build_v2_cover_prompt(
     story: Story,
     *,
@@ -2100,10 +2144,7 @@ def build_v2_cover_prompt(
         accent_color_title_desc = "Raspberry pink"
 
     raw_title = (story.title or story.member_title or getattr(story, "ai_generated_title", None) or "Untitled").strip()
-    title = raw_title.replace('"', '').replace('“', '').replace('”', '').strip() or "Untitled"
-    title_words = title.split()
-    if len(title_words) > 4:
-        title = " ".join(title_words[:4])
+    title = _format_v2_cover_title(raw_title)
 
     hook = (getattr(story, "hero_hook", None) or "").strip()
     if hook:

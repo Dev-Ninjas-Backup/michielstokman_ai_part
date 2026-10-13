@@ -1351,6 +1351,49 @@ def test_format_v2_cover_body_text_prevents_incomplete_sentences():
     assert _format_v2_cover_body_text(raw_clause) == "The terrace at Cova Santa smelled of pine and warm stone."
 
 
+def test_format_v2_cover_title_excludes_hyphen_and_subtitle():
+    from app.utils.story_image_prompt import _format_v2_cover_title, build_v2_cover_prompt
+
+    # 1. Title with en-dash and subtitle (the user's exact story case)
+    assert _format_v2_cover_title("Just Do It – The Cut I Chose for Myself") == "Just Do It"
+
+    # 2. Title with regular hyphen and subtitle
+    assert _format_v2_cover_title("Just Do It - The Cut I Chose for Myself") == "Just Do It"
+
+    # 3. Title with em-dash and subtitle
+    assert _format_v2_cover_title("Just Do It — The Cut I Chose for Myself") == "Just Do It"
+
+    # 4. Title with colon and subtitle
+    assert _format_v2_cover_title("Just Do It: The Cut I Chose for Myself") == "Just Do It"
+
+    # 5. Trailing hyphen/dash stripped cleanly
+    assert _format_v2_cover_title("Just Do It -") == "Just Do It"
+    assert _format_v2_cover_title("Just Do It-") == "Just Do It"
+    assert _format_v2_cover_title("Just Do It –") == "Just Do It"
+
+    # 6. Compound word within title preserved intact without trailing hyphen
+    assert _format_v2_cover_title("Self-Love in Berlin") == "Self-Love in Berlin"
+
+    # 7. Standard title without hyphen preserved
+    assert _format_v2_cover_title("Two Men and Nia") == "Two Men and Nia"
+
+    # 8. build_v2_cover_prompt integration: ensures prompt gets 'Just Do It' and never a hyphen
+    story = _story(
+        story_type=StoryType.confession,
+        title="Just Do It – The Cut I Chose for Myself",
+        hero_hook="I stand barefoot in our Kreuzberg bathroom at six in the morning.",
+        city="Stockholm",
+        country="Sweden",
+        first_name="Grey",
+    )
+    prompt = build_v2_cover_prompt(story, use_llm_scene=False)
+    assert '"Just Do It"' in prompt
+    assert '"Just Do It -"' not in prompt
+    assert '"Just Do It –"' not in prompt
+    assert '"Just Do It-"' not in prompt
+    assert 'STRICTLY RENDER ONLY "Just Do It"' in prompt
+
+
 def test_build_v2_cover_prompt_heuristic_fallback():
     from app.utils.story_image_prompt import build_v2_cover_prompt
 
