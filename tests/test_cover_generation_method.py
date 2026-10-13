@@ -1327,6 +1327,30 @@ def test_build_v2_cover_prompt_matches_client_specification_exactly():
     assert "CRITICAL TEXT LIMITATION" in prompt
 
 
+def test_format_v2_cover_body_text_prevents_incomplete_sentences():
+    from app.utils.story_image_prompt import _format_v2_cover_body_text
+
+    # 1. Complete sentence of 11 words (previously chopped to '...pine and.')
+    raw = "The terrace at Cova Santa smelled of pine and warm stone. We sat together."
+    formatted = _format_v2_cover_body_text(raw)
+    assert formatted == "The terrace at Cova Santa smelled of pine and warm stone."
+    assert not formatted.endswith("and.")
+
+    # 2. Dangling conjunction at arbitrary boundary gets cleanly stripped
+    raw_dangling = "The terrace at Cova Santa smelled of pine and"
+    formatted_dangling = _format_v2_cover_body_text(raw_dangling)
+    assert formatted_dangling == "The terrace at Cova Santa smelled of pine."
+    assert not formatted_dangling.endswith("and.")
+
+    # 3. Short hook preserved intact
+    raw_short = "They took a little GHB in Bacardi cola."
+    assert _format_v2_cover_body_text(raw_short) == "They took a little GHB in Bacardi cola."
+
+    # 4. Long run-on with clause break uses the clean complete clause
+    raw_clause = "The terrace at Cova Santa smelled of pine and warm stone, while the music played until dawn."
+    assert _format_v2_cover_body_text(raw_clause) == "The terrace at Cova Santa smelled of pine and warm stone."
+
+
 def test_build_v2_cover_prompt_heuristic_fallback():
     from app.utils.story_image_prompt import build_v2_cover_prompt
 
