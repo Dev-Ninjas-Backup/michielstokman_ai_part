@@ -1830,7 +1830,7 @@ def test_voice_tuning_profile_overrides():
     assert anja_prof.stability == 0.52
     assert anja_prof.similarity_boost == 0.86
     assert anja_prof.style == 0.42
-    assert anja_prof.speed == 1.02
+    assert anja_prof.speed == 0.96
 
     anja_id_prof = get_tts_profile("transformation", voice_id="ytIo1w3M21piPjpR44FO")
     assert anja_id_prof.stability == 0.52
@@ -1891,7 +1891,7 @@ def test_voice_tuning_in_elevenlabs_v2_generation(monkeypatch):
                 assert sent_body["voice_settings"]["stability"] == 0.52
                 assert sent_body["voice_settings"]["similarity_boost"] == 0.86
                 assert sent_body["voice_settings"]["style"] == 0.42
-                assert sent_body["voice_settings"]["speed"] == 1.02
+                assert sent_body["voice_settings"]["speed"] == 0.96
 
 
 def test_chunk_volume_balancing():

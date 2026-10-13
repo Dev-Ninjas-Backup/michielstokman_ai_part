@@ -1991,6 +1991,61 @@ def build_v2_photograph_description(
     return _sanitize_v2_scene_text(_heuristic_v2_photograph_description(story))
 
 
+def _format_v2_cover_body_text(body: str, max_words: int = 14) -> str:
+    """Format short story introduction text for V2 cover cards.
+
+    Guarantees a complete, grammatically sound sentence that makes sense:
+    - Never chops a complete sentence under max_words into an incomplete fragment.
+    - Never leaves dangling conjunctions, prepositions, or articles ('and.', 'of.', etc.).
+    - Extracts the first complete sentence ending in . ! or ? when available.
+    - If a sentence exceeds max_words, cleanly breaks at an early clause boundary
+      or safely truncates without dangling function words.
+    """
+    from app.utils.story_cover import _cleanup_truncated_phrase
+
+    raw = (body or "").replace('"', "'").replace('“', "'").replace('”', "'").strip()
+    if not raw:
+        return "A confession about shame, desire and finally choosing me."
+
+    norm = re.sub(r'\.{2,}', '…', raw)
+
+    # Extract the first complete sentence ending with . ! or ?
+    match = re.search(r'^(.+?[.!?])(?:\s|$)', norm)
+    if match:
+        first_sent = match.group(1).strip().replace('…', '...')
+    else:
+        first_sent = norm.replace('…', '...').strip()
+
+    words = first_sent.split()
+    if not words:
+        return "A confession about shame, desire and finally choosing me."
+
+    # If the first sentence is within limits (up to max_words and reasonable char length),
+    # keep the entire sentence intact!
+    if len(words) <= max_words and len(first_sent) <= 90:
+        cleaned = _cleanup_truncated_phrase(first_sent.rstrip(".!?").strip())
+        punct = first_sent[-1] if first_sent[-1] in (".", "!", "?") else "."
+        return f"{cleaned}{punct}" if cleaned else first_sent
+
+    # If first sentence is longer than max_words, check for a clause break (comma, semicolon, dash)
+    # between word 5 and max_words:
+    clause_match = re.search(r'^(.{15,85}?)[,;—–]\s', first_sent)
+    if clause_match:
+        clause_cand = clause_match.group(1).strip()
+        clause_words = clause_cand.split()
+        if 5 <= len(clause_words) <= max_words:
+            cleaned_clause = _cleanup_truncated_phrase(clause_cand)
+            if cleaned_clause:
+                return f"{cleaned_clause}."
+
+    # Otherwise take up to max_words and strip any dangling function words
+    cand = " ".join(words[:max_words]).rstrip(",;:—–-")
+    cleaned = _cleanup_truncated_phrase(cand)
+    if not cleaned:
+        cleaned = " ".join(words[:max_words]).rstrip(",;:—–-")
+    return f"{cleaned}."
+
+
 def build_v2_cover_prompt(
     story: Story,
     *,
@@ -2055,17 +2110,7 @@ def build_v2_cover_prompt(
         body = hook
     else:
         body = _description_for_story(story)
-    body_text = body.replace('"', "'").replace('“', "'").replace('”', "'").strip()
-    norm_text = re.sub(r'\.{2,}', '…', body_text)
-    if "." in norm_text:
-        first_sentence = norm_text.split(".")[0].strip() + "."
-        if len(first_sentence) > 5:
-            body_text = first_sentence.replace('…', '...')
-    words = body_text.split()
-    if len(words) > 10:
-        body_text = " ".join(words[:9]).rstrip(",;:") + "."
-    if body_text and not body_text.endswith((".", "!", "?")):
-        body_text += "."
+    body_text = _format_v2_cover_body_text(body)
 
     city, country = _split_location(story)
     if city and country:

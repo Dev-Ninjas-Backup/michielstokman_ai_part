@@ -106,7 +106,7 @@ VOICE_TUNING_OVERRIDES = {
         "style_meditation": 0.15,
     },
     "anja": {
-        "speed": 1.02,
+        "speed": 0.96,
         "speed_meditation": 0.92,
         "stability": 0.52,
         "stability_meditation": 0.58,
