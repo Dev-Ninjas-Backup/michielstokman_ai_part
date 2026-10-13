@@ -248,9 +248,9 @@ VOICE_OPTIMIZATION = {
         "transformation": {"stability": 0.55, "similarity_boost": 0.85, "style": 0.18, "speed": 1.00},
     },
     "Anja": {
-        "confession": {"stability": 0.52, "similarity_boost": 0.86, "style": 0.42, "speed": 1.02},
+        "confession": {"stability": 0.52, "similarity_boost": 0.86, "style": 0.42, "speed": 0.96},
         "meditation": {"stability": 0.58, "similarity_boost": 0.86, "style": 0.35, "speed": 0.92},
-        "transformation": {"stability": 0.52, "similarity_boost": 0.86, "style": 0.42, "speed": 1.02},
+        "transformation": {"stability": 0.52, "similarity_boost": 0.86, "style": 0.42, "speed": 0.96},
     }
 }
 
