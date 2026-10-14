@@ -77,22 +77,24 @@ class AIService:
             # Embed the natural language query
             query_vector = embeddings_client.embed_query(query)
 
-            # Query Pinecone for 'track' doc_types
+            # Query Pinecone for the most resonant recommendations
             response = index.query(
                 vector=query_vector,
                 top_k=5,
                 include_metadata=True,
-                filter={"doc_type": {"$eq": "track"}}
             )
 
-            # Extract track_ids (journey_codes or IDs) from metadata
-            # The frontend expects strings, we use the journey_code for better readability if available, 
-            # or the UUID string.
+            # Extract track_ids / story_ids from metadata
+            # The frontend expects strings: journey_code, track_id, story_id, or match ID
             track_ids = []
             for match in response.get("matches", []):
                 meta = match.get("metadata", {})
-                # Use journey_code if present, else fallback to track_id (UUID)
-                t_id = meta.get("journey_code") or meta.get("track_id")
+                t_id = (
+                    meta.get("journey_code")
+                    or meta.get("track_id")
+                    or meta.get("story_id")
+                    or match.get("id")
+                )
                 if t_id:
                     track_ids.append(t_id)
 
