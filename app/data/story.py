@@ -184,13 +184,26 @@ def get_story_by_id(db: Session, story_id: str) -> Optional[Story]:
         "story-136-jonas": "Contact with the Trees",
         "story-201-desiree": "Growing Toward the Light",
         "story-204-jasna": "The First Time We Shared",
-        "story-028-lars": "The Night She Took the Lead",
+        "story-028-lars": "Two Men and Nia",
     }
     target_title = SLUG_TITLE_MAP.get(story_id)
     if target_title:
         story = db.query(Story).filter(Story.title.ilike(f"%{target_title}%")).first()
         if story:
             return story
+
+    # Author token fallback (e.g. "lars" -> Lars's active story "Two Men and Nia")
+    story_id_lower = story_id.lower()
+    for token in ["lars", "grey", "elena", "tony", "jack", "emma", "jonas", "desiree", "jasna", "joanna"]:
+        if token in story_id_lower:
+            story = (
+                db.query(Story)
+                .filter(Story.first_name.ilike(f"%{token}%"))
+                .filter(Story.audio_path.isnot(None))
+                .first()
+            )
+            if story:
+                return story
 
     # Generic search by clean title or first name
     clean = story_id.replace("story-", "").replace("-", " ")
