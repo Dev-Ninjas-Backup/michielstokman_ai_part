@@ -115,7 +115,7 @@ from app.schemas.schema_system import PaginationMeta
 class LiberationCatalogListResponse(BaseModel):
     definitions: list[LiberationDefinitionResponse]
     total: int
-    meta: PaginationMeta
+    meta: Optional[PaginationMeta] = None
 
 
 

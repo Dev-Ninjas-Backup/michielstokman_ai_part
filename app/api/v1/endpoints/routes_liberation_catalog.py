@@ -17,6 +17,7 @@ from app.data import liberation_catalog as catalog_data
 from app.data.billing import check_user_has_plan_code
 from app.data.cover_image import get_latest_active_image_url
 from app.model.cover_image import CoverImageType
+from app.schemas.schema_system import PaginationMeta
 from app.schemas.schema_liberation_catalog import (
     CreateLiberationRequest,
     LiberationDefinitionResponse,
@@ -53,25 +54,28 @@ def list_catalog(
     items = []
     for d in definitions:
         cover_img = d.cover_image_url or fallback_cover
+        status_val = d.moderation_status.value if hasattr(d.moderation_status, "value") else str(d.moderation_status or "approved")
+        price_val = (d.price_cents / 100.0) if d.price_cents is not None else 0.0
+        
         items.append(
             LiberationDefinitionResponse(
                 id=d.id,
                 journey_code=d.journey_code,
                 title=d.title,
                 description=d.description,
-                total_days=d.total_days,
-                price_cents=d.price_cents,
-                price=d.price_cents / 100.0,
-                currency=d.currency,
-                is_admin_created=d.is_admin_created,
-                moderation_status=d.moderation_status.value,
+                total_days=d.total_days or 7,
+                price_cents=d.price_cents or 0,
+                price=price_val,
+                currency=d.currency or "EUR",
+                is_admin_created=bool(d.is_admin_created),
+                moderation_status=status_val,
                 moderation_notes=d.moderation_notes,
-                is_active=d.is_active,
+                is_active=bool(d.is_active),
                 created_at=d.created_at,
                 cover_image_url=format_media_url(cover_img),
                 rating=d.rating,
-                what_to_expect=d.what_to_expect or [],
-                setup_instructions=d.setup_instructions or [],
+                what_to_expect=d.what_to_expect if isinstance(d.what_to_expect, list) else [],
+                setup_instructions=d.setup_instructions if isinstance(d.setup_instructions, list) else [],
                 has_access=check_user_has_plan_code(db, current_user.id, f"journey_{d.journey_code}") if current_user else False,
                 days=[
                     DayThemeItem(
@@ -81,11 +85,21 @@ def list_catalog(
                         why_text=dd.why_text,
                         image_url=format_media_url(dd.image_url),
                     )
-                    for dd in d.day_definitions
+                    for dd in (d.day_definitions or [])
                 ],
             )
         )
-    result = LiberationCatalogListResponse(definitions=items, total=len(items))
+    
+    page = (offset // limit) + 1 if limit > 0 else 1
+    total_count = len(items)
+    total_pages = (total_count + limit - 1) // limit if limit > 0 else 1
+    meta = PaginationMeta(
+        total=total_count,
+        page=page,
+        limit=limit,
+        totalPages=total_pages,
+    )
+    result = LiberationCatalogListResponse(definitions=items, total=total_count, meta=meta)
     return success_response("Liberation catalog fetched", status.HTTP_200_OK, result)
 
 
@@ -109,25 +123,27 @@ def get_catalog_item(
     # Get latest active cover image for transformation to use as fallback
     fallback_cover = get_latest_active_image_url(db, CoverImageType.transformation)
     cover_img = definition.cover_image_url or fallback_cover
+    status_val = definition.moderation_status.value if hasattr(definition.moderation_status, "value") else str(definition.moderation_status or "approved")
+    price_val = (definition.price_cents / 100.0) if definition.price_cents is not None else 0.0
     
     result = LiberationDefinitionResponse(
         id=definition.id,
         journey_code=definition.journey_code,
         title=definition.title,
         description=definition.description,
-        total_days=definition.total_days,
-        price_cents=definition.price_cents,
-        price=definition.price_cents / 100.0,
-        currency=definition.currency,
-        is_admin_created=definition.is_admin_created,
-        moderation_status=definition.moderation_status.value,
+        total_days=definition.total_days or 7,
+        price_cents=definition.price_cents or 0,
+        price=price_val,
+        currency=definition.currency or "EUR",
+        is_admin_created=bool(definition.is_admin_created),
+        moderation_status=status_val,
         moderation_notes=definition.moderation_notes,
-        is_active=definition.is_active,
+        is_active=bool(definition.is_active),
         created_at=definition.created_at,
         cover_image_url=format_media_url(cover_img),
         rating=definition.rating,
-        what_to_expect=definition.what_to_expect or [],
-        setup_instructions=definition.setup_instructions or [],
+        what_to_expect=definition.what_to_expect if isinstance(definition.what_to_expect, list) else [],
+        setup_instructions=definition.setup_instructions if isinstance(definition.setup_instructions, list) else [],
         has_access=check_user_has_plan_code(db, current_user.id, f"journey_{definition.journey_code}") if current_user else False,
         days=[
             DayThemeItem(
@@ -137,7 +153,7 @@ def get_catalog_item(
                 why_text=dd.why_text,
                 image_url=format_media_url(dd.image_url),
             )
-            for dd in definition.day_definitions
+            for dd in (definition.day_definitions or [])
         ],
     )
     return success_response("Liberation definition fetched", status.HTTP_200_OK, result)
