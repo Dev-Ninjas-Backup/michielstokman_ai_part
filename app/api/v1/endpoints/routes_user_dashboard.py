@@ -361,7 +361,7 @@ def get_story_detail(
             func.avg(StoryFeedback.touch_score).label("avg_resonance"),
             func.count(StoryFeedback.id).label("total_reflections"),
         )
-        .filter(StoryFeedback.story_id == story_id)
+        .filter(StoryFeedback.story_id == story.id)
         .first()
     )
 
@@ -372,7 +372,7 @@ def get_story_detail(
     # --- Top tags: flatten all resonance_tags and count the most common ---
     all_tags_rows = (
         db.query(StoryFeedback.resonance_tags)
-        .filter(StoryFeedback.story_id == story_id)
+        .filter(StoryFeedback.story_id == story.id)
         .filter(StoryFeedback.resonance_tags.isnot(None))
         .all()
     )
