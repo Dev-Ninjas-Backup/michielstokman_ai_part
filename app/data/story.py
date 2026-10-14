@@ -167,8 +167,42 @@ def get_story_by_job_id(db: Session, job_id: str) -> Optional[Story]:
 
 
 def get_story_by_id(db: Session, story_id: str) -> Optional[Story]:
-    """Fetches a Story by its UUID primary key."""
-    return db.query(Story).filter(Story.id == uuid.UUID(story_id)).first()
+    """Fetches a Story by its UUID primary key, or by title/slug fallback."""
+    if not story_id:
+        return None
+    try:
+        val = uuid.UUID(story_id)
+        story = db.query(Story).filter(Story.id == val).first()
+        if story:
+            return story
+    except (ValueError, TypeError, AttributeError):
+        pass
+
+    # Fallback for known story identifiers from Pinecone embeddings
+    SLUG_TITLE_MAP = {
+        "story-132-joanna": "Back to the Current",
+        "story-136-jonas": "Contact with the Trees",
+        "story-201-desiree": "Growing Toward the Light",
+        "story-204-jasna": "The First Time We Shared",
+        "story-028-lars": "The Night She Took the Lead",
+    }
+    target_title = SLUG_TITLE_MAP.get(story_id)
+    if target_title:
+        story = db.query(Story).filter(Story.title.ilike(f"%{target_title}%")).first()
+        if story:
+            return story
+
+    # Generic search by clean title or first name
+    clean = story_id.replace("story-", "").replace("-", " ")
+    for part in clean.split():
+        if len(part) > 3:
+            story = db.query(Story).filter(
+                (Story.title.ilike(f"%{part}%")) | (Story.first_name.ilike(f"%{part}%"))
+            ).first()
+            if story:
+                return story
+
+    return None
 
 
 def get_stories_for_user(db: Session, user_id: str, limit: int = 20) -> list[Story]:
