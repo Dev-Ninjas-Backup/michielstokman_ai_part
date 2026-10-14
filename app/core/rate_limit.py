@@ -23,6 +23,24 @@ def enforce_rate_limit(key: str, *, max_requests: int, window_seconds: int) -> N
     bucket.append(now)
 
 
+def get_client_ip(request: Request) -> str:
+    """Extract real client IP considering reverse proxy headers."""
+    forwarded = request.headers.get("x-forwarded-for")
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    cf_ip = request.headers.get("cf-connecting-ip")
+    if cf_ip:
+        return cf_ip.strip()
+    return request.client.host if request.client else "unknown"
+
+
+def rate_limit_ai_search(request: Request) -> None:
+    """Generous rate limit for semantic search: 60 queries per minute per IP."""
+    ip = get_client_ip(request)
+    enforce_rate_limit(f"ai-search:{ip}", max_requests=60, window_seconds=60)
+
+
 def rate_limit_public_ai(request: Request) -> None:
-    host = request.client.host if request.client else "unknown"
-    enforce_rate_limit(f"public-ai:{host}", max_requests=20, window_seconds=3600)
+    """Public AI rate limiter: 60 requests per 10 minutes per IP."""
+    ip = get_client_ip(request)
+    enforce_rate_limit(f"public-ai:{ip}", max_requests=60, window_seconds=600)
