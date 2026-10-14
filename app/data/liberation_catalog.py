@@ -111,6 +111,7 @@ def create_definition(
     what_to_expect: Optional[list] = None,
     setup_instructions: Optional[list] = None,
     is_active: bool = True,
+    cover_image_url: Optional[str] = None,
 ) -> LiberationDefinition:
     """
     Create a new liberation definition together with its day-theme rows.
@@ -119,6 +120,9 @@ def create_definition(
     if rating is None:
         import random
         rating = round(random.uniform(4.4, 4.9), 1)
+
+    first_day_img = next((getattr(d, "image_url", None) for d in days if getattr(d, "image_url", None)), None)
+    final_cover_img = cover_image_url or first_day_img
 
     definition = LiberationDefinition(
         journey_code=journey_code,
@@ -136,6 +140,7 @@ def create_definition(
         what_to_expect=what_to_expect,
         setup_instructions=setup_instructions,
         is_active=is_active,
+        cover_image_url=final_cover_img,
     )
     db.add(definition)
     db.flush()  # get definition.id

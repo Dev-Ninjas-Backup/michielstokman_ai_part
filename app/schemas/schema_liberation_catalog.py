@@ -47,6 +47,7 @@ class CreateLiberationRequest(BaseModel):
     rating: Optional[float] = Field(None, ge=0, le=5, description="Journey rating shown on the card")
     what_to_expect: Optional[list[str]] = Field(None, description="Bullet points for 'What to Expect' section")
     setup_instructions: Optional[list[str]] = Field(None, description="'Before You Begin' checklist items")
+    cover_image_url: Optional[str] = Field(None, description="Journey storefront cover image")
     
     total_days: int = Field(default=7, description="Total days in the journey (fixed at 7)")
     days: list[DayDefinitionInput] = Field(..., min_length=7, max_length=7)

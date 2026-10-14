@@ -53,7 +53,8 @@ def list_catalog(
     
     items = []
     for d in definitions:
-        cover_img = d.cover_image_url or fallback_cover
+        first_day_img = next((dd.image_url for dd in (d.day_definitions or []) if dd.image_url), None)
+        cover_img = d.cover_image_url or first_day_img or fallback_cover
         status_val = d.moderation_status.value if hasattr(d.moderation_status, "value") else str(d.moderation_status or "approved")
         price_val = (d.price_cents / 100.0) if d.price_cents is not None else 0.0
         
@@ -122,7 +123,8 @@ def get_catalog_item(
     
     # Get latest active cover image for transformation to use as fallback
     fallback_cover = get_latest_active_image_url(db, CoverImageType.transformation)
-    cover_img = definition.cover_image_url or fallback_cover
+    first_day_img = next((dd.image_url for dd in (definition.day_definitions or []) if dd.image_url), None)
+    cover_img = definition.cover_image_url or first_day_img or fallback_cover
     status_val = definition.moderation_status.value if hasattr(definition.moderation_status, "value") else str(definition.moderation_status or "approved")
     price_val = (definition.price_cents / 100.0) if definition.price_cents is not None else 0.0
     
