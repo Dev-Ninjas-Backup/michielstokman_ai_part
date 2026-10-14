@@ -481,3 +481,30 @@ async def admin_upload_liberation_image(
         status.HTTP_201_CREATED,
         {"image_url": format_media_url(image_url), "s3_key": s3_key},
     )
+
+
+# ── Admin: delete liberation journey ─────────────────────────────────────────
+
+@router.delete(
+    "/admin/liberation/{definition_id}",
+    response_model=ApiResponse,
+    summary="Admin: permanently delete a liberation journey",
+    tags=["Liberation Admin"],
+)
+def admin_delete_liberation(
+    definition_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_admin_user),
+):
+    definition = catalog_data.get_definition_by_id(db, definition_id)
+    if not definition:
+        raise HTTPException(status_code=404, detail="Liberation definition not found.")
+
+    journey_title = definition.title
+    catalog_data.delete_definition(db, definition)
+
+    return success_response(
+        f"Liberation '{journey_title}' deleted successfully",
+        status.HTTP_200_OK,
+        {"deleted_id": definition_id, "title": journey_title},
+    )

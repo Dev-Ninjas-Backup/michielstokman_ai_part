@@ -204,3 +204,14 @@ def deactivate_definition(db: Session, definition: LiberationDefinition) -> Libe
     db.commit()
     db.refresh(definition)
     return definition
+
+
+def delete_definition(db: Session, definition: LiberationDefinition) -> None:
+    """Safely delete a liberation definition and its day definitions."""
+    from app.model.liberation import UserJourney
+    # Nullify any foreign key links from user progress so FK constraints are not violated
+    db.query(UserJourney).filter(UserJourney.definition_id == definition.id).update(
+        {"definition_id": None}, synchronize_session=False
+    )
+    db.delete(definition)
+    db.commit()
