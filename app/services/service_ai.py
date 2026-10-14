@@ -63,10 +63,11 @@ class AIService:
     # --- Track Search -------------------------------------------------------
 
     @staticmethod
-    def search_tracks(query: str) -> SearchResult:
+    def search_tracks(query: str, category: Optional[str] = None) -> SearchResult:
         """
-        Business logic: Connect to Pinecone and embed the query using xAI.
-        Retrieves the top 5 most relevant liberation definitions (tracks).
+        Business logic: Connect to Pinecone and embed the query.
+        Retrieves the top 5 most relevant recommendations, optionally filtered
+        by category ('confession', 'meditation', or 'liberation').
         """
         from app.services.service_rag import _get_embeddings, _get_pinecone_index
         
@@ -77,11 +78,23 @@ class AIService:
             # Embed the natural language query
             query_vector = embeddings_client.embed_query(query)
 
+            # Build category filter
+            pinecone_filter = None
+            if category:
+                cat_lower = category.lower().strip()
+                if cat_lower in ["liberation", "liberations", "track", "tracks"]:
+                    pinecone_filter = {"doc_type": {"$eq": "track"}}
+                elif cat_lower in ["confession", "confessions"]:
+                    pinecone_filter = {"story_type": {"$eq": "confession"}}
+                elif cat_lower in ["meditation", "meditations"]:
+                    pinecone_filter = {"story_type": {"$eq": "meditation"}}
+
             # Query Pinecone for the most resonant recommendations
             response = index.query(
                 vector=query_vector,
                 top_k=5,
                 include_metadata=True,
+                filter=pinecone_filter,
             )
 
             # Extract track_ids / story_ids from metadata
