@@ -97,10 +97,29 @@ class AIService:
                 filter=pinecone_filter,
             )
 
-            # Extract track_ids / story_ids from metadata
-            # The frontend expects strings: journey_code, track_id, story_id, or match ID
+            matches = response.get("matches", [])
+            if not matches:
+                return SearchResult(track_ids=[])
+
+            # Dynamic semantic relevance filtering:
+            # 1. Base threshold (0.27) filters out random background embeddings
+            # 2. Relative drop-off ensures runner-up stories must be within close semantic proximity
+            matches = sorted(matches, key=lambda m: m.get("score", 0.0), reverse=True)
+            top_score = matches[0].get("score", 0.0)
+
+            MIN_SCORE_THRESHOLD = 0.27
+            if top_score < MIN_SCORE_THRESHOLD:
+                return SearchResult(track_ids=[])
+
             track_ids = []
-            for match in response.get("matches", []):
+            for match in matches:
+                score = match.get("score", 0.0)
+                if score < MIN_SCORE_THRESHOLD:
+                    continue
+                # Discard low-scoring items that fall significantly behind the best resonant match
+                if score < (top_score - 0.10) or score < (top_score * 0.75):
+                    continue
+
                 meta = match.get("metadata", {})
                 t_id = (
                     meta.get("journey_code")
@@ -108,7 +127,7 @@ class AIService:
                     or meta.get("story_id")
                     or match.get("id")
                 )
-                if t_id:
+                if t_id and t_id not in track_ids:
                     track_ids.append(t_id)
 
             return SearchResult(track_ids=track_ids)
