@@ -514,12 +514,13 @@ class LiberationService:
                     if step.status in (StepStatus.available, StepStatus.completed):
                         current_day = step.day_number
 
+            first_day_img = next((dd.image_url for dd in (d.day_definitions or []) if dd.image_url), None)
             cards.append({
                 "card_type": "liberation_journey",
                 "journey_code": d.journey_code,
                 "title": title,
                 "description": description,
-                "cover_image_url": format_media_url(d.cover_image_url),
+                "cover_image_url": format_media_url(d.cover_image_url or first_day_img),
                 "price_display": d.price_cents // 100,
                 "price_cents": d.price_cents,
                 "total_days": d.total_days,

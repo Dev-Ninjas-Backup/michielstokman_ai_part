@@ -48,7 +48,7 @@ def _definition_to_response(d) -> LiberationDefinitionResponse:
         moderation_notes=d.moderation_notes,
         is_active=d.is_active,
         created_at=d.created_at,
-        cover_image_url=d.cover_image_url,
+        cover_image_url=format_media_url(d.cover_image_url or (next((dd.image_url for dd in (d.day_definitions or []) if dd.image_url), None))),
         rating=d.rating,
         what_to_expect=d.what_to_expect or [],
         setup_instructions=d.setup_instructions or [],
@@ -108,6 +108,7 @@ def admin_create_liberation(
         rating=payload.rating,
         what_to_expect=payload.what_to_expect,
         setup_instructions=payload.setup_instructions,
+        cover_image_url=payload.cover_image_url,
     )
     result = _definition_to_response(definition)
     return success_response("Liberation created successfully", status.HTTP_201_CREATED, result)
@@ -425,6 +426,11 @@ def admin_update_liberation(
                     why_text=day_input.why_text,
                     image_url=day_input.image_url,
                 ))
+
+        if not definition.cover_image_url:
+            first_day_img = next((day_input.image_url for day_input in payload.days if day_input.image_url), None)
+            if first_day_img:
+                definition.cover_image_url = first_day_img
 
     db.commit()
     db.refresh(definition)
