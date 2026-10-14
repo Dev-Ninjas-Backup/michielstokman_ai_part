@@ -51,14 +51,23 @@ TOP_K = 5
 # ---------------------------------------------------------------------------
 
 def _get_embeddings() -> OpenAIEmbeddings:
-    """Returns an xAI-compatible embedding client via langchain_openai."""
-    if not settings.XAI_API_KEY:
-        raise ValueError("XAI_API_KEY is missing. Add it to your .env file.")
-    return OpenAIEmbeddings(
-        model=EMBEDDING_MODEL,
-        openai_api_key=settings.XAI_API_KEY,
-        openai_api_base="https://api.x.ai/v1",
-    )
+    """
+    Returns an embedding client. Uses OpenAI text-embedding-3-small (1024 dims)
+    matching the Pinecone index dimension, with fallback to xAI if configured.
+    """
+    if getattr(settings, "OPENAI_API_KEY", None):
+        return OpenAIEmbeddings(
+            model="text-embedding-3-small",
+            dimensions=EMBEDDING_DIMENSION,
+            openai_api_key=settings.OPENAI_API_KEY,
+        )
+    if getattr(settings, "XAI_API_KEY", None):
+        return OpenAIEmbeddings(
+            model=EMBEDDING_MODEL,
+            openai_api_key=settings.XAI_API_KEY,
+            openai_api_base="https://api.x.ai/v1",
+        )
+    raise ValueError("Neither OPENAI_API_KEY nor XAI_API_KEY is available for embeddings.")
 
 
 def _get_pinecone_index():
