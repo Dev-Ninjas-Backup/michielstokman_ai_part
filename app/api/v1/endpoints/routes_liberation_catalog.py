@@ -3,10 +3,11 @@ app/api/v1/endpoints/routes_liberation_catalog.py
 
 User-facing endpoints for browsing and submitting liberation definitions.
 """
+from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_user
+from app.api.deps import get_current_user, get_current_user_optional
 from app.core.db import get_db
 from app.core.responses import ApiResponse, success_response
 from app.model.user import User
@@ -38,7 +39,7 @@ def list_catalog(
     limit: int = 50,
     offset: int = 0,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: Optional[User] = Depends(get_current_user_optional),
 ):
     """
     Returns every active + approved liberation definition.
@@ -71,7 +72,7 @@ def list_catalog(
                 rating=d.rating,
                 what_to_expect=d.what_to_expect or [],
                 setup_instructions=d.setup_instructions or [],
-                has_access=check_user_has_plan_code(db, current_user.id, f"journey_{d.journey_code}"),
+                has_access=check_user_has_plan_code(db, current_user.id, f"journey_{d.journey_code}") if current_user else False,
                 days=[
                     DayThemeItem(
                         day_number=dd.day_number, 
@@ -99,7 +100,7 @@ def list_catalog(
 def get_catalog_item(
     journey_code: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: Optional[User] = Depends(get_current_user_optional),
 ):
     definition = catalog_data.get_definition_by_code(db, journey_code)
     if not definition:
@@ -127,7 +128,7 @@ def get_catalog_item(
         rating=definition.rating,
         what_to_expect=definition.what_to_expect or [],
         setup_instructions=definition.setup_instructions or [],
-        has_access=check_user_has_plan_code(db, current_user.id, f"journey_{definition.journey_code}"),
+        has_access=check_user_has_plan_code(db, current_user.id, f"journey_{definition.journey_code}") if current_user else False,
         days=[
             DayThemeItem(
                 day_number=dd.day_number, 
