@@ -8,6 +8,7 @@ from fastapi import (
     UploadFile,
     status,
 )
+import logging
 from sqlalchemy.orm import Session
 from typing import Optional
 
@@ -40,6 +41,8 @@ from app.schemas.schema_story import (
     RequestChangesResponse,
     VoiceRequirementRequest,
 )
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -723,6 +726,14 @@ def publish_story(
         )
 
     story = story_data.publish_story(db, story, str(current_user.id))
+
+    # Real-time semantic vector sync: automatically index into Pinecone upon publication
+    try:
+        from app.services.service_rag import RAGService
+        RAGService.upsert_single_story(story)
+    except Exception as e:
+        logger.warning(f"Could not automatically sync story {story.id} to Pinecone: {e}")
+
     result = PublishStoryResponse(
         message="Publication is live",
         story_id=story.id,

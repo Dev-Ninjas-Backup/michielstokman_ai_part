@@ -282,6 +282,54 @@ class RAGService:
         logger.info(f"Upserted {len(stories)} stories into Pinecone.")
         return len(stories)
 
+    @staticmethod
+    def upsert_single_story(story: Story) -> bool:
+        """
+        Embeds a single story and immediately upserts it into Pinecone.
+        Keeps Pinecone vector index in real-time sync with newly published stories.
+        """
+        try:
+            embeddings_client = _get_embeddings()
+            index = _get_pinecone_index()
+            text = _build_document_text(story)
+            vector = embeddings_client.embed_query(text)
+
+            meta = _build_metadata(story)
+            meta["story_id"] = str(story.id)
+            if story.story_type:
+                meta["story_type"] = (
+                    story.story_type.value
+                    if hasattr(story.story_type, "value")
+                    else str(story.story_type)
+                )
+
+            index.upsert(
+                vectors=[
+                    {
+                        "id": f"story_{story.id}",
+                        "values": vector,
+                        "metadata": meta,
+                    }
+                ]
+            )
+            logger.info(f"Upserted single story {story.id} ('{story.title}') into Pinecone.")
+            return True
+        except Exception as e:
+            logger.warning(f"Failed to upsert story {story.id} into Pinecone: {e}")
+            return False
+
+    @staticmethod
+    def delete_single_story(story_id: str) -> bool:
+        """Deletes a story vector from Pinecone when withdrawn or deleted."""
+        try:
+            index = _get_pinecone_index()
+            index.delete(ids=[str(story_id), f"story_{story_id}"])
+            logger.info(f"Deleted story {story_id} from Pinecone.")
+            return True
+        except Exception as e:
+            logger.warning(f"Failed to delete story {story_id} from Pinecone: {e}")
+            return False
+
     # -----------------------------------------------------------------------
     # Query / Recommendation
     # -----------------------------------------------------------------------
