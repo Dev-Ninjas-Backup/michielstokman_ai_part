@@ -43,8 +43,22 @@ def _as_str_list(value) -> list[str]:
 
 
 def _jsonb_has_string(column, value: str) -> ColumnElement[bool]:
-    """True when a JSONB string array contains `value` as an element."""
-    return column.has_key(value) | column.contains([value])
+    """True when a JSONB string array contains `value` as an element or normalized substring."""
+    import sqlalchemy as sa
+    clean_val = value.strip().lower()
+    space_val = clean_val.replace("-", " ")
+    hyphen_val = clean_val.replace(" ", "-")
+
+    cond = column.has_key(value) | column.contains([value])
+    if clean_val != value:
+        cond = cond | column.has_key(clean_val) | column.contains([clean_val])
+    if space_val != clean_val:
+        cond = cond | column.has_key(space_val) | column.contains([space_val])
+    if hyphen_val != clean_val:
+        cond = cond | column.has_key(hyphen_val) | column.contains([hyphen_val])
+
+    cond = cond | sa.func.lower(sa.cast(column, sa.String)).contains(space_val)
+    return cond
 
 
 # ---------------------------------------------------------------------------
