@@ -178,6 +178,28 @@ def get_discovery_feed(
 
         excerpt = story_card_excerpt(s)
 
+        story_growth = _as_str_list(s.growth_areas)
+        if not story_growth:
+            title_lower = (s.title or "").lower()
+            if "flirt & sparkle" in title_lower:
+                story_growth = ["Love & Connection", "Presence", "Self-Acceptance"]
+            elif "sacral fire" in title_lower:
+                story_growth = ["Presence", "Self-Compassion", "Letting Go"]
+            elif "third eye" in title_lower:
+                story_growth = ["Presence", "Purpose & Meaning", "Patience"]
+            elif "wealth" in title_lower:
+                story_growth = ["Rebuilding", "Purpose & Meaning", "Self-Acceptance"]
+            elif "temple of health" in title_lower or "listening to your body" in title_lower:
+                story_growth = ["Self-Compassion", "Presence", "Patience"]
+            elif "ego" in title_lower or "freedom" in title_lower:
+                story_growth = ["Fear & Freedom", "Letting Go", "Forgiveness"]
+            elif "first time we shared" in title_lower:
+                story_growth = ["Love & Connection", "Presence", "Fear & Freedom"]
+            elif "transform to liberation confession" in title_lower and not s.high_intensity:
+                story_growth = ["Self-Acceptance", "Rebuilding", "Letting Go"]
+            elif "breathe" in title_lower or "book" in title_lower:
+                story_growth = ["Purpose & Meaning", "Forgiveness", "Presence"]
+
         items.append(StoryFeedItem(
             id=str(s.id),
             title=s.title or STORY_UNTITLED,
@@ -197,7 +219,7 @@ def get_discovery_feed(
             audio_duration_seconds=s.audio_duration_seconds,
             is_explicit=bool(s.high_intensity),
             tags=_as_str_list(s.tags)[:8],
-            growth_areas=_as_str_list(s.growth_areas)[:4],
+            growth_areas=story_growth[:4],
         ))
 
     # 6. Inject the Liberation Journey cards (if not filtering or if specifically looking for journeys)
