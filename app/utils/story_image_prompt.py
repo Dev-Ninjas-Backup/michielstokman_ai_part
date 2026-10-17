@@ -1685,11 +1685,11 @@ def _heuristic_v2_visual_art_direction(
             "soft focus, airy low contrast, documentary editorial realism."
         )
     else:
-        color_palette_str = "Monochrome tones: rich velvety blacks, soft silvery grays, gentle ivory highlights, authentic film tonal range, and luminous eye catchlights."
+        color_palette_str = "Warm sepia / light brown monochrome tones: soft amber midtones, warm muted browns, gentle ivory highlights, soft contrast with authentic film tonal range, and luminous eye catchlights."
         lighting_str = (
-            f"{dynamic_lighting}, with luminous catchlights in the eyes, rich velvety blacks, and {dynamic_atmosphere.lower()}."
+            f"{dynamic_lighting}, with luminous catchlights in the eyes, soft light falling gently on the face and hands, rich velvety blacks in deep shadow roll-off, and {dynamic_atmosphere.lower()}."
         )
-        visual_style_str = "Strictly black-and-white vintage 35mm analogue snapshot, visible organic film grain, soft focus, faded blacks, muted contrast, documentary editorial realism."
+        visual_style_str = "Warm sepia / light brown monochrome vintage 35mm analogue snapshot, finer subtle film grain, soft focus, soft contrast with more midtones, intimate emotional portraiture."
     polaroid_scene_str = _heuristic_v2_photograph_description(story)
 
     return {
@@ -1860,7 +1860,7 @@ def extract_v2_visual_art_direction(
             tonal_clause = (
                 "a warm sunrise-gold and amber-olive dawn glow with directional chiaroscuro over muted sage-green and deep velvety shadows. "
                 if is_meditation
-                else "rich velvety blacks. "
+                else "warm sepia tones with soft light falling gently on the face and hands, soft contrast with more midtones, finer subtle grain, and rich velvety blacks. "
             )
             # The extraction model must read the meditation itself, not just the
             # paraphrased brief, or the scene drifts away from what was written.
