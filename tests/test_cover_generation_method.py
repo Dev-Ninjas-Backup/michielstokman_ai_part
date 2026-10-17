@@ -1318,7 +1318,7 @@ def test_build_v2_cover_prompt_matches_client_specification_exactly():
     assert "Do not depict explicit sexual activity." in prompt
     assert "Do not depict nudity." in prompt
     assert "PHOTOGRAPHIC STYLE" in prompt
-    assert "STRICTLY BLACK AND WHITE" in prompt
+    assert "WARM SEPIA / LIGHT BROWN MONOCHROME" in prompt
     assert "POLAROID CAPTION" in prompt
     assert '"RORY"' in prompt
     assert '"AUTHOR"' in prompt
@@ -1943,15 +1943,15 @@ def test_v2_category_emotional_differentiation():
         assert "organic film grain" in p
         assert "soft focus" in p
 
-    # ... but colour is category-specific: confessions and transformations stay
-    # strict black-and-white, while meditations render in warm sunrise-gold colour
+    # ... but colour is category-specific: confessions and transformations render
+    # in warm sepia / light brown monochrome, while meditations render in warm sunrise-gold colour
     # so a meditation cover never reads as a confession.
     for p in (p_conf, p_trans):
-        assert "STRICTLY BLACK AND WHITE" in p
+        assert "WARM SEPIA / LIGHT BROWN MONOCHROME" in p
         assert "faded blacks" in p
-        assert "muted contrast" in p
+        assert "soft contrast" in p
 
-    assert "STRICTLY BLACK AND WHITE" not in p_med
+    assert "WARM SEPIA / LIGHT BROWN MONOCHROME" not in p_med
     assert "warm sunrise-gold COLOUR" in p_med
     assert "never black-and-white" in p_med
     assert "muted sage-green" in p_med

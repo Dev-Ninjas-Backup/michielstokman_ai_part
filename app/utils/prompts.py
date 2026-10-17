@@ -21,9 +21,9 @@ from app.schemas.schema_ai import StoryGenerateRequest, StoryType
 # 1. V2 EDITORIAL POLAROID (ACTIVE & PRIMARY — COVER_GENERATION_METHOD=v2):
 #    - Direct OpenAI image generation matching the client's approved editorial
 #      introduction page reference.
-#    - PHOTOGRAPHIC STYLE: Strictly black-and-white vintage 35mm analogue
-#      snapshot with visible organic film grain, soft focus, faded blacks,
-#      muted contrast, and soft motivated natural light.
+#    - PHOTOGRAPHIC STYLE: Warm sepia / light brown monochrome vintage 35mm
+#      analogue snapshot with finer subtle film grain, soft focus, soft contrast
+#      with more midtones, and soft light falling gently on the face and hands.
 #    - Focus: Person + genuine emotion + natural environment + an authentic moment that feels naturally photographed.
 #    - Used by: build_v2_cover_prompt(), refine_story_visual_art_direction(),
 #      and extract_v2_visual_art_direction().
@@ -257,12 +257,13 @@ V2_COVER_STYLE_SPEC = (
 )
 
 V2_COVER_ANALOGUE_TREATMENT = (
-    "Analogue treatment: Strictly black-and-white, authentic vintage 35mm snapshot. "
-    "Visible organic film grain, soft focus background roll-off with razor-sharp focus on the eyes and face, "
-    "rich velvety blacks with gentle faded shadow tones, muted contrast balanced by striking directional chiaroscuro, "
+    "Analogue treatment: Warm sepia / light brown monochrome, authentic vintage 35mm snapshot. "
+    "Finer, subtle film grain, soft focus background roll-off with razor-sharp focus on the eyes and face, "
+    "rich velvety blacks with gentle faded shadow tones, soft contrast with more midtones balanced by natural directional chiaroscuro, "
     "gentle highlight bloom, subtle dust and fine scratches. Luminous catchlights in the subject's eyes. "
+    "Soft motivated natural light falls softly on the face and hands. "
     "Eye-soothing dynamic backgrounds with layered spatial depth, tactile fabric textures, and captivating, magnetic presence. "
-    "Intimate documentary portraiture with soft motivated natural light. "
+    "Intimate, warm, emotional portraiture. "
     "The image should create an immediate feeling of recognition and emotional intimacy — as if the viewer "
     "has unexpectedly witnessed a real private moment. Avoid a polished digital or cheerful stock-photo look."
 )
@@ -273,20 +274,22 @@ V2_COVER_CLOSING_CONSTRAINTS = (
 )
 
 # The analogue brand character is shared across the collection, but the *colour* is
-# category-specific: confessions and transformations stay strict black-and-white,
+# category-specific: confessions and transformations render in warm sepia / light brown monochrome,
 # while meditations render in warm sunrise-gold colour so a meditation cover never
 # reads as a confession and always feels like a calm dawn practice.
 V2_COVER_PHOTOGRAPHY_STYLE_DEFAULT = (
-    "The photograph inside the Polaroid must be STRICTLY BLACK AND WHITE.\n"
-    "Use an authentic vintage 35mm analogue snapshot aesthetic (common brand photographic treatment across all categories):\n"
-    "- organic film grain with tactile grain texture\n"
-    "- natural photographic texture\n"
+    "The photograph inside the Polaroid must be WARM SEPIA / LIGHT BROWN MONOCHROME (never pure, cold, or neutral black-and-white).\n"
+    "Use an authentic vintage 35mm analogue snapshot aesthetic with warm, emotional portrait character:\n"
+    "- warm sepia and light brown monochrome toning with rich, luminous warmth\n"
+    "- soft contrast with more midtones and gentle shadow roll-off (never harsh, stark contrast or blinding highlights)\n"
+    "- finer, subtle organic film grain with tactile grain texture (never coarse or noisy grain)\n"
+    "- soft motivated natural light falling softly on the face and hands\n"
+    "- intimate, warm, portrait-like and deeply emotional feel\n"
     "- soft focus background roll-off paired with razor-sharp focal clarity on the eyes and face\n"
     "- faded blacks in deep shadow roll-off balanced by rich velvety blacks in the subject\n"
-    "- muted contrast balanced by natural chiaroscuro and luminous eye catchlights\n"
+    "- muted soft contrast balanced by natural chiaroscuro and luminous eye catchlights\n"
     "- gentle highlight bloom, subtle dust, fine film scratches\n"
-    "- authentic documentary/editorial film character\n"
-    "- shallow depth of field with creamy background falloff"
+    "- authentic editorial film character, shallow depth of field with creamy background falloff"
 )
 
 V2_COVER_PHOTOGRAPHY_STYLE_MEDITATION = (
@@ -307,9 +310,9 @@ V2_COVER_PHOTOGRAPHY_STYLE_MEDITATION = (
 )
 
 V2_COVER_POLAROID_CAPTION_DEFAULT = (
-    "The photograph itself must remain completely black and white. Note: The author label identifies the "
-    "narrator; the photograph inside must show all characters involved in the story together, never reducing "
-    "a couple or group to a single person."
+    "The photograph itself must remain in warm sepia / light brown monochrome (never cold or pure black-and-white). "
+    "Note: The author label identifies the narrator; the photograph inside must show all characters involved "
+    "in the story together, never reducing a couple or group to a single person."
 )
 
 V2_COVER_POLAROID_CAPTION_MEDITATION = (
@@ -607,8 +610,8 @@ Given an editorial visual brief and story context, extract the visual art direct
 - "composition": natural photographic composition, framing, camera angle, and distance (e.g. intimate two-shot for couples, three-shot for trios, candid environmental frame for groups; strictly NO posed group shots, NO happy friends at a bar, NO repetitive social scenes, NO sitting behind a computer, NO theatrical movie-still staging)
 - "mood": the specific emotional atmosphere of this narrative (e.g. magnetic attraction, quiet intimacy, serene contemplation, heartfelt vulnerability, authentic truth, peaceful reflection)
 - "lighting": dynamic, story-tailored lighting (e.g. radiant low golden-hour rim-light with sun flare, dappled forest canopy sunlight, twilight with warm festival lantern bokeh, crisp bright coastal sun, or intimate flickering candlelight; ensure high versatility across stories)
-- "color_palette": monochrome tones: rich charcoal blacks, soft silvery grays, gentle ivory highlights, authentic film tonal range
-- "visual_style": strictly black-and-white vintage 35mm analogue snapshot, visible organic film grain, soft focus, faded blacks, muted contrast, documentary editorial realism
+- "color_palette": warm sepia / light brown monochrome tones: soft amber midtones, warm muted browns, gentle ivory highlights, soft contrast with authentic film tonal range
+- "visual_style": warm sepia / light brown monochrome vintage 35mm analogue snapshot, finer subtle film grain, soft focus, soft contrast with more midtones, intimate emotional portraiture
 - "narrative_focus": the central private emotional moment that anchors the specific story
 - "sensory_anchor": a tangible physical prop or environmental interaction grounded in the narrative (e.g. interlinked fingers, resting a hand lightly on an arm or coat, fingers tracing condensation on cold glass, holding a weathered room key, steam rising into cold night air, rain streaking a window, collar turned up against coastal wind)
 - "polaroid_scene": a concise 1-2 sentence description combining characters, setting, emotional state, and atmosphere for a single square Polaroid photo frame. The scene must photograph the emotional truth of the story: person + genuine emotion + natural environment + an authentic moment that feels naturally photographed. Characters must look magnetic, attractive, captivating, and emotionally alive with dynamic, fluid postures and alluring eye contact — STRICTLY FORBIDDEN to depict depressed, sad, or gloomy expressions. Surroundings must be eye-soothing, richly textured, and dynamic with layered spatial depth. If the story involves a couple or companions, STRICTLY DEPICT BOTH/ALL CHARACTERS TOGETHER interacting closely (e.g. standing close together in a tender embrace, holding hands, or dancing). Incorporate the concrete sensory anchor/prop, intentional camera framing (e.g. intimate two-shot, 85mm close-up or 35mm environmental frame), sharp focal clarity on the eyes with luminous catchlights, and soft motivated directional chiaroscuro with rich velvety blacks. It must create an immediate feeling of recognition and emotional intimacy, as if witnessing a real private moment. Any subject shown must be naturally readable within the frame; framing may be close, medium, or environmental depending on the emotional moment. For confessions (intimate/vulnerable/magnetic): subtle varied gestures appropriate to the story (warm connection when multiple people: tender embrace, holding hands, magnetic eye contact, genuine smiles; when solo: alluring gaze, self-assured posture, holding an object, touching hair, resting against a wall, looking through a window; never forcing a single pose and NEVER depressed). For meditations (calm/inward): still, grounded, contemplative, gentle breath, inner peace. For transformations (expressive/free): open, expansive, movement, newfound freedom, courage. Never create dull pictures or theatrical movie stills. Strictly forbidden to depict someone sitting behind a computer, working at a desk, or in an office. Strictly avoid generic stock-photo compositions such as happy friends at a bar, posed group shots, or repetitive social scenes. All subjects must be tastefully clothed in attire appropriate to the setting (e.g. relaxed summer wear, linen shirts, casual festival wear, beachwear with cover-up, jacket, sweater, shirt). Strictly no nudity, bare skin, bare shoulders, lingerie, beds, or sexually suggestive poses. Strictly NO homosexual, lesbian, gay, or same-sex romantic/sexual themes. Strictly NO bent-neck poses, heads unnaturally tilted away, or distorted anatomy. Facial expressions and body language must feel natural, understated, and emotionally true. Strictly no mentions of frames, borders, text, cameras, or collage elements.
