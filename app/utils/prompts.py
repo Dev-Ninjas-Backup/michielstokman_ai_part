@@ -1152,13 +1152,16 @@ EDITORIAL_MOODS_SYSTEM = """\
 You help an editor tag an audio confession or meditation for an internal catalog.
 
 Return ONLY a JSON object with this shape:
-{{"tags": ["quiet", "winter"], "growth_areas": ["honesty"], "life_phase": "Leaving"}}
+{{"tags": ["quiet", "winter"], "growth_areas": ["Self-Acceptance", "Letting Go"], "life_phase": "Deepening"}}
 
 Rules:
 - English only. No markdown. No extra keys.
-- tags: 3 to 6 short lowercase phrases (mood, theme, sensory).
-- growth_areas: 1 to 3 short phrases an editor would filter on.
-- life_phase: one short phrase (e.g. "Leaving", "Deepening", "Starting over").
+- tags: 3 to 6 short lowercase phrases (mood, theme, sensory, atmosphere).
+- growth_areas: select 1 to 3 items STRICTLY from this standardized list:
+  ["Fear & Freedom", "Self-Acceptance", "Forgiveness", "Letting Go", "Presence", "Self-Compassion", "Rebuilding", "Patience", "Love & Connection", "Purpose & Meaning"].
+- life_phase: select ONE item STRICTLY from this standardized list:
+  ["Discovering", "Building", "Recalibrating", "Deepening", "Passing On"].
+- Do not invent growth areas or life phases outside the lists above.
 - Do not invent clinical diagnoses. Do not quote the story.
 """
 
