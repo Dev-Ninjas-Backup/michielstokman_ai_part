@@ -170,19 +170,18 @@ def regenerate_voice(
             if matches >= 3:
                 is_french = True
 
-            # Select a new voice preserving the gender category of the narrator and language
-            FEMALE_VOICES = ["Sophia", "Charlotte", "Victoria", "Anja", "Chapter1"]
-            if story_row.voice_name in FEMALE_VOICES:
-                if is_french:
-                    new_voice_name = "Victoria"
-                else:
-                    new_voice_name = random.choice(["Sophia", "Charlotte", "Anja", "Chapter1"])
+            # Respect the admin's chosen voice, or resolve based on gender/language
+            if story_row.voice_name and story_row.voice_name in ELEVENLABS_VOICES:
+                new_voice_name = story_row.voice_name
+            elif is_french:
+                new_voice_name = "Victoria"
+            elif (story_row.gender or "").lower() == "female":
+                new_voice_name = "Sophia"
             else:
                 new_voice_name = "Calen"
+
             story_row.voice_name = new_voice_name
-            # Admin re-narration always uses a stock voice, so keep the stored
-            # provider id in step and drop any custom-voice flag from the member.
-            story_row.voice_id = ELEVENLABS_VOICES[new_voice_name]
+            story_row.voice_id = ELEVENLABS_VOICES.get(new_voice_name, new_voice_name)
             story_row.uses_custom_voice = False
 
             audio_bytes, alignment = generate_voice_elevenlabs(
@@ -214,11 +213,16 @@ def regenerate_voice(
                 audio_duration_seconds=duration_secs,
             )
 
-            logger.info(f"[Regenerate Job {job_id_str}] Completed with random voice '{new_voice_name}'. Audio saved: {audio_path}")
+            logger.info(f"[Regenerate Job {job_id_str}] Completed with voice '{new_voice_name}'. Audio saved: {audio_path}")
         except Exception as e:
             logger.error(f"[Regenerate Job {job_id_str}] FAILED: {e}", exc_info=True)
-            # We explicitly DO NOT fail the story here.
-            # It was already completed, so we just keep the old audio.
+            try:
+                story_row = bg_db.query(StoryModel).filter(StoryModel.id == story_db_id).first()
+                if story_row:
+                    story_row.voice_status = AssetReviewStatus.missing if not story_row.audio_path else AssetReviewStatus.ready_for_review
+                    bg_db.commit()
+            except Exception:
+                pass
         finally:
             bg_db.close()
 
