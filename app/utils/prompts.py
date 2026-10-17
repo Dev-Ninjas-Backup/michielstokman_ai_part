@@ -297,15 +297,15 @@ V2_COVER_PHOTOGRAPHY_STYLE_MEDITATION = (
     "monochrome, sepia, or desaturated.\n"
     "Use an authentic vintage 35mm analogue colour-film snapshot aesthetic with warm amber-olive and golden-earth toning "
     "(quiet, grounded, contemplative mindfulness photography):\n"
-    "- soft sunrise-gold and pale-amber first light, or motivated warm directional window slant light illuminating the subject\n"
-    "- muted sage-green undertones, warm earthy midtones, and deep velvety dark shadows with natural directional chiaroscuro\n"
+    "- natural lighting suited to the setting (e.g. soft morning dawn, dappled canopy sunlight, tranquil open daylight, or calming late-afternoon glow illuminating the subject)\n"
+    "- muted sage-green undertones, warm earthy midtones, and velvety dark shadows with natural directional chiaroscuro\n"
     "- organic film grain with tactile grain texture and natural colour-film character\n"
     "- soft focus background roll-off paired with razor-sharp focal clarity on the eyes and face\n"
     "- gentle highlight bloom, subtle dust, fine film scratches\n"
     "- authentic documentary/editorial film character, never glossy, flat, or digital-sterile\n"
     "- shallow depth of field with creamy background falloff\n"
-    "- varied intimate environments (sunlit rooms with textured walls, quiet window nooks, terraces, courtyards) — "
-    "avoid defaulting to repetitive mountain landscapes or generic outdoor vistas\n"
+    "- diverse serene environments (peaceful shorelines and glassy lakes, sun-dappled forest clearings, open terraces, sheltered gardens, or quiet minimalist sanctuaries) — "
+    "avoid defaulting to repetitive indoor rooms, repetitive plaster walls, or generic mountain vistas\n"
     "Never bright golden-hour celebration, sun flare, or festive saturation — this is quiet, intimate, inward contemplative light."
 )
 
@@ -379,6 +379,30 @@ MEDITATION_STAGING_MENU: tuple[tuple[str, str, str, tuple[str, ...]], ...] = (
         "open palms catching the first warm light",
         ("palms", "open hands", "arms open", "outstretched", "surrender", "letting go", "gratitude"),
     ),
+    (
+        "seated peacefully beside calm glassy water, hands resting naturally in the lap, watching soft ripples on the horizon",
+        "Atmospheric environmental wide framing with expansive water reflections and serene negative space",
+        "the gentle rhythm of ripples and cool water air",
+        ("water", "lake", "ocean", "sea", "river", "shore", "pond", "dock", "pier", "coastal"),
+    ),
+    (
+        "sitting comfortably on a rustic bench beneath a large shaded tree, eyes gently resting on the greenery",
+        "Candid environmental medium shot with sun-dappled leaves filtering soft light overhead",
+        "dappled shade and rustling leaves in the gentle breeze",
+        ("bench", "tree", "shade", "under the tree", "canopy", "branches", "park bench"),
+    ),
+    (
+        "standing on an open-air terrace or overlook, breathing in the panoramic morning air, hands resting loosely at sides",
+        "Spacious wide-angle composition with expansive horizon and atmospheric morning clarity",
+        "fresh open-air breeze and expansive horizon",
+        ("overlook", "horizon", "skyline", "terrace overlook", "mountain air", "valley", "panoramic"),
+    ),
+    (
+        "walking slowly through an open field of tall grasses and wild meadow flowers, fingers lightly grazing stems",
+        "Lyrical environmental 35mm composition with soft bokeh of wildflowers and warm morning glow",
+        "wild grass stems grazing fingertips and open sky",
+        ("meadow", "wildflowers", "tall grass", "field", "prairie", "wild flower"),
+    ),
 )
 
 # Appended to the two V2 vision-LLM prompts for meditations only, overriding the
@@ -390,24 +414,24 @@ MEDITATION_VISUAL_OVERRIDE = (
     "'cast fidelity / never drop characters' rule above.\n"
     "- WARM SUNRISE-GOLD & AMBER-OLIVE COLOUR, NOT MONOCHROME: soft pale-amber and warm sunrise-gold directional "
     "light over muted sage-green and deep velvety dark shadows with rich chiaroscuro. Never black-and-white, sepia, or "
-    "desaturated. Quiet first light or window slant light — never bright golden-hour celebration or sun flare.\n"
+    "desaturated. Quiet first light or natural ambient light — never bright golden-hour celebration or sun flare.\n"
     "- THE POSE AND SURROUNDINGS COME FROM THIS MEDITATION, NOT FROM A STOCK COVER: read the meditation's "
     "own words and depict what it actually describes — the place, the hour, the light, and any posture or "
-    "action it names (lying down, walking, standing at a window, sitting on the floor, kneeling in a "
-    "garden, resting against a wall, palms open toward the light). If the meditation names a posture, a "
+    "action it names (lying down, walking, standing at a window, sitting beside water, beneath a tree, kneeling in a "
+    "garden, resting on an open terrace, palms open toward the light). If the meditation names a posture, a "
     "place, or a prop, that detail is binding — use it exactly as written and never relocate the scene to "
     "a different setting.\n"
-    "- VARIETY OF SETTINGS (AVOID REPETITIVE MOUNTAINTOP VISTAS): strictly DO NOT default every meditation to "
-    "a mountain, mountain peak, or generic outdoor nature overlook. Ensure broad variety across the collection: "
-    "intimate indoor rooms with textured plaster/stucco walls and window slant light, sunlit bedroom cushions, "
-    "open-air terraces overlooking city rooftops, quiet balconies, sheltered garden courtyards, quiet walkways, "
-    "and indoor sanctuaries. Only depict a mountain if the meditation text specifically names one.\n"
+    "- MANDATORY SCENIC & BACKGROUND VERSATILITY: strictly DO NOT default every meditation to "
+    "an indoor room, a plaster wall, or a generic mountain vista. Ensure rich variety across the collection: "
+    "calm natural shorelines and tranquil lakes, sun-dappled forest clearings, open grassy meadows, "
+    "sheltered garden courtyards with bamboo or stone, open-air terraces overlooking peaceful landscapes, "
+    "quiet sanctuaries, and minimalist rooms. The background must reflect the unique setting of THIS meditation.\n"
     "- NEVER THE OVERUSED POSE: do NOT show a hand pressed to, resting on, covering, or cradling the "
     "chest, heart, or sternum, and do not fall back on a generic studio or empty-backdrop portrait. That "
     "gesture is already repeated across the collection and must not appear here.\n"
     "- ONLY INVENT WHAT THE MEDITATION LEAVES OPEN: where it gives no detail, choose something plausible "
     "for that hour and setting — and choose differently from the other meditations in the collection "
-    "rather than reusing one default pose."
+    "rather than reusing one default pose or one repetitive room background."
 )
 
 V2_COVER_PROMPT_TEMPLATE = """\
