@@ -1331,6 +1331,7 @@ def _heuristic_v2_photograph_description(story: Story) -> str:
     seed_num = abs(hash(seed_key))
 
     setting_desc = _build_v2_detailed_setting(story, blob, seed_num)
+    text_lower = f"{blob} {getattr(story, 'title', '')}".lower()
 
     beat_snippet = ""
     banned_beat_keywords = [
@@ -1465,6 +1466,22 @@ def _heuristic_v2_photograph_description(story: Story) -> str:
                 action = "dancing joyfully together with fluid dynamic movement and arms raised in the golden afternoon sunlight at an outdoor gathering with soft warm haze"
                 comp = "Joyful candid environmental two-shot capturing both companions moving naturally together with eye-soothing ambient lighting"
                 mood_posture = "Dynamic movement, open arms, infectious laughter, radiant sun-kissed energy, captivating joyful eye contact, and genuine celebration"
+            elif any(k in text_lower for k in ("car", "drive", "road", "trip", "travel", "train", "station", "journey", "transit", "ferry", "boat", "harbor")):
+                action = "traveling together with dynamic candid momentum, sharing an authentic laugh while gazing out at new horizons"
+                comp = "Atmospheric environmental two-shot showing both companions on their journey with cinematic sense of motion and layered scenic depth"
+                mood_posture = "Dynamic travel posture, casual comfortable movement, breeze in hair, captivating eyes, radiant energy, and shared adventurous connection"
+            elif any(k in text_lower for k in ("cook", "kitchen", "dinner", "lunch", "breakfast", "wine", "food", "eat", "cafe", "coffee", "restaurant", "dining", "table")):
+                action = "sharing an engaging, animated conversation over a warm drink or shared table, leaning in with lively hand gestures and shared smiles"
+                comp = "Intimate candid medium two-shot with sharp focus on both individuals and soft ambient dining background"
+                mood_posture = "Dynamic interactive posture, expressive hands, genuine laughter, captivating eye contact, and authentic interpersonal warmth"
+            elif any(k in text_lower for k in ("rain", "storm", "umbrella", "wet", "puddle", "autumn", "winter", "cold", "snow", "fog", "mist")):
+                action = "sharing a large dark umbrella along a glistening rain-soaked pathway, stepping together with close protective warmth"
+                comp = "Atmospheric candid two-shot capturing the couple close together under soft rain with shimmering wet reflections"
+                mood_posture = "Dynamic walking posture, shoulders touching under the umbrella, interlinked arms, radiant smiles, and tender closeness"
+            elif any(k in text_lower for k in ("art", "book", "read", "library", "museum", "gallery", "market", "bazaar", "shop", "explore")):
+                action = "exploring an atmospheric market or gallery together, pausing side by side to examine an intriguing find with shared curiosity"
+                comp = "Candid environmental two-shot showing both companions actively exploring their surroundings with rich layered depth"
+                mood_posture = "Dynamic engaged posture, pointing or holding an item, curious captivating expressions, and genuine mutual connection"
             elif any(k in text_lower for k in ("high five", "palms", "hands touch")):
                 action = "touching palms / high-fiving with radiant golden sunlight gleaming brilliantly between their hands"
                 comp = "Dynamic candid two-shot capturing the joyful, authentic connection between both subjects with creamy background blur"
@@ -1476,19 +1493,44 @@ def _heuristic_v2_photograph_description(story: Story) -> str:
             else:
                 pair_actions = [
                     (
-                        "sharing a tender, magnetic moment outdoors with electric romantic chemistry and shared smiles",
-                        "Candid two-shot showing both companions close together in natural light with layered background depth",
-                        "Dynamic posture, interlinked hands, authentic interpersonal closeness, captivating magnetic gazes, and radiant romantic warmth (never depressed)",
+                        "walking side by side along a vibrant open-air pathway with dynamic, fluid strides and authentic shared laughter",
+                        "Atmospheric candid environmental two-shot showing both companions moving naturally together with layered scenic depth",
+                        "Dynamic walking posture, casual movement, hands brushing lightly, captivating magnetic eye contact, and radiant warmth",
                     ),
                     (
-                        "seated side by side in lively, playful conversation, leaning into each other with unforced warmth",
+                        "standing together at an elevated scenic vantage point, one gesturing toward the horizon while the other smiles warmly in response",
+                        "Candid medium two-shot capturing both individuals interacting naturally against an expansive horizon",
+                        "Dynamic standing posture, gentle natural closeness, wind stirring hair, captivating eyes, and authentic shared adventure",
+                    ),
+                    (
+                        "sharing an animated, playful conversation while pausing mid-stride, turning toward each other with effortless chemistry",
                         "Intimate medium framing showing both individuals clearly in frame with creamy background roll-off",
-                        "Dynamic leaning posture, shoulders touching, expressive hand gestures, captivating eye contact, and vibrant emotional connection",
+                        "Dynamic turned posture, expressive hand gestures, genuine smiles, captivating eye contact, and vibrant emotional connection",
+                    ),
+                    (
+                        "walking arm-in-arm through an atmospheric setting with relaxed, fluid grace and unposed closeness",
+                        "Cinematic candid two-shot with sharp focus on both subjects and layered background depth",
+                        "Dynamic fluid movement, intertwined arms, relaxed shoulders, shared alluring smiles, and natural electric chemistry",
                     ),
                     (
                         "sharing an authentic laugh and warm embrace in the golden evening light",
                         "Atmospheric candid two-shot with sharp focus on both subjects and soft ambient bokeh",
-                        "Dynamic fluid embrace, fingers resting softly on arm or shoulder, captivating smiles, and natural electric chemistry",
+                        "Dynamic fluid embrace, fingers resting softly on arm or shoulder, captivating smiles, and natural magnetic warmth",
+                    ),
+                    (
+                        "pausing together during an outdoor walk, leaning in close with captivating romantic chemistry and shared smiles",
+                        "Intimate two-shot capturing the couple close together in natural light with creamy background depth",
+                        "Dynamic close posture, interlinked hands, authentic interpersonal closeness, captivating magnetic gazes, and radiant warmth",
+                    ),
+                    (
+                        "exploring an open-air neighborhood together, side by side with curious expressions and spontaneous shared joy",
+                        "Candid environmental two-shot capturing both companions moving comfortably through the picturesque setting",
+                        "Dynamic stride, relaxed shoulders, breeze in clothing, radiant expressions, and authentic mutual connection",
+                    ),
+                    (
+                        "seated side by side in lively, playful conversation, leaning into each other with unforced warmth",
+                        "Intimate medium framing showing both individuals clearly in frame with creamy background roll-off",
+                        "Dynamic leaning posture, shoulders touching, expressive hand gestures, captivating eye contact, and vibrant connection",
                     ),
                 ]
                 action, comp, mood_posture = pair_actions[seed_num % len(pair_actions)]
@@ -1503,8 +1545,8 @@ def _heuristic_v2_photograph_description(story: Story) -> str:
                 action = "radiating alluring magnetism, charismatic confidence, and captivating physical presence"
                 magnetic_gestures = [
                     "captivating magnetic gaze directly connecting with the camera, subtle confident half-smile, fingers lightly touching hair or collar, radiant and alluring with effortless charm",
-                    "leaning naturally against a sunlit balustrade or wall with relaxed fluid grace, an enigmatic captivating smile, and glowing magnetic eye contact",
-                    "holding an everyday object or glass at sunset with a playful, confident gaze, completely captivating and radiant with inner vitality",
+                    "walking with poised magnetic confidence along an atmospheric path, an enigmatic captivating smile, and glowing eye contact",
+                    "holding an everyday keepsake or glass with a playful, confident gaze, completely captivating and radiant with inner vitality",
                     "windswept hair and open, alluring posture, radiant with self-assured magnetic beauty, graceful posture, and luminous eye catchlights",
                 ]
                 gesture = magnetic_gestures[seed_num % len(magnetic_gestures)]
@@ -1521,20 +1563,26 @@ def _heuristic_v2_photograph_description(story: Story) -> str:
             else:
                 action = "captured in an authentic private moment, composed with calm magnetic beauty, quiet inner strength, and eye-soothing dignity"
                 contemplative_gestures = [
-                    "resting naturally with hand near collar or cup, thoughtful captivating gaze with subtle inner light and dignity",
-                    "sitting in peaceful reflection with gentle relaxed posture and serene, content expression",
-                    "standing poised near natural window light, calm self-assured posture and clear evocative presence",
-                    "leaning naturally against a wall, posture relaxed, thoughtful and emotionally grounded",
-                    "walking at a relaxed pace along a quiet street, calm and centered in thought with poised magnetic grace",
-                    "holding an everyday object or cup, introspective yet composed, completely captivating, and vibrant with life",
+                    "walking at an unhurried, purposeful pace along an atmospheric pathway with centered composure and captivating presence",
+                    "standing poised at an open scenic overlook, looking thoughtfully toward the horizon with calm dignity and radiant inner strength",
+                    "candid mid-stride moment on an outdoor street, wind gently stirring hair, an enigmatic captivating gaze and self-assured poise",
+                    "pausing near natural light with hands resting naturally in jacket pockets, thoughtful alluring expression with subtle inner vitality",
+                    "examining an interesting book or everyday keepsake with quiet focus and magnetic personal charisma",
+                    "resting comfortably at an outdoor cafe table with a warm cup, looking out with thoughtful, composed presence and dignity",
+                    "standing near an open doorway or terrace looking out at the sky, breathing in the air with calm self-assured composure",
+                    "walking through a serene park or tree-lined avenue, composed in thought with poised magnetic grace and eye-soothing presence",
                 ]
                 gesture = contemplative_gestures[seed_num % len(contemplative_gestures)]
                 mood_posture = f"Dynamic natural posture, {gesture}, {sensory_anchor}, emotionally honest, attractive, and magnetic expression with eye-soothing presence (never sad or depressed)"
 
-    if any(w in setting_desc.lower() for w in ("beach", "shore", "island", "coast", "summer", "festival")):
-        wardrobe = "Tastefully dressed in relaxed, eye-soothing summer casual wear with tactile textures (e.g. breathable linen shirt with rolled cuffs, soft knitwear, or summer dress gently moving in the breeze)."
+    if any(w in text_lower or w in setting_desc.lower() for w in ("rain", "storm", "cold", "winter", "autumn", "coat", "jacket")):
+        wardrobe = "Tastefully dressed in stylish seasonal outerwear with rich textures (e.g. tailored wool coat, structured jacket, or elegant scarf matching the atmospheric setting)."
+    elif any(w in text_lower or w in setting_desc.lower() for w in ("beach", "shore", "island", "coast", "summer", "festival")):
+        wardrobe = "Tastefully dressed in relaxed, eye-soothing summer casual wear with tactile textures (e.g. breathable linen shirt with rolled cuffs, breezy cotton dress, or relaxed daywear gently moving in the breeze)."
+    elif any(w in text_lower or w in setting_desc.lower() for w in ("evening", "night", "dinner", "wine", "elegant")):
+        wardrobe = "Tastefully dressed in elegant evening casual attire (e.g. stylish buttoned shirt, refined dark jacket, or chic minimalist dress with clean tailoring)."
     else:
-        wardrobe = "Fully clothed in stylish, eye-soothing casual attire with tactile textures (e.g. textured knitwear, soft tailored jacket, or relaxed cotton shirt matching the setting)."
+        wardrobe = "Fully clothed in stylish, eye-soothing casual attire with tactile textures (e.g. relaxed button-down shirt, soft tailored jacket, or tasteful everyday layers matching the setting)."
 
     mandate_prefix = ""
     separator = ", " if cast_mode in ("pair", "group") else " "
@@ -1733,9 +1781,7 @@ def refine_story_visual_art_direction(story: Story, *, use_llm: bool = True) -> 
             "varied intimate spaces (warm quiet rooms, window slant light, balconies, terraces), authentic imperfections, "
             "warm amber-olive and golden-earth light with directional chiaroscuro, and film texture. "
             if is_meditation
-            else "Natural expression, subtle varied gestures (e.g. holding an object, touching hair, resting against a wall, "
-            "looking through a window, sitting quietly, or walking alone; never forcing a single pose), authentic "
-            "imperfections, soft natural light, and film texture. "
+            else "Natural expression and dynamic postures directly derived from the story's actual physical actions (e.g. walking, cooking, exploring, traveling, dining, creative craft, or candid outdoor movement; strictly avoid defaulting to repetitive sitting side-by-side or wall-leaning poses unless specifically written in the text), authentic imperfections, soft natural light, and film texture. "
         )
         sensory_clause = (
             f"Ground the scene in this meditation's own sensory anchor: {_meditation_staging(story)[2]}. "
@@ -1854,8 +1900,7 @@ def extract_v2_visual_art_direction(
                 "muted sage-green, and \"visual_style\" as a warm sunrise-gold and amber-olive vintage 35mm analogue "
                 "colour-film snapshot — never monochrome, sepia, or black-and-white. "
                 if is_meditation
-                else "Use subtle varied gestures appropriate to the story (holding an object, touching hair, resting "
-                "against a wall, looking through a window, sitting quietly, walking alone; never forcing a single pose). "
+                else "Use dynamic varied postures and authentic physical actions derived directly from the narrative (e.g. walking, exploring, laughing mid-motion, traveling, dining, or creative craft; strictly avoid defaulting to repetitive sitting side-by-side or wall-leaning stances). "
             )
             tonal_clause = (
                 "a warm sunrise-gold and amber-olive dawn glow with directional chiaroscuro over muted sage-green and deep velvety shadows. "
