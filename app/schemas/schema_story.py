@@ -320,3 +320,48 @@ class StoryDetailUserResponse(BaseModel):
     @classmethod
     def format_media(cls, v):
         return format_media_url(v)
+
+
+class BulkStoryItem(BaseModel):
+    title: str = "Untitled"
+    story_type: str = "confession"
+    story_text: str
+    first_name: Optional[str] = None
+    age: Optional[int] = None
+    gender: Optional[str] = None
+    city: Optional[str] = None
+    country: Optional[str] = None
+    occupation: Optional[str] = None
+    sexual_orientation: Optional[str] = None
+    growth_areas: List[str] = []
+    life_phase: Optional[str] = None
+    tags: List[str] = []
+    high_intensity: bool = False
+    hero_hook: Optional[str] = None
+    hero_tagline: Optional[str] = None
+
+
+class BulkParseResponse(BaseModel):
+    total_stories: int
+    stories: List[BulkStoryItem]
+
+
+class BulkConfirmRequest(BaseModel):
+    stories: List[BulkStoryItem]
+    generate_covers: bool = True
+    generate_audio: bool = False
+
+
+class IngestedStorySummary(BaseModel):
+    id: str
+    story_number: Optional[int] = None
+    title: str
+    story_type: str
+    cover_status: str
+    voice_status: str
+    content_status: str
+
+
+class BulkIngestResponse(BaseModel):
+    total_created: int
+    stories: List[IngestedStorySummary]
