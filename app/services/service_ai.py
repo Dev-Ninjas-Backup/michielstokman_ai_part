@@ -477,9 +477,38 @@ class AIService:
             life_phase = life_phase.strip() or None
         else:
             life_phase = None
+        canonical_growth_map = {
+            "fear & freedom": "Fear & Freedom",
+            "self-acceptance": "Self-Acceptance",
+            "forgiveness": "Forgiveness",
+            "letting go": "Letting Go",
+            "presence": "Presence",
+            "self-compassion": "Self-Compassion",
+            "rebuilding": "Rebuilding",
+            "patience": "Patience",
+            "love & connection": "Love & Connection",
+            "purpose & meaning": "Purpose & Meaning",
+        }
+        canonical_life_phase_map = {
+            "discovering": "Discovering",
+            "building": "Building",
+            "recalibrating": "Recalibrating",
+            "deepening": "Deepening",
+            "passing on": "Passing On",
+        }
+
+        normalized_growth = []
+        for g in growth:
+            g_str = str(g).strip()
+            if g_str:
+                normalized_growth.append(canonical_growth_map.get(g_str.lower(), g_str))
+
+        if life_phase:
+            life_phase = canonical_life_phase_map.get(life_phase.lower(), life_phase)
+
         result = {
             "tags": [str(t).strip() for t in tags if str(t).strip()][:8],
-            "growth_areas": [str(g).strip() for g in growth if str(g).strip()][:4],
+            "growth_areas": normalized_growth[:4],
             "life_phase": life_phase,
         }
         if not result["tags"] and not result["growth_areas"] and not result["life_phase"]:
