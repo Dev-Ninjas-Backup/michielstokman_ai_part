@@ -364,6 +364,7 @@ def ingest_bulk_stories(
         story.hero_tagline = item.get("hero_tagline")
         story.moderation_status = ModerationStatus.pending
         story.content_status = AssetReviewStatus.ready_for_review
+        story.generation_status = GenerationStatus.completed
 
         # Cover asset setup
         if generate_covers:

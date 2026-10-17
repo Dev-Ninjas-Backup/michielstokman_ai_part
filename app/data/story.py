@@ -42,9 +42,10 @@ def create_story(
     cover_image_key: Optional[str] = None,
     image_source=None,
     audio_path: Optional[str] = None,
+    generation_status: Optional[GenerationStatus] = None,
 ) -> Story:
     """
-    Inserts a new Story row in 'processing' state.
+    Inserts a new Story row in 'processing' state (or specified generation_status).
     Exactly one of user_id or admin_id should be provided.
     Seeds with social proof metrics rather than starting at 0.
     """
@@ -75,7 +76,7 @@ def create_story(
     story = Story(
         story_type=story_type,
         job_id=job_id,
-        generation_status=GenerationStatus.processing,
+        generation_status=generation_status or GenerationStatus.processing,
         user_id=uuid.UUID(user_id) if user_id else None,
         admin_id=uuid.UUID(admin_id) if admin_id else None,
         title=title.strip() if title and title.strip() else None,
@@ -577,16 +578,26 @@ def _moderation_query(
     publication_status_filter: Optional[str] = None,
 ):
     """Shared filter chain so the list and its count can never disagree."""
+    from sqlalchemy import and_, or_
     from app.model.story import (
         AssetReviewStatus,
+        GenerationStatus,
         ModerationStatus,
         StoryType,
         SubmissionStatus,
     )
     from app.model.user import User
 
-    query = db.query(Story).filter(
+    completed_or_ready = or_(
         Story.generation_status == GenerationStatus.completed,
+        and_(
+            Story.story_text.isnot(None),
+            Story.story_text != "",
+        ),
+    )
+
+    query = db.query(Story).filter(
+        completed_or_ready,
         Story.submission_status != SubmissionStatus.withdrawn,
     )
 
@@ -659,13 +670,21 @@ def count_moderation_stories(
 
 def get_moderation_stats(db: Session) -> dict:
     """Get counts of stories by moderation status."""
-    from app.model.story import ModerationStatus
-    from sqlalchemy import func
+    from app.model.story import GenerationStatus, ModerationStatus, SubmissionStatus
+    from sqlalchemy import and_, func, or_
+    completed_or_ready = or_(
+        Story.generation_status == GenerationStatus.completed,
+        and_(
+            Story.story_text.isnot(None),
+            Story.story_text != "",
+        ),
+    )
     stats = db.query(
         Story.moderation_status,
         func.count(Story.id).label("count")
     ).filter(
-        Story.generation_status == GenerationStatus.completed
+        completed_or_ready,
+        Story.submission_status != SubmissionStatus.withdrawn,
     ).group_by(Story.moderation_status).all()
     return {str(status): count for status, count in stats}
 
