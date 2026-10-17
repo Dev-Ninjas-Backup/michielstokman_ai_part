@@ -40,6 +40,9 @@ from app.schemas.schema_story import (
     RequestChangesRequest,
     RequestChangesResponse,
     VoiceRequirementRequest,
+    BulkParseResponse,
+    BulkConfirmRequest,
+    BulkIngestResponse,
 )
 
 logger = logging.getLogger(__name__)
@@ -1032,3 +1035,173 @@ def delete_meditation(
         story_id=story_id_to_return,
     )
     return success_response("Meditation deleted successfully", status.HTTP_200_OK, result)
+
+
+# ============================================================================
+# Bulk Story Ingestion & AI Splitting
+# ============================================================================
+
+
+@router.post(
+    "/admin/moderation/bulk-parse",
+    response_model=ApiResponse[BulkParseResponse],
+)
+async def bulk_parse_document(
+    file: UploadFile = File(...),
+    default_story_type: Optional[str] = None,
+    current_user: User = Depends(get_current_admin_user),
+):
+    """
+    Parses a document (.docx, .pdf, .txt, .md), extracts the text,
+    and runs AI to separate individual stories and generate clean metadata.
+    Returns preview data without writing to the database.
+    """
+    from app.utils.document_parser import extract_text_from_file
+    from app.services.service_bulk_import import parse_and_split_document_text
+
+    raw_bytes = await file.read()
+    if not raw_bytes:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Uploaded file is empty.",
+        )
+
+    try:
+        raw_text = extract_text_from_file(raw_bytes, file.filename or "upload.txt")
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
+
+    try:
+        stories = parse_and_split_document_text(
+            raw_text, default_story_type=default_story_type
+        )
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(e),
+        )
+
+    result = BulkParseResponse(
+        total_stories=len(stories),
+        stories=stories,
+    )
+    return success_response(
+        f"Successfully extracted {len(stories)} stories from document",
+        status.HTTP_200_OK,
+        result,
+    )
+
+
+@router.post(
+    "/admin/moderation/bulk-confirm",
+    response_model=ApiResponse[BulkIngestResponse],
+)
+def bulk_confirm_ingest(
+    payload: BulkConfirmRequest,
+    background_tasks: BackgroundTasks,
+    current_user: User = Depends(get_current_admin_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Takes confirmed/edited extracted stories, creates Story database records,
+    and initiates asynchronous AI cover/audio generation as requested.
+    """
+    from app.services.service_bulk_import import ingest_bulk_stories
+
+    if not payload.stories:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No stories provided for ingestion.",
+        )
+
+    stories_data = [item.model_dump() for item in payload.stories]
+    created = ingest_bulk_stories(
+        db=db,
+        stories_data=stories_data,
+        admin_id=str(current_user.id),
+        background_tasks=background_tasks,
+        generate_covers=payload.generate_covers,
+        generate_audio=payload.generate_audio,
+    )
+
+    result = BulkIngestResponse(
+        total_created=len(created),
+        stories=created,
+    )
+    return success_response(
+        f"Successfully ingested {len(created)} stories into the publication queue",
+        status.HTTP_201_CREATED,
+        result,
+    )
+
+
+@router.post(
+    "/admin/moderation/bulk-upload",
+    response_model=ApiResponse[BulkIngestResponse],
+)
+async def bulk_upload_and_ingest(
+    background_tasks: BackgroundTasks,
+    file: UploadFile = File(...),
+    generate_covers: bool = True,
+    generate_audio: bool = False,
+    default_story_type: Optional[str] = None,
+    current_user: User = Depends(get_current_admin_user),
+    db: Session = Depends(get_db),
+):
+    """
+    One-step endpoint: uploads a document, parses/separates stories,
+    inserts them into the database, and queues AI asset generation.
+    """
+    from app.utils.document_parser import extract_text_from_file
+    from app.services.service_bulk_import import (
+        parse_and_split_document_text,
+        ingest_bulk_stories,
+    )
+
+    raw_bytes = await file.read()
+    if not raw_bytes:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Uploaded file is empty.",
+        )
+
+    try:
+        raw_text = extract_text_from_file(raw_bytes, file.filename or "upload.txt")
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
+
+    try:
+        stories_data = parse_and_split_document_text(
+            raw_text, default_story_type=default_story_type
+        )
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(e),
+        )
+
+    created = ingest_bulk_stories(
+        db=db,
+        stories_data=stories_data,
+        admin_id=str(current_user.id),
+        background_tasks=background_tasks,
+        generate_covers=generate_covers,
+        generate_audio=generate_audio,
+    )
+
+    result = BulkIngestResponse(
+        total_created=len(created),
+        stories=created,
+    )
+    return success_response(
+        f"Successfully ingested {len(created)} stories from document",
+        status.HTTP_201_CREATED,
+        result,
+    )
+
