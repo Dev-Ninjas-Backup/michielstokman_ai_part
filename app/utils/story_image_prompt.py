@@ -1073,18 +1073,50 @@ def _detect_v2_lighting_and_atmosphere(story: Story, seed_num: int) -> tuple[str
 
     from app.model.story import StoryType
     if getattr(story, "story_type", None) == StoryType.meditation:
+        if any(k in full_text for k in ("water", "lake", "ocean", "sea", "river", "shore", "dock", "pier")):
+            return (
+                "Tranquil morning dawn light reflecting softly across calm glassy water with gentle pale-amber highlights, subtle sage tones, and serene atmospheric depth",
+                "Deep meditative stillness beside calm water, clean fresh air, and peaceful horizon reflections",
+            )
+        if any(k in full_text for k in ("forest", "wood", "woods", "trees", "pine", "garden", "meadow", "field")):
+            return (
+                "Organic sunbeams filtering through leafy tree canopy with gentle dappled light patterns, warm earthen highlights, and calming foliage shadows",
+                "Serene natural sensory environment with clean forest air, living stillness, and atmospheric outdoor depth",
+            )
+        if any(k in full_text for k in ("terrace", "balcony", "overlook", "sky", "horizon", "mountain", "hill")):
+            return (
+                "Expansive open-sky morning daylight with crisp soft clarity, gentle sunrise-gold highlights, and panoramic atmospheric perspective",
+                "Airy high vantage with refreshing morning breeze, spacious tranquility, and deep contemplative calm",
+            )
+        if any(k in full_text for k in ("sunset", "dusk", "evening", "twilight", "candle", "night")):
+            return (
+                "Soft evening dusk glow with deep velvety shadows, warm amber candle or twilight reflections, and peaceful contemplative hush",
+                "Quiet twilight sanctuary with settling shadows, warm ambient serenity, and profound evening calm",
+            )
         meditation_profiles = [
             (
-                "Warm directional slant window light casting delicate chiaroscuro shadows across a textured wall, subtle warm amber-olive and golden undertones, and deep velvety dark shadows",
+                "Warm directional slant light casting delicate chiaroscuro shadows across peaceful surroundings, subtle warm amber-gold undertones, and velvety dark shadows",
                 "Tranquil, meditative inner sanctuary with soft warm golden-olive tones, gentle ambient chiaroscuro, and deep grounding stillness",
             ),
             (
-                "Soft diffused morning daylight filtering into an intimate room with warm amber-gold highlights, muted sage and earthy shadows, and rich velvety dark tones",
-                "Calm, grounding room ambiance with quiet natural stillness, warm earthy tones, and deep contemplative presence",
+                "Soft diffused morning daylight filtering through open greenery with gentle pale-amber highlights, muted sage and earthy shadows, and rich velvety dark tones",
+                "Calm, grounding natural ambiance with quiet morning stillness, warm earthy tones, and deep contemplative presence",
             ),
             (
-                "Gentle morning window slant light with warm pale-amber highlights and soft chiaroscuro sculpting peaceful facial contours over muted sage-olive undertones",
-                "Serene, eye-soothing sanctuary with warm muted undertones, tranquil room ambiance, and profound inner quiet",
+                "Gentle morning dawn light with warm pale-amber highlights and soft chiaroscuro sculpting peaceful facial contours over muted sage-olive undertones",
+                "Serene, eye-soothing sanctuary with warm muted undertones, tranquil ambiance, and profound inner quiet",
+            ),
+            (
+                "Soft ambient open-air illumination with clean natural clarity, subtle warm highlights on hair and hands, and deep peaceful negative space",
+                "Expansive, peaceful open-air presence with fresh gentle breeze, grounding stillness, and serene clarity",
+            ),
+            (
+                "Quiet courtyard morning light with dappled stone reflections, gentle soft-contrast shadows, and warm earthy midtones",
+                "Sheltered sanctuary with soft stone textures, quiet foliage, and deep restful presence",
+            ),
+            (
+                "Warm golden late-afternoon light casting long serene shadows, warm honey highlights, and calm meditative depth",
+                "Late-day quietude with settling warmth, peaceful reflection, and timeless contemplative grace",
             ),
         ]
         return meditation_profiles[seed_num % len(meditation_profiles)]
@@ -1165,17 +1197,23 @@ def _build_v2_detailed_setting(story: Story, blob: str, seed_num: int) -> str:
     from app.model.story import StoryType
     if getattr(story, "story_type", None) == StoryType.meditation:
         loc_suffix = f" in {location}" if location else ""
-        if any(k in full_context for k in ("terrace", "balcony", "patio", "rooftop")):
-            return f"on an intimate, eye-soothing outdoor terrace{loc_suffix} overlooking sun-dappled terracotta rooftops, rustic ironwork balconies, and soft ambient perspective"
-        if any(k in full_context for k in ("garden", "courtyard")):
-            return f"in an intimate, private garden courtyard{loc_suffix} with textured stone walls, lush green foliage, and soft dappled sunlight"
-        if any(k in full_context for k in ("path", "trail", "walk", "lake")):
-            return f"along an intimate, tranquil natural path{loc_suffix} with soft morning air, rustic stone, and layered quiet perspective"
+        if any(k in full_context for k in ("water", "lake", "ocean", "sea", "river", "shore", "beach", "dock", "pier")):
+            return f"beside an intimate, tranquil glassy lake or calm shoreline{loc_suffix} with gentle ripples, weathered stone, soft water mist, and peaceful horizon"
+        if any(k in full_context for k in ("forest", "wood", "woods", "pine", "trees", "trail", "path", "meadow", "field")):
+            return f"along an intimate, serene natural forest path or open glade{loc_suffix} with sun-dappled trees, soft mossy ground, and layered quiet perspective"
+        if any(k in full_context for k in ("terrace", "balcony", "patio", "rooftop", "overlook")):
+            return f"on an intimate, eye-soothing outdoor terrace or open overlook{loc_suffix} with weathered stone balustrades, potted greenery, and expansive peaceful sky"
+        if any(k in full_context for k in ("garden", "courtyard", "zen", "bamboo")):
+            return f"in an intimate, private garden courtyard{loc_suffix} with textured stone walls, lush green foliage, bamboo, and soft dappled sunlight"
         med_varied_scenes = [
-            f"in an intimate, beautifully textured room{loc_suffix} with a textured plaster wall, warm window slant light casting delicate shadows, and gentle ambient depth",
-            f"in an intimate morning sanctuary{loc_suffix} beside an open window with soft diffused daylight, warm wooden floorboards, and peaceful spatial depth",
+            f"beside an intimate, tranquil glassy lake{loc_suffix} with morning mist, weathered timber, and peaceful water horizon",
+            f"in an intimate morning sanctuary{loc_suffix} beside an open terrace with soft diffused daylight, lush greenery, and peaceful spatial depth",
+            f"along an intimate, eye-soothing winding nature path{loc_suffix} with sun-dappled foliage, wild grasses, and tranquil background depth",
             f"on an intimate, eye-soothing open terrace{loc_suffix} overlooking sun-dappled rooftops, weathered stone balustrades, and quiet morning air",
-            f"in an intimate, quiet living space{loc_suffix} with soft linen drapery, warm practical light, textured surfaces, and deep serene stillness",
+            f"in an intimate, sheltered stone courtyard{loc_suffix} with smooth river pebbles, potted greenery, and deep serene stillness",
+            f"beneath a large quiet cedar tree in an open meadow{loc_suffix} with soft morning breeze, wild grasses, and expansive calm sky",
+            f"in an intimate, beautifully textured room{loc_suffix} with a textured plaster wall, warm window slant light casting delicate shadows, and gentle ambient depth",
+            f"in an intimate, quiet living space{loc_suffix} with soft linen drapery, warm natural wood surfaces, and deep peaceful stillness",
         ]
         return med_varied_scenes[seed_num % len(med_varied_scenes)]
 
