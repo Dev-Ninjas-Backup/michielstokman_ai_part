@@ -87,7 +87,7 @@ def uses_v2_pipeline(story: Story | None = None) -> bool:
         return False
     if story is None:
         return True
-    return story.story_type in (StoryType.confession, StoryType.meditation)
+    return story.story_type in (StoryType.confession, StoryType.meditation, StoryType.transformation)
 
 
 def _split_location(story: Story) -> tuple[str, str]:
